@@ -1,0 +1,32 @@
+{
+  "name": "Vew",
+  "version": "1.0.0",
+  "description": "testing -------",
+  "main": "dist/vew.js",
+  "jsnext:main": "dist/vew.es6.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "BABEL_ENV=development webpack",
+    "bundle": "BABEL_ENV=production rollup -c"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "babel-core": "^6.18.2",
+    "babel-eslint": "^7.1.1",
+    "babel-loader": "^6.2.8",
+    "babel-plugin-external-helpers": "^6.18.0",
+    "babel-plugin-transform-hoist-nested-functions": "^1.1.1",
+    "babel-preset-es2015": "^6.18.0",
+    "babelrc-rollup": "^3.0.0",
+    "eslint": "^3.10.2",
+    "google-closure-compiler": "^20161024.3.0",
+    "rollup": "^0.36.3",
+    "rollup-plugin-babel": "^2.6.1",
+    "usertiming": "^0.1.8",
+    "webpack": "^1.13.3"
+  }
+}
