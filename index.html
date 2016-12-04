@@ -1,0 +1,55 @@
+<!doctype html>
+<html xmlns:t="tempsoon">
+<!--
+<head><script type="text/javascript" src="//getfirebug.com/firebug-lite.js">
+-->
+<head>
+  <meta charset="UTF-8">
+  <title>Document</title>
+  <link rel="stylesheet" href="/playground/blackbird-js/blackbird.css">
+  <script type="text/javascript">document.createElement('t:tempsoon')</script>
+  <style>t\: *, t\:tempsoon { display: none }</style>
+</head>
+<body>
+  <script src="/node_modules/usertiming/src/usertiming.js"></script>
+    
+  <div id="main"></div>
+
+  <!-- 
+  <script src="/playground/blackbird-js/blackbird.js"></script>
+  <script src="/playground/json3.js"></script>
+
+  <script src="/playground/es5-shim.min.js"></script>
+  <script src="/playground/main.ie.js"></script>
+  <script src="/playground/barser.js"></script>
+  <script src="/playground/tagnames.js"></script>
+  <script src="/src/parser/html5/machine.min.js"></script>
+  <script src="/src/parser/html5/tokenizer.js"></script>
+  <script src="/src/parser/xhtml/treector.js"></script>
+  <script src="/src/parser/html5/tokenizer.regex.js"></script>
+  <script src="/src/parser/html5/tokenizer.loop.js"></script>
+  <script src="/src/parser/html5/tokenizer.full.js"></script>
+  <script src="/playground/jquery.js"></script>
+  <script src="/dist/treescious.js"></script>
+  <script src="/playground/uubench.js"></script>
+  <script src="/playground/bench.js"></script>
+
+  <script src="/playground/expression.js"></script>
+  <script src="/playground/domify.js"></script>
+  <script src="/playground/view.js"></script>
+
+  <script src="/playground/scopr.js"></script>
+  -->
+  <script>
+    var DEBUG = true
+    var main = document.getElementById('main')
+    
+    function spy () {
+      const func = arguments.callee.caller
+      console.log(func.name, JSON.stringify([].slice.call(func.arguments)))
+    }
+  </script>
+  <script src="/dist/vew.js"></script>
+
+</body>
+</html>
