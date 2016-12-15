@@ -142,7 +142,8 @@ const Section = Base.derive({
 
         if (CustomComp) {
           var Child = CustomComp.derive({
-            mountPath: nodePath.concat(nodeIndex)
+            isOwn: this.isOwn // inherit from parent component
+          , mountPath: nodePath.concat(nodeIndex)
           , Children: CustomComp.Children.slice()
           })
 
