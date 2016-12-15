@@ -1,7 +1,17 @@
 
+
+// AVANT TOUTE CHOSE!!!
+// write a template compiler function.
+// - the output must be serializable to javascript-code (not json).
+// - expressions already are serializable, hoist them for deduplication.
+// - text nodes pose a problem because they're split, innerHTML will join them again
+// - component tags must have a hyphen or colon in their name to
+//   reference them by a string. this also enables recursive components.
+//   the recursion must be conditional.
+
 import Base from './util/oloo'
 import { Error } from './util/global'
-import { map, forEach, fold } from './util/array'
+import { map, forEach, fold, indexOf } from './util/array'
 
 import Scope from './scope'
 import registry from './registry'
@@ -14,6 +24,10 @@ import {
 , getNodeName
 , Element
 , parse
+, preorder
+, replaceNode
+, appendChild
+, cloneNode
 , DOCUMENT_FRAGMENT
 , ELEMENT_NODE
 , TEXT_NODE
@@ -25,11 +39,11 @@ const Action = Base.derive({
 	compute: <function>
 	paths: <array>
 	DOMEffect: <function>
-	mountPath: <array>
+	path: <array>
 	 */
 
 	init (template, scope) {
-		this.node = resolveElement(template, this.mountPath)
+		this.node = resolveElement(template, this.path)
 		forEach(this.paths, path => { scope.subscribe(path, this) })
 	}
 
@@ -39,233 +53,238 @@ const Action = Base.derive({
   }
 })
 
-/* ---------------------------------------------------------------------------
+
+/* -----------------------------------------------------------------------------
  * scan template or template <content>
+ *
+ * bootstrapping a component is a greedy process. every encounter of
+ * a child component will result in a new prototype derived from it.
+ * we'll never know in advance which components will be used in a loop
+ * and would possibly benefit from this otherwise rather wasteful (memory)
+ * behaviour. then again, this just happens once, when bootstrapping a
+ * component, not each time it is instantiated.
  */
 var expressionPrefix = '${', expressionSuffix = '}'
 
-/**
- * walk the html structure in pre-order and extract options to
- * - either set up a component prototype
- * - or gather options for a child component
- * 
- * @param  {HTMLElement|DocumentFragment} template - component template or child component content
- * @param  {object} proto    - component prototype
- * @param  {array} nodePath - child component mount path
- * @return {object}
- */
-function scanTemplate (template, proto, nodePath) {
-  var options =
-  { Actions: []
-  , Children: []
-  , template: template
-  , contentPath: undefined
-    // options specific to child components
-  , mountPath: nodePath
-  , Component: proto
-  }
+const Section = Base.derive({
 
-  if (!template) return options // empty content
-
-  var node = template
-    , nodeType = node.nodeType
-    , nodeIndex = 0
-    , firstChild
-
-  if (nodeType === DOCUMENT_FRAGMENT) {
-    node = node.firstChild
-  }
-
-	nodePath = []
-
-  while (node) {
-    nodeType = node.nodeType
-
-    if (nodeType === TEXT_NODE) {
-      var nodeValue = node.nodeValue
-        , index = nodeValue.indexOf(expressionPrefix)
-
-      // found expression opening
-      if (index > -1) {
-      
-        // if the text does not start with the expression prefix
-        // split the text node into two distinct ones
-        if (index > 0) {
-
-          // cannot create siblings without a parent
-          if (!node.parentNode) {
-          	options.template = DocumentFragment(node)
-          }
-
-          node = node.splitText(index)
-          nodeValue = node.nodeValue
-          nodeIndex += 1
-        }
-
-        index = nodeValue.indexOf(expressionSuffix, expressionPrefix.length)
-
-        if (index < 0) {
-          throw new Error('unterminated expression')
-        }
-        
-        var source = nodeValue.substring(expressionPrefix.length, index)
-        	, expression = mangle(source)
-
-        options.Actions.push(Action.derive({
-					compute: evaluate(expression)
-				, paths: expression.paths
-				, mountPath: nodePath.concat(nodeIndex)
-				, DOMEffect: setNodeValue
-				}))
-
-        // if the text does not end with the expression suffix
-        // split the text node into two distinct ones
-        index += expressionSuffix.length
-
-        if (index < nodeValue.length) {
-
-          // cannot create siblings without a parent
-          if (!node.parentNode) {
-            options.template = DocumentFragment(node)
-          }
-
-          // loop step retrieves node.nextSibling
-          node.splitText(index)
-        }
-      }
-    }
-    else if (nodeType === ELEMENT_NODE) {
-    	var nodeName = getNodeName(node)
-    		, Component = registry[nodeName]
-
-    	if (Component) {
-    		options.Children.push(scanTemplate(
-          extractChildNodes(node)
-        , Component
-    		, nodePath.concat(nodeIndex)
-    		))
-    	}
-    	else if (nodeName === 'content') {
-    		options.contentPath = nodePath.concat(nodeIndex)
-    	}
-    }
-
-    // pre-order traversal
-    if (firstChild = node.firstChild) {
-      node = node.firstChild
-      nodePath.push(nodeIndex)
-      nodeIndex = 0
-    }
-    else {
-      while (node && !node.nextSibling) {
-        node = node.parentNode
-        nodeIndex = nodePath.pop()
-      }
-      node = node && node.nextSibling
-      nodeIndex += 1
-    }
-  }
-
-  return options
-}
-
-const Component = Base.derive({
-
-	replace: true
-
-, template: Element('content')
+  // whether or not the section/component is private to its component
+  // or a slot replacement provided by the using component. in case of the
+  // latter, contained actions will subscribe to the using component's scope.
+  isPrivate: true
 
 , bootstrap () {
-    var options = scanTemplate(parse(this.template))
-    
-    this.template = options.template
-    this.Actions = options.Actions
-    this.Children = options.Children
-    this.contentPath = options.contentPath
+
+    // this.Refs = {}
+    // this.Slots = {}
+    // this.Events = []
+    this.Actions = []
+    this.Children = []
+
+    var node = this.template = parse(this.template)
+      , nodeTemp
+      , nodeType = node.nodeType
+      , nodePath = []
+      , nodeIndex = 0
+
+    if (nodeType === DOCUMENT_FRAGMENT) {
+      node = node.firstChild
+    }
+
+    main: do {
+      nodeType = node.nodeType
+
+      if (nodeType === TEXT_NODE) {
+        var nodeValue = node.nodeValue
+          , index = nodeValue.indexOf(expressionPrefix)
+
+        // found expression opening
+        if (index > -1) {
+        
+          // if the text does not start with the expression prefix
+          // split the text node into two distinct ones
+          if (index > 0) {
+
+            // cannot create siblings without a parent
+            if (!node.parentNode) {
+              this.template = DocumentFragment(node)
+            }
+
+            node = node.splitText(index)
+            nodeValue = node.nodeValue
+            i += 1
+          }
+
+          index = nodeValue.indexOf(expressionSuffix, expressionPrefix.length)
+
+          if (index < 0) {
+            throw new Error('unterminated expression')
+          }
+          
+          var source = nodeValue.substring(expressionPrefix.length, index)
+            , expression = mangle(source)
+
+          this.Actions.push(Action.derive({
+            compute: evaluate(expression)
+          , paths: expression.paths
+          , path: nodePath.concat(nodeIndex)
+          , DOMEffect: setNodeValue
+          }))
+
+          // if the text does not end with the expression suffix
+          // split the text node into two distinct ones
+          index += expressionSuffix.length
+
+          if (index < nodeValue.length) {
+
+            // cannot create siblings without a parent
+            if (!node.parentNode) {
+              this.template = DocumentFragment(node)
+            }
+
+            // loop step retrieves node.nextSibling
+            node.splitText(index)
+          }
+        }
+      }
+      else if (nodeType === ELEMENT_NODE) {
+        var nodeName = getNodeName(node)
+          , CustomComp = registry[nodeName]
+
+        if (CustomComp) {
+          var Child = CustomComp.derive({
+            mountPath: nodePath.concat(nodeIndex)
+          , Children: CustomComp.Children.slice()
+          })
+
+          forEach(node.childNodes, childNode => {
+            
+            node.removeChild(childNode)
+
+            if (getNodeName(childNode) === 'slot') {
+              var defaultSlot = Child.Slots[ childNode.getAttribute('name') ]
+                , replaceSlot = Section.derive({
+                    isPrivate: false
+                  , template: extractChildNodes(childNode)
+                  , mountPath: defaultSlot.mountPath
+                  }).bootstrap()
+                , Children = Child.Children
+                , index = indexOf(Children, defaultSlot)
+
+              // the predefined slot may be no more than a mount path
+              if (index < 0) {
+                Children.push(replaceSlot)
+              }
+              else {
+                Children[i] = replaceSlot
+              }
+            }
+          })
+
+          this.Children.push(Child)
+        }
+        else if (nodeName === 'slot') {
+
+          if (!this.Slots) {
+            throw new Error('misplaced slot')
+          }
+
+          var slotName = node.getAttribute('name')
+            , template = extractChildNodes(node)
+
+          if (template) {
+            var slot = Section.derive({
+              template: template
+            , mountPath: nodePath.concat(nodeIndex)
+            }).bootstrap()
+
+            this.Children.push(slot)
+            this.Slots[slotName] = slot  
+          }
+          else {
+            this.Slots[slotName] = { mountPath: nodePath.concat(nodeIndex) }
+          }
+        }
+      }
+
+      // pre-order traversal
+      if (nodeTemp = node.firstChild) {
+        node = nodeTemp
+        nodePath.push(nodeIndex)
+        nodeIndex = 0
+      }
+      else do {
+        if (nodeTemp = node.nextSibling) {
+          node = nodeTemp
+          nodeIndex += 1
+          continue main
+        }
+        node = node.parentNode
+        nodeIndex = nodePath.pop()
+      } while (node)
+    } while (node)
 
     return this
   }
 
-, init (parent, content, contentScope) {
-    
-    // hierarchy link
-    this.parent = parent
-    parent = this
-
-    var scope = this.scope = Scope.new()
-      , actions = this.actions = []
-      , children = this.children = []
-
-      // clone template from prototype onto instance
+, init (parent, userScope) {
+    var parentScope = parent.scope
+      , actions = parent.actions
+      , children = parent.children
       , template = this.template = this.template.cloneNode(true)
 
-      // retrieve node references before mounting components which may invalidate other mount paths
-      , childMountNodes = map(this.Children, options => resolveElement(template, options.mountPath))
+        // retrieve node references before mounting components which may invalidate other mount paths
+      , childMountNodes = map(this.Children, Child => resolveElement(template, Child.mountPath))
 
     forEach(this.Actions, Action => {
-    	actions.push(Action.new(template, scope))
+      actions.push( Action.new(template, userScope) )
     })
 
-    forEach(this.Children, (options, i) => {
-      children.push(options.Component
-        .new(parent, options, scope)
-        .mount(childMountNodes[i])
-      )
+    forEach(this.Children, (Child, i) => {
+      children.push( Child.new(parent, Child.isPrivate ? parentScope : userScope).mount(childMountNodes[i]) )
     })
+  }
 
-    if (content && content.template && this.contentPath) {
-      var contentTemplate = content.template.cloneNode(true)
-        , contentMountNode = resolveElement(template, this.contentPath)
-        , contentChildMountNodes = map(content.Children, options => resolveElement(contentTemplate, options.mountPath))
+, mount (node) {
+    replaceNode(node, this.template)
+    return this
+  }
+})
 
-      forEach(content.Actions, Action => {
-        actions.push(Action.new(contentTemplate, contentScope))
-      })
+const Component = /*Section*/Base.derive({
 
-      forEach(content.Children, (options, i) => {
-        children.push(options.Component
-          .new(parent, options, contentScope)
-          .mount(contentChildMountNodes[i])
-        )
-      })
+  replace: true
 
-      this.mountContent(contentMountNode, contentTemplate)
-    }
-    else if (DEBUG && content && (content.template || this.contentPath)) {
-      throw new Error('missing <content> placeholder or actual content to replace it.')
-    }
+, bootstrap () {
+    this.Slots = {}
+    return Section.bootstrap.call(this)
+  }
+
+, init (parent, userScope) {
+    this.parent = parent
+    this.scope = Scope.new()
+    // this.refs = {}
+    // this.events = []
+    this.actions = []
+    this.children = []
+
+    Section.init.call(this, this, userScope || this.scope)
   }
 
 , mount: function (node) {
-
+  	// TODO: if a Child is mounted and replaces its component-tag
+  	// it may occur the parent doesn't provide a parentNode.
+  	// settings `this.parent.template = this.template` works but causes chaos!
     if (this.replace) {
-    	// TODO: if a child is mounted and replaces its component-tag
-    	// it may occur the parent doesn't provide a parentNode.
-    	// settings `this.parent.template = this.template` works but causes chaos!
-    	node.parentNode.replaceChild(this.template, node)
+    	replaceNode(node, this.template)
     }
     else {
-      node.appendChild(this.template)
+      appendChild(node, this.template)
     }
 
     return this
   }
 
-, mountContent: function (node, template) {
-    var parentNode = node.parentNode
-
-    if (parentNode) {
-      parentNode.replaceChild(template, node)
-    }
-    else {
-      // overrides the "empty" template <content/>
-      this.template = template
-    }
-  }
-
-  /**
-   * public api
-   */
 , get (path) {
 		return this.scope.resolve(path)
 	}

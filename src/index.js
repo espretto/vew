@@ -1,24 +1,22 @@
 
 
-import Component from './component'
+import Component from './component.alt'
 import registry from './registry'
 
 function Vew () {
-  var Custom = Component.derive.apply(Component, arguments)
+  var CustomComp = Component.derive.apply(Component, arguments)
 	
-	if (Custom.tag) {
-		registry[Custom.tag] = Custom
+	if (CustomComp.tag) {
+		registry[CustomComp.tag] = CustomComp
 	}
 
-	Custom.bootstrap()
+	CustomComp.bootstrap()
   
-  return Custom
+  return CustomComp
 }
 
-Vew({
-	tag: 'greet'
-, template: 'Hello <content></content> !'
-})
+Vew.registry = registry
+
 
 /*
 	example:

@@ -50,6 +50,28 @@ export const next = 'nextElementSibling' in document.documentElement
 	? nextElementSibling
 	: nextElementSiblingShim
 
+export function appendChild (parent, child) {
+  parent.appendChild(child)
+}
+
+export function cloneNode (node, deep) {
+  return node.cloneNode(deep)
+}
+
+/**
+ * replaceNode
+ * @param  {Element} attached - node to be replaced
+ * @param  {Element} loose    - replacement node
+ * @return {Element}          replaced node
+ */
+export function replaceNode (attached, loose) {
+  return attached.parentNode.replaceChild(loose, attached)
+}
+
+/**
+ * Element
+ * @param {Element} nodeName - name of DOM elment node
+ */
 export function Element (nodeName) {
   return document.createElement(nodeName)
 }
@@ -70,23 +92,56 @@ export function DocumentFragment (node) {
 }
 
 /**
+ * traverse DOM tree in pre-order
+ * @param  {Element} node - root node
+ * @param  {Function} func - iteree function (node, index, indexPath)
+ */
+    /* do this before calling preorder
+
+ex: preorder(tmpl.nodeType === DOCUMENT_FRAGMENT ? node.firstChild : node)
+
+  if (node.nodeType === DOCUMENT_FRAGMENT) {
+    node = node.firstChild
+  }
+*/
+export function preorder (node, func) {
+  var path = []
+    , i = 0
+    , next
+    , temp
+
+  main: do {
+
+    next = func(node, i, path)
+    if (next) [node, i] = next
+
+    if (temp = node.firstChild) {
+      node = temp
+      path.push(i)
+      i = 0
+    }
+    else do {
+      if (temp = node.nextSibling) {
+        node = temp
+        i += 1
+        continue main
+      }
+      node = node.parentNode
+      i = path.pop()
+    } while (node)
+  } while (node)
+}
+
+/**
  * resolveElement
  * @param  {Element} node
  * @param  {array} path
  * @return {Element}
  */
 export function resolveElement (node, path) {
-	var root = node.nodeType === 11 ? node : { firstChild: node }
-
-  return fold(path, root, function (parentNode, i) {
-  	var childNode = parentNode.firstChild
-
-  	while (i--) {
-  		childNode = childNode.nextSibling
-  	}
-
-  	return childNode
-  })
+  return node.nodeType === DOCUMENT_FRAGMENT
+    ? fold(path, node, (node, i) => node.childNodes[i])
+    : fold(path, { childNodes: [node] }, (node, i) => node.childNodes[i])
 }
 
 /**
@@ -114,7 +169,7 @@ export function extractChildNodes (node) {
   return childNodes
 }
 
-
+// TODO cleanup and es6-ify
 export const parse = (function (window) {
 
   var document = window.document
