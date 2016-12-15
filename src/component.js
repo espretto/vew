@@ -70,7 +70,7 @@ const Section = Base.derive({
 
   // slots are sections that may be passed down to child components in which
   // case they are still held by their direct parent but subscribe to the user's scope.
-  isOwn: true
+  isTranscluded: false
 
 , bootstrap () {
 
@@ -110,7 +110,7 @@ const Section = Base.derive({
 
           index = nodeValue.indexOf(expressionSuffix, expressionPrefix.length)
 
-          if (index < 0) {
+          if (DEBUG && index < 0) {
             throw new Error('unterminated expression')
           }
           
@@ -141,25 +141,28 @@ const Section = Base.derive({
           , CustomComp = registry[nodeName]
 
         if (CustomComp) {
-          var Child = CustomComp.derive({
-            isOwn: this.isOwn // inherit from parent component
-          , mountPath: nodePath.concat(nodeIndex)
-          , Children: CustomComp.Children.slice()
-          })
+          var Children = CustomComp.Children.slice()
+            , Child = CustomComp.derive({
+                // inherit from future parent component
+                isTranscluded: this.isTranscluded
+              , mountPath: nodePath.concat(nodeIndex)
+              , Children: Children
+              })
 
           forEach(node.childNodes, childNode => {
             
             node.removeChild(childNode)
 
             if (getNodeName(childNode) === 'slot') {
+
               var defaultSlot = Child.Slots[ childNode.getAttribute('name') ]
-                , replaceSlot = Section.derive({
-                    isOwn: false
-                  , template: extractChildNodes(childNode)
-                  , mountPath: defaultSlot.mountPath
-                  }).bootstrap()
-                , Children = Child.Children
-                , index = indexOf(Children, defaultSlot)
+              var replaceSlot = Section.derive({
+                isTranscluded: true
+              , template: extractChildNodes(childNode)
+              , mountPath: defaultSlot.mountPath
+              }).bootstrap()
+
+              var index = indexOf(Children, defaultSlot)
 
               // the predefined slot may be no more than a mount path
               if (index < 0) {
@@ -175,7 +178,7 @@ const Section = Base.derive({
         }
         else if (nodeName === 'slot') {
 
-          if (!this.Slots) {
+          if (DEBUG && !this.Slots) {
             throw new Error('misplaced slot')
           }
 
@@ -184,8 +187,8 @@ const Section = Base.derive({
 
           if (template) {
             var slot = Section.derive({
-              template: template,
-              mountPath: nodePath.concat(nodeIndex)
+              template: template
+            , mountPath: nodePath.concat(nodeIndex)
             }).bootstrap()
 
             this.Children.push(slot)
@@ -217,23 +220,23 @@ const Section = Base.derive({
     return this
   }
 
-, init (parent, userScope, mountNode) {
+, init (parent, topScope, mountNode) {
     var scope = parent.scope
       , actions = parent.actions
       , children = parent.children
       , template = this.template = this.template.cloneNode(true)
+      , mountNodes = map(this.Children, Child => resolveElement(template, Child.mountPath))
 
-        // retrieve node references before mounting components which may invalidate other mount paths
-      , childMountNodes = map(this.Children, Child => resolveElement(template, Child.mountPath))
-
+    // retrieve node references before mounting components
+    // which may invalidate other mount paths
     if (mountNode) this.mount(mountNode)
 
     forEach(this.Actions, Action => {
-      actions.push( Action.new(template, userScope) )
+      actions.push( Action.new(template, topScope) )
     })
 
     forEach(this.Children, (Child, i) => {
-      children.push( Child.new(parent, Child.isOwn ? scope : userScope, childMountNodes[i]) )
+      children.push( Child.new(parent, Child.isTranscluded ? topScope : scope, mountNodes[i]) )
     })
   }
 
@@ -251,7 +254,7 @@ const Component = Section.derive({
     return Section.bootstrap.call(this)
   }
 
-, init (parent, userScope, mountNode) {
+, init (parent, topScope, mountNode) {
     this.parent = parent
     this.scope = Scope.new()
     // this.refs = {}
@@ -259,7 +262,7 @@ const Component = Section.derive({
     this.actions = []
     this.children = []
 
-    Section.init.call(this, this, userScope || this.scope, mountNode)
+    Section.init.call(this, this, topScope || this.scope, mountNode)
   }
 
 , mount: function (node) {
