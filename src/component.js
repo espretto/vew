@@ -43,7 +43,7 @@ const Action = Base.derive({
 	 */
 
 	init (template, scope) {
-		this.node = resolveElement(template, this.path)
+		this.node = resolveElement(template, this.mountPath)
 		forEach(this.paths, path => { scope.subscribe(path, this) })
 	}
 
@@ -68,10 +68,9 @@ var expressionPrefix = '${', expressionSuffix = '}'
 
 const Section = Base.derive({
 
-  // whether or not the section/component is private to its component
-  // or a slot replacement provided by the using component. in case of the
-  // latter, contained actions will subscribe to the using component's scope.
-  isPrivate: true
+  // slots are sections that may be passed down to child components in which
+  // case they are still held by their direct parent but subscribe to the user's scope.
+  isOwn: true
 
 , bootstrap () {
 
@@ -98,21 +97,15 @@ const Section = Base.derive({
         var nodeValue = node.nodeValue
           , index = nodeValue.indexOf(expressionPrefix)
 
-        // found expression opening
         if (index > -1) {
-        
-          // if the text does not start with the expression prefix
-          // split the text node into two distinct ones
           if (index > 0) {
-
-            // cannot create siblings without a parent
             if (!node.parentNode) {
               this.template = DocumentFragment(node)
             }
 
             node = node.splitText(index)
             nodeValue = node.nodeValue
-            i += 1
+            nodeIndex += 1
           }
 
           index = nodeValue.indexOf(expressionSuffix, expressionPrefix.length)
@@ -127,22 +120,18 @@ const Section = Base.derive({
           this.Actions.push(Action.derive({
             compute: evaluate(expression)
           , paths: expression.paths
-          , path: nodePath.concat(nodeIndex)
+          , mountPath: nodePath.concat(nodeIndex)
           , DOMEffect: setNodeValue
           }))
 
-          // if the text does not end with the expression suffix
-          // split the text node into two distinct ones
           index += expressionSuffix.length
 
           if (index < nodeValue.length) {
-
-            // cannot create siblings without a parent
             if (!node.parentNode) {
               this.template = DocumentFragment(node)
             }
 
-            // loop step retrieves node.nextSibling
+            // loop step takes next sibling
             node.splitText(index)
           }
         }
@@ -164,7 +153,7 @@ const Section = Base.derive({
             if (getNodeName(childNode) === 'slot') {
               var defaultSlot = Child.Slots[ childNode.getAttribute('name') ]
                 , replaceSlot = Section.derive({
-                    isPrivate: false
+                    isOwn: false
                   , template: extractChildNodes(childNode)
                   , mountPath: defaultSlot.mountPath
                   }).bootstrap()
@@ -176,7 +165,7 @@ const Section = Base.derive({
                 Children.push(replaceSlot)
               }
               else {
-                Children[i] = replaceSlot
+                Children[index] = replaceSlot
               }
             }
           })
@@ -194,8 +183,8 @@ const Section = Base.derive({
 
           if (template) {
             var slot = Section.derive({
-              template: template
-            , mountPath: nodePath.concat(nodeIndex)
+              template: template,
+              mountPath: nodePath.concat(nodeIndex)
             }).bootstrap()
 
             this.Children.push(slot)
@@ -227,8 +216,8 @@ const Section = Base.derive({
     return this
   }
 
-, init (parent, userScope) {
-    var parentScope = parent.scope
+, init (parent, userScope, mountNode) {
+    var scope = parent.scope
       , actions = parent.actions
       , children = parent.children
       , template = this.template = this.template.cloneNode(true)
@@ -236,22 +225,23 @@ const Section = Base.derive({
         // retrieve node references before mounting components which may invalidate other mount paths
       , childMountNodes = map(this.Children, Child => resolveElement(template, Child.mountPath))
 
+    if (mountNode) this.mount(mountNode)
+
     forEach(this.Actions, Action => {
       actions.push( Action.new(template, userScope) )
     })
 
     forEach(this.Children, (Child, i) => {
-      children.push( Child.new(parent, Child.isPrivate ? parentScope : userScope).mount(childMountNodes[i]) )
+      children.push( Child.new(parent, Child.isOwn ? scope : userScope, childMountNodes[i]) )
     })
   }
 
 , mount (node) {
     replaceNode(node, this.template)
-    return this
   }
 })
 
-const Component = /*Section*/Base.derive({
+const Component = Section.derive({
 
   replace: true
 
@@ -260,7 +250,7 @@ const Component = /*Section*/Base.derive({
     return Section.bootstrap.call(this)
   }
 
-, init (parent, userScope) {
+, init (parent, userScope, mountNode) {
     this.parent = parent
     this.scope = Scope.new()
     // this.refs = {}
@@ -268,15 +258,13 @@ const Component = /*Section*/Base.derive({
     this.actions = []
     this.children = []
 
-    Section.init.call(this, this, userScope || this.scope)
+    Section.init.call(this, this, userScope || this.scope, mountNode)
   }
 
 , mount: function (node) {
-  	// TODO: if a Child is mounted and replaces its component-tag
-  	// it may occur the parent doesn't provide a parentNode.
-  	// settings `this.parent.template = this.template` works but causes chaos!
+
     if (this.replace) {
-    	replaceNode(node, this.template)
+      replaceNode(node, this.template)
     }
     else {
       appendChild(node, this.template)

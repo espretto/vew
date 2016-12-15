@@ -1,6 +1,6 @@
 
 
-import Component from './component.alt'
+import Component from './component'
 import registry from './registry'
 
 function Vew () {
