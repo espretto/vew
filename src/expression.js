@@ -28,7 +28,7 @@
  * map `this` to your root object and access properties like so: `this["new"]`
  *
  * in order for function calls to not loose their potential this-binding
- * the last segment of affected paths will be preserved. example:
+ * the last key of affected paths will be preserved. example:
  * ```
  * var expr = mangle("obj.prop.startsWith(prefix)")
  * expr.source == "$0.startsWith($1)"
@@ -82,39 +82,34 @@ const noNumber = /[^\d\.a-fx]/gi
 const noWhitespace = /\S/g
 
 /** used to lookup assignments e.g. `foo %= 2` */
-const beforeAssignOps = '+-^&|%*/'
+const assops = '+-^&|%*/'
 
-const allowedKeywords =
-{ 'false': 1
-, 'in': 1
-, 'instanceof': 1
-, 'new': 1
-, 'null': 1
-, 'true': 1
-, 'typeof': 1
-, 'void': 1
-}
+/** used to lookup comparison e.g. `foo <= 2` */
+const comops = '<!>'
+
+/** preserved keywords in expressions */
+const keywords = 'false|in|instanceof|new|null|true|typeof|void'
 
 /**
- * findMatch
+ * find
  * @param  {string} string
  * @param  {regex} regex 
- * @param  {number} offset
+ * @param  {number} nextIndex
  * @return {string}
  */
-findMatch.lastIndex = 0 // JIT: preset
+find.lastIndex = 0 // JIT: preset
 
-function findMatch (string, offset, regex) {
-  regex.lastIndex = offset
+function find (string, nextIndex, regex) {
+  regex.lastIndex = nextIndex
   
   var match = regex.exec(string)
 
   if (match) {
-    findMatch.lastIndex = regex.lastIndex
+    find.lastIndex = regex.lastIndex
     return match[0]
   }
   else {
-    findMatch.lastIndex = string.length
+    find.lastIndex = string.length
     return '' // JIT: monomorphism
   }
 }
@@ -122,74 +117,74 @@ function findMatch (string, offset, regex) {
 
 mangle.lastIndex = 0 // JIT: preset
 
-function mangle (input, nextIndex, paths, errors) {
-  var appendix = ''
-    , segment = findMatch(input, nextIndex, matchIdent)
+function mangle (input, nextIndex, paths) {
+  var key = find(input, nextIndex, matchIdent)
     , length = input.length
-    , path, chr
+    , appendix = ''
+    , chain, char, pendIndex
 
   // early exit for allowed keywords
-  if (allowedKeywords.hasOwnProperty(segment)) {
-    mangle.lastIndex = findMatch.lastIndex
-    return segment
+  if (keywords.indexOf(key) > -1) {
+    mangle.lastIndex = find.lastIndex
+    return key
   }
 
-  path = [segment]
-  nextIndex = findMatch.lastIndex
+  chain = [key]
+  nextIndex = find.lastIndex
 
   while (nextIndex < length) {
 
     // skip whitespace
-    chr = findMatch(input, nextIndex, noWhitespace)
-    nextIndex = findMatch.lastIndex
+    char = find(input, nextIndex, noWhitespace)
+    nextIndex = find.lastIndex
 
     // dot notation
-    if (chr === '.') {
+    if (char === '.') {
 
       // skip whitespace
-      if (!findMatch(input, nextIndex, noWhitespace)) {
-        if (DEBUG) errors.push('missing name after . operator')
+      if (!find(input, nextIndex, noWhitespace)) {
+        if (DEBUG) throw new Error(`missing name after . operator\n > ${input}`)
       }
 
-      // findMatch path segment, reconsume non-whitespace character
-      segment = findMatch(input, findMatch.lastIndex-1, matchIdent)
+      // find chain key, reconsume non-whitespace character
+      key = find(input, find.lastIndex-1, matchIdent)
 
-      if (!segment) {
-        if (DEBUG) errors.push('missing name after . operator')
+      if (!key) {
+        if (DEBUG) throw new Error(`missing name after . operator\n > ${input}`)
       }
 
-      path.push(segment)
-      nextIndex = findMatch.lastIndex
+      chain.push(key)
+      nextIndex = find.lastIndex
     }
     // bracket notation
-    else if (chr === '[') {
+    else if (char === '[') {
 
       // skip whitespace
-      chr = findMatch(input, nextIndex, noWhitespace)
-      nextIndex = findMatch.lastIndex
+      char = find(input, nextIndex, noWhitespace)
+      nextIndex = find.lastIndex
 
       // string notation
-      if (chr === '"' || chr === "'") {
-        var pendingIndex = nextIndex
-        nextIndex = indexOfUnescaped(input, chr, pendingIndex)
+      if (char === '"' || char === "'") {
+        pendIndex = nextIndex
+        nextIndex = indexOfUnescaped(input, char, pendIndex)
 
         if (nextIndex < 0) {
-          if (DEBUG) errors.push('unterminated string literal')
+          if (DEBUG) throw new Error(`unterminated string literal\n > ${input}`)
           break
         }
 
-        segment = input.substring(pendingIndex, nextIndex)
-        path.push(segment)
+        key = input.substring(pendIndex, nextIndex)
+        chain.push(key)
 
         // skip the single-/double-quote
         nextIndex += 1
 
         // bail out if this is a more complex expression than a simple string
-        chr = findMatch(input, nextIndex, noWhitespace)
-        nextIndex = findMatch.lastIndex
+        char = find(input, nextIndex, noWhitespace)
+        nextIndex = find.lastIndex
 
-        if (chr !== ']') {
-          appendix = '["' + path.pop() + '"'
+        if (char !== ']') {
+          appendix = `["${chain.pop()}"`
           nextIndex -= 1
           break
         }
@@ -201,14 +196,11 @@ function mangle (input, nextIndex, paths, errors) {
       }
     }
     // function calls - preserve potential this-binding
-    else if (chr === '(' && path.length > 1) {
-      segment = path.pop()
+    else if (char === '(' && chain.length > 1) {
+      key = chain.pop()
 
-      // if it's a full match we can use dot-notation, bracket-notation otherwise
-      appendix = segment.match(matchIdent)[0].length === segment.length
-        ? '.' + segment
-        : '["' + segment + '"]'
-
+      // if it's a valid identifier we can use dot-notation
+      appendix = key.match(matchIdent)[0].length === key.length ? '.${key}' : `["'${key}'"]`
       nextIndex -= 1
       break
     }
@@ -221,182 +213,198 @@ function mangle (input, nextIndex, paths, errors) {
   mangle.lastIndex = nextIndex
 
   // deduplicate in O(n*m) - opt for a trie structure instead
-  var index = findIndex(paths, other => eqArray(path, other))
+  var index = findIndex(paths, other => eqArray(chain, other))
   if (index < 0) {
-    index = paths.push(path) - 1
+    index = paths.push(chain) - 1
   }
 
   return (IDENT_PREFIX + index) + appendix
 }
 
-export function parse (input, offset, delim) {
-  // output vars
-  var source = ''
+export function parse (input, nextIndex, suffix) {
+  var output = ''
     , paths = []
-    , errors = []
-    , lastIndex = input.length
-
-    // loop vars
-    , nextIndex = +offset || 0
-    , pendingIndex = nextIndex
-    , length = input.length
-    , chr
 
     // parser state
+    , nextIndex = +nextIndex || 0
+    , pendIndex = nextIndex
+    , lastIndex = -1
     , brackets = []
     , inValue = false
+    , length = input.length
+    , char, next
 
   while (nextIndex < length) {
 
-    // skip whitespace
-    chr = findMatch(input, nextIndex, noWhitespace)
-    nextIndex = findMatch.lastIndex
+    /* -------------------------------------------------------------------------
+     * skip whitespace, numbers, strings and regular expressions
+     * (anything that would otherwise be falsely recognized as part of a key-chain)
+     */
+    char = find(input, nextIndex, noWhitespace)
+    nextIndex = find.lastIndex
 
-    // skip numbers
-    if (passNumber.test(chr)) {
-      findMatch(input, nextIndex, noNumber)
-      nextIndex = findMatch.lastIndex - 1
+    if (passNumber.test(char)) {
+      find(input, nextIndex, noNumber)
+      nextIndex = find.lastIndex - 1
     }
-    // skip strings and regular expressions, throw on comments
-    else if (chr === '"' || chr === "'" || chr === '/') {
+    else if (char === '"' || char === "'" || char === '/') {
 
-      // catch comments
-      if (DEBUG && chr === '/') {
-        var next = input.charAt(nextIndex)
-        if (next === '/' || next === '*') {
-          errors.push('comments are not allowed')
+      if (DEBUG && char === '/') {
+        next = input.charAt(nextIndex)
+
+        if (next === '=') {
+          throw new Error(`assignments are not allowed\n > ${input}`)
+        }
+        else if (next === '/' || next === '*') {
+          throw new Error(`comments are not allowed\n > ${input}`)
         }
       }
 
-      nextIndex = indexOfUnescaped(input, chr, nextIndex)
-
+      nextIndex = indexOfUnescaped(input, char, nextIndex)
       if (nextIndex < 0) {
-        if (DEBUG) errors.push('unterminated ' + (chr === '/' ? 'regex' : 'string') + ' literal')
+        if (DEBUG) throw new Error(`unterminated ${char === '/' ? 'regex' : 'string'} literal\n > ${input}`)
         break
       }
-
       nextIndex += 1 // skip quote or slash
     }
-    // watch out for expression delimiter
-    else if (delim && !brackets.length && startsWith(input, delim, nextIndex-1)) {
+    /* -------------------------------------------------------------------------
+     * break on expression suffix
+     */
+    else if (suffix && !brackets.length && startsWith(input, suffix, nextIndex - 1)) {
       lastIndex = nextIndex - 1
       break
     }
-    // track object literals to avoid mangling their keys. track arrays,
-    // sequences, and arguments as well to disambiguate the meaning of a comma.
-    else if (chr === '(' || chr === '[' || chr === '{') {
-      brackets.push(chr)
+    /* -------------------------------------------------------------------------
+     * track object literals to avoid mangling their keys
+     * (needs to disambiguate the meaning of a comma)
+     */
+    else if (char === '(' || char === '[' || char === '{') {
+      brackets.push(char)
       inValue = false
     }
-    else if (chr === ')' || chr === ']' || chr === '}') {
+    else if (char === ')' || char === ']' || char === '}') {
       brackets.pop()
     }
-    else if (chr === ':') {
+    else if (char === ':') {
       inValue = true
     }
-    else if (chr === ',') {
+    else if (char === ',') {
       inValue = false
     }
-    // parse static key-chains
-    else if (passIdent.test(chr)) {
+    /* -------------------------------------------------------------------------
+     * mangle and record key-chains
+     */
+    else if (passIdent.test(char)) {
 
       // reconsume current character
       nextIndex -= 1
 
       // protect keys of object literals
       if (!inValue && last(brackets) === '{') {
-        findMatch(input, nextIndex, matchIdent)
-        nextIndex = findMatch.lastIndex
+        find(input, nextIndex, matchIdent)
+        nextIndex = find.lastIndex
       }
       else {
-        // source what we skipped up until now
-        if (pendingIndex < nextIndex) {
-          source += input.substring(pendingIndex, nextIndex)
-          // due update of `pendingIndex` follows
+        // append what we skipped up until now
+        if (pendIndex < nextIndex) {
+          output += input.substring(pendIndex, nextIndex)
+          // due update of `pendIndex` follows
         }
 
-        // append path replacement
-        source += mangle(input, nextIndex, paths)
+        // append chain replacement
+        output += mangle(input, nextIndex, paths)
 
-        // set indices to continue after the path
-        nextIndex = pendingIndex = mangle.lastIndex
+        // set indices to continue after the chain
+        nextIndex = pendIndex = mangle.lastIndex
       }
     }
-    // skip key-chains of runtime values
-    else if (chr === '.') {
+    /* -------------------------------------------------------------------------
+     * skip key-chains of runtime values
+     */
+    else if (char === '.') {
       
-      if (!findMatch(input, nextIndex, noWhitespace)) {
-        if (DEBUG) errors.push('missing name after . operator')
+      if (!find(input, nextIndex, noWhitespace)) {
+        if (DEBUG) throw new Error(`missing name after . operator\n > ${input}`)
+        break
       }
 
       // reconsume previously found non-whitespace character
-      nextIndex = findMatch.lastIndex - 1
+      nextIndex = find.lastIndex - 1
 
-      // skip path segment or continue to handle floating point number
+      // skip chain key or continue to handle floating point number
       matchIdent.lastIndex = nextIndex
       var match = matchIdent.exec(input)
       if (match && match.index === nextIndex) {
         nextIndex = matchIdent.lastIndex
       }
     }
-    // throw on comments, semicola, increments, decrements and
-    // assignments of all possible variations - code fold it
+    /* -------------------------------------------------------------------------
+     * enforce limited expression syntax forbidding assignments and semicola
+     */
     else if (DEBUG) {
-      var next
+      next = input.charAt(nextIndex)
 
-      if (chr === '=') {
-
-        // skip equals
-        if (input.charAt(nextIndex) !== '=') {
-          errors.push('assignments not allowed')
+      if (char === '=') {
+        if (next === '=') {
+          nextIndex += 1
+          if (input.charAt(nextIndex) === '=') {
+            nextIndex += 1
+          }
         }
-
-        // skip strict equals
-        if (input.charAt(nextIndex + 1) === '=') {
-          nextIndex += 2
-        }
-      }
-      // catch post-/prefix-increment and assignments
-      else if ((chr === '+' || chr === '-') && input.charAt(nextIndex) === chr) {
-        errors.push('assignments not allowed')
-      }
-      // catch right shift assignments
-      else if (chr === '>' && input.charAt(nextIndex) === '>') {
-        next = input.charAt(nextIndex + 1)
-        if (next === '=' || next === '>' && input.charAt(++nextIndex + 1) === '=') {
-          errors.push('assignments not allowed')
+        else {
+          throw new Error(`assignments not allowed\n > ${input}`)
         }
       }
-      // catch left shift assignments
-      else if (
-        chr === '<' &&
-        input.charAt(nextIndex) === '<' &&
-        input.charAt(nextIndex + 1) === '='
-      ) {
-        errors.push('assignments not allowed')
+      else if (char === '+' || char === '-') {
+        if (next === char) {
+          throw new Error(`assignments not allowed\n > ${input}`)
+        }
+        nextIndex += 1
       }
-      // catch other assignments
-      else if (
-        beforeAssignOps.indexOf(chr) > -1 &&
-        input.charAt(nextIndex) === '='
-      ) {
-        errors.push('assignments not allowed')
+      else if (assops.indexOf(char) > -1) {
+        if (next === '=') {
+          throw new Error(`assignments not allowed\n > ${input}`)
+        }
+        nextIndex += 1
       }
-      // catch statements
-      else if (chr === ';') {
-        errors.push('statements are not allowed')
+      else if (comops.indexOf(char) > -1 && next === '=') {
+        nextIndex += 1
+      }
+      else if (char === '>' && next === '>') {
+        nextIndex += 1
+        next = input.charAt(nextIndex)
+        if (next === '=') {
+          throw new Error(`assignments not allowed\n > ${input}`)
+        }
+        else if (next === '>') {
+          nextIndex += 1
+          next = input.charAt(nextIndex)
+          if (next === '=') {
+            throw new Error(`assignments not allowed\n > ${input}`)
+          }
+        }
+      }
+      else if (char === '<' && next === '<') {
+        nextIndex += 1
+        next = input.charAt(nextIndex)
+        if (next === '=') {
+          throw new Error(`assignments not allowed\n > ${input}`)
+        }
+      }
+      else if (char === ';') {
+        throw new Error(`statements are not allowed\n > ${input}`)
       }
     }
   }
 
-  // flush remaining source
-  if (pendingIndex < length) {
-    source += input.substring(pendingIndex, lastIndex)
+  if (lastIndex < 0) throw new Error(`unterminated template expression\n > ${input}`)
+
+  // flush remaining output
+  if (pendIndex < length) {
+    output += input.substring(pendIndex, lastIndex)
   }
 
-  source = source.trim()
-
-  return { source, paths, errors, lastIndex }
+  return { paths, source: output.trim(), lastIndex }
 }
 
 /**
@@ -420,7 +428,7 @@ export function evaluate (expression) {
 }
 
 /**
- * serialize an expression to function wrapped source code
+ * serialize an expression to function wrapped output code
  * @param  {expression} expression
  * @param  {string} name
  * @return {string}

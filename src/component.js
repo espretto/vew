@@ -64,7 +64,7 @@ const Action = Base.derive({
  * behaviour. then again, this just happens once, when bootstrapping a
  * component, not each time it is instantiated.
  */
-var expressionPrefix = '${', expressionSuffix = '}'
+var prefix = '${', suffix = '}'
 
 const Section = Base.derive({
 
@@ -95,39 +95,32 @@ const Section = Base.derive({
 
       if (nodeType === TEXT_NODE) {
         var nodeValue = node.nodeValue
-          , begin = nodeValue.indexOf(expressionPrefix)
+          , begin = nodeValue.indexOf(prefix)
 
         if (begin > -1) {
-          var expression = parseExpression(nodeValue, begin + expressionPrefix.length, expressionSuffix)
-            , end = expression.lastIndex + expressionSuffix.length
-            , len = nodeValue.length
+          var expr = parseExpression(nodeValue, begin + prefix.length, suffix)
+            , end = expr.lastIndex + suffix.length
 
-          if (end <= len) {
-            if (DEBUG && expression.errors.length) {
-              throw new Error(expression.errors.join('\n'))
+          if (begin > 0) {
+            if (!node.parentNode) {
+              this.template = DocumentFragment(node)
             }
+            node = node.splitText(begin)
+            nodeIndex += 1
+          }
 
-            if (begin > 0) {
-              if (!node.parentNode) {
-                this.template = DocumentFragment(node)
-              }
-              node = node.splitText(begin)
-              nodeIndex += 1
+          this.Actions.push(Action.derive({
+            compute: evaluate(expr)
+          , paths: expr.paths
+          , mountPath: nodePath.concat(nodeIndex)
+          , effect: setNodeValue
+          }))
+
+          if (end < nodeValue.length) {
+            if (!node.parentNode) {
+              this.template = DocumentFragment(node)
             }
-
-            this.Actions.push(Action.derive({
-              compute: evaluate(expression)
-            , paths: expression.paths
-            , mountPath: nodePath.concat(nodeIndex)
-            , effect: setNodeValue
-            }))
-
-            if (end < len) {
-              if (!node.parentNode) {
-                this.template = DocumentFragment(node)
-              }
-              node.splitText(end-begin)
-            }
+            node.splitText(end-begin)
           }
         }
       }
