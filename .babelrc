@@ -10,7 +10,7 @@
 	, "check-es2015-constants"
 	, ["transform-es2015-spread", { "loose": false }]
 	, "transform-es2015-parameters"
-	, ["transform-es2015-destructuring", { "loose": false }]
+	, ["transform-es2015-destructuring", { "loose": true }]
 	, "transform-es2015-block-scoping"
 
 	, "transform-hoist-nested-functions"
