@@ -59,7 +59,6 @@
  *   
  */
 
-import { id } from './util/function'
 import { Error } from './util/global'
 import { isArray } from './util/type'
 import { indexOfUnescaped, startsWith } from './util/string'
@@ -67,9 +66,6 @@ import { findIndex, map, eqArray, last } from './util/array'
 
 /** used to prefix mangled identifiers */
 const IDENT_PREFIX = '$'
-
-/** used to compare to and reuse the id function instead of re-evaluating it */
-const ID_SOURCE = IDENT_PREFIX + '0'
 
 /** used to mark the beginning of a number (any format except e.g. `.5`) */
 const passNumber = /\d/
@@ -422,16 +418,9 @@ function getSignatureOf (expression) {
  * @return {function}
  */
 export function evaluate (expression) {
-  var source = expression.source
-
-  if (source === ID_SOURCE) {
-    return id
-  }
-  else {
-    var signature = getSignatureOf(expression)
-    signature.push('return ' + source)
-    return Function.apply(null, signature)
-  }
+  var signature = getSignatureOf(expression)
+  signature.push('return ' + expression.source)
+  return Function.apply(null, signature)
 }
 
 /**
