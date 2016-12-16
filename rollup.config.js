@@ -5,6 +5,11 @@ var babelrc = require('babelrc-rollup').default
 var pkg = require('./package.json')
 var external = Object.keys(pkg.dependencies || {})
 
+var ccBanner =
+[ '/** @define {boolean} */'
+, 'var DEBUG = false;'
+].join('\n')
+
 module.exports = {
 
   entry: 'src/index.js'
@@ -19,6 +24,7 @@ module.exports = {
     { dest: pkg['main']
     , format: 'iife'
     , moduleName: 'Vew'
+    , banner: ccBanner
     //, sourceMap: true
     }
   , { dest: pkg['jsnext:main']
