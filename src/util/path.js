@@ -67,7 +67,7 @@ export function resolve (object, path) {
 			object = object[key]
 		}
 		else if (DEBUG) {
-			throw new Error('cannot resolve path \n\n' + ['^', ...path, '$'].join(' -> '))
+			throw new Error('cannot resolve path \n\n' + [].concat('^', path, '$').join(' -> '))
 		}
 	}
 

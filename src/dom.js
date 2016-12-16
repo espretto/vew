@@ -7,6 +7,11 @@ export function setCssText (node, value) {
   node.style.cssText = value
 }
 
+/**
+ * setNodeValue
+ * @param {element} node
+ * @param {string} value
+ */
 export function setNodeValue (node, value) {
   node.nodeValue = value
 }
@@ -238,8 +243,7 @@ export const parse = (function (window) {
    * @return {DOMNode} the TextNode, DOM Node, or DocumentFragment instance
    * @api private
    */
-
-  return function parse(html, doc) {
+  function parse(html, doc) {
     if ('string' != typeof html) return html
 
     // default to the global `document` object
@@ -282,5 +286,7 @@ export const parse = (function (window) {
 
     return fragment;
   }
+
+  return parse
 
 }(global))
