@@ -62,6 +62,7 @@
 import { id } from './util/function'
 import { Error } from './util/global'
 import { isArray } from './util/type'
+import { indexOfUnescaped, startsWith } from './util/string'
 import { findIndex, map, eqArray, last } from './util/array'
 
 /** used to prefix mangled identifiers */
@@ -86,7 +87,7 @@ const noNumber = /[^\d\.a-fx]/gi
 const noWhitespace = /\S/g
 
 /** used to lookup assignments e.g. `foo %= 2` */
-const beforeAssignOps = '^&|%*/'
+const beforeAssignOps = '+-^&|%*/'
 
 const allowedKeywords =
 { 'false': 1
@@ -97,32 +98,6 @@ const allowedKeywords =
 , 'true': 1
 , 'typeof': 1
 , 'void': 1
-}
-
-/**
- * indexOfUnescaped - find index of first unescaped occurence of `chr`
- * @param  {string} string
- * @param  {string} chr
- * @param  {number} offset
- * @return {number}
- */
-function indexOfUnescaped (string, chr, offset) {
-  var index
-
-  while (true) {
-    index = string.indexOf(chr, offset)
-
-    if (index < 1) return index
-    
-    if (input.charAt(index-1) === '\\') {
-      offset = index + 1
-    }
-    else {
-      break
-    }
-  }
-
-  return index
 }
 
 /**
@@ -152,7 +127,7 @@ function findMatch (string, regex, offset) {
 
 parsePath.lastIndex = 0 // JIT: preset
 
-function parsePath (input, nextIndex, paths) {
+function parsePath (input, nextIndex, paths, errors) {
   var appendix = ''
     , segment = findMatch(input, matchIdent, nextIndex)
     , length = input.length
@@ -178,16 +153,14 @@ function parsePath (input, nextIndex, paths) {
 
       // skip whitespace
       if (!findMatch(input, noWhitespace, nextIndex)) {
-        if (DEBUG) throw Error('missing name after . operator\n\n' + input)
-        else break
+        if (DEBUG) errors.push('missing name after . operator')
       }
 
       // findMatch path segment, reconsume non-whitespace character
       segment = findMatch(input, matchIdent, findMatch.lastIndex-1)
 
       if (!segment) {
-        if (DEBUG) throw Error('missing name after . operator\n\n' + input)
-        else break
+        if (DEBUG) errors.push('missing name after . operator')
       }
 
       path.push(segment)
@@ -206,8 +179,8 @@ function parsePath (input, nextIndex, paths) {
         nextIndex = indexOfUnescaped(input, chr, pendingIndex)
 
         if (nextIndex < 0) {
-          if (DEBUG) throw Error('unterminated string literal\n\n' + input)
-          else break
+          if (DEBUG) errors.push('unterminated string literal')
+          break
         }
 
         segment = input.substring(pendingIndex, nextIndex)
@@ -261,19 +234,22 @@ function parsePath (input, nextIndex, paths) {
   return (IDENT_PREFIX + index) + appendix
 }
 
-export function mangle (input) {
-  var output = ''
+export function mangle (input, offset, delim) {
+  // output vars
+  var source = ''
     , paths = []
-
-    // avoid mangling object keys
-    , inValue = false
-    , brackets = []
+    , errors = []
+    , lastIndex = input.length
 
     // loop vars
-    , pendingIndex = 0
-    , nextIndex = 0
+    , nextIndex = +offset || 0
+    , pendingIndex = nextIndex
     , length = input.length
     , chr
+
+    // parser state
+    , brackets = []
+    , inValue = false
 
   while (nextIndex < length) {
 
@@ -284,18 +260,32 @@ export function mangle (input) {
     // skip numbers
     if (passNumber.test(chr)) {
       findMatch(input, noNumber, nextIndex)
-      nextIndex = findMatch.lastIndex
+      nextIndex = findMatch.lastIndex - 1
     }
-    // skip strings
-    else if (chr === '"' || chr === "'") {
+    // skip strings and regular expressions, throw on comments
+    else if (chr === '"' || chr === "'" || chr === '/') {
+
+      // catch comments
+      if (DEBUG && chr === '/') {
+        var next = input.charAt(nextIndex)
+        if (next === '/' || next === '*') {
+          errors.push('comments are not allowed')
+        }
+      }
+
       nextIndex = indexOfUnescaped(input, chr, nextIndex)
 
       if (nextIndex < 0) {
-        if (DEBUG) throw Error('unterminated string literal\n\n' + input)
-        else break
+        if (DEBUG) errors.push('unterminated ' + (chr === '/' ? 'regex' : 'string') + ' literal')
+        break
       }
 
-      nextIndex += 1
+      nextIndex += 1 // skip quote or slash
+    }
+    // watch out for expression delimiter
+    else if (delim && !brackets.length && startsWith(input, delim, nextIndex-1)) {
+      lastIndex = nextIndex - 1
+      break
     }
     // track object literals to avoid mangling their keys. track arrays,
     // sequences, and arguments as well to disambiguate the meaning of a comma.
@@ -319,38 +309,36 @@ export function mangle (input) {
       nextIndex -= 1
 
       // protect keys of object literals
-      if (inValue || last(brackets) !== '{') {
-
-        // output what we skipped up until now
+      if (!inValue && last(brackets) === '{') {
+        findMatch(input, matchIdent, nextIndex)
+        nextIndex = findMatch.lastIndex
+      }
+      else {
+        // source what we skipped up until now
         if (pendingIndex < nextIndex) {
-          output += input.substring(pendingIndex, nextIndex)
+          source += input.substring(pendingIndex, nextIndex)
           // due update of `pendingIndex` follows
         }
 
         // append path replacement
-        output += parsePath(input, nextIndex, paths)
+        source += parsePath(input, nextIndex, paths)
 
         // set indices to continue after the path
         nextIndex = pendingIndex = parsePath.lastIndex
       }
-      // skip keys of object literals
-      else {
-        findMatch(input, matchIdent, nextIndex)
-        nextIndex = findMatch.lastIndex
-      }
     }
     // skip follow-ups of dynamic paths that `parsePath` bailed out of.
     // example: `prop` in `object[condition ? foo : bar].prop`
+    // example: `test` in `/re/.test(value)`
     // property access via strings is handled by string skipping
     else if (chr === '.') {
       
       if (!findMatch(input, noWhitespace, nextIndex)) { // eof
-        if (DEBUG) throw Error('missing name after . operator\n\n' + input)
-        else break
+        if (DEBUG) errors.push('missing name after . operator')
       }
 
-      // reconsume previous non-whitespace character
-      nextIndex = findMatch.lastIndex-1
+      // reconsume previously found non-whitespace character
+      nextIndex = findMatch.lastIndex - 1
 
       // skip path segment or continue to handle floating point number
       matchIdent.lastIndex = nextIndex
@@ -368,63 +356,55 @@ export function mangle (input) {
 
         // skip equals
         if (input.charAt(nextIndex) !== '=') {
-          throw Error('assignments not allowed\n\n' + input)
+          errors.push('assignments not allowed')
         }
 
         // skip strict equals
-        if (input.charAt(nextIndex+1) === '=') {
+        if (input.charAt(nextIndex + 1) === '=') {
           nextIndex += 2
         }
       }
       // catch post-/prefix-increment and assignments
-      else if (chr === '+' || chr === '-') {
-        next = input.charAt(nextIndex)
-        if (next === chr || next === '=') {
-          throw Error('assignments not allowed\n\n' + input)
-        }
+      else if ((chr === '+' || chr === '-') && input.charAt(nextIndex) === chr) {
+        errors.push('assignments not allowed')
       }
       // catch right shift assignments
       else if (chr === '>' && input.charAt(nextIndex) === '>') {
-        next = input.charAt(nextIndex+1)
+        next = input.charAt(nextIndex + 1)
         if (next === '=' || next === '>' && input.charAt(++nextIndex + 1) === '=') {
-          throw Error('assignments not allowed\n\n' + input)
+          errors.push('assignments not allowed')
         }
       }
       // catch left shift assignments
       else if (
         chr === '<' &&
         input.charAt(nextIndex) === '<' &&
-        input.charAt(nextIndex+1) === '='
+        input.charAt(nextIndex + 1) === '='
       ) {
-        throw Error('assignments not allowed\n\n' + input)
+        errors.push('assignments not allowed')
       }
       // catch other assignments
       else if (
         beforeAssignOps.indexOf(chr) > -1 &&
         input.charAt(nextIndex) === '='
       ) {
-        throw Error('assignments not allowed\n\n' + input)
+        errors.push('assignments not allowed')
       }
       // catch statements
       else if (chr === ';') {
-        throw Error('statements are not allowed\n\n' + input)
-      }
-      // catch comments
-      else if (chr === '/') {
-        next = input.charAt(nextIndex)
-        if (next === '/' || next === '*') {
-          throw Error('comments are not allowed\n\n' + input)
-        }
+        errors.push('statements are not allowed')
       }
     }
   }
 
-  // flush remaining output
+  // flush remaining source
   if (pendingIndex < length) {
-    output += input.substring(pendingIndex)
+    source += input.substring(pendingIndex, lastIndex)
   }
 
-  return { paths, source: output.trim() }
+  source = source.trim()
+
+  return { source, paths, errors, lastIndex }
 }
 
 /**
@@ -433,7 +413,7 @@ export function mangle (input) {
  * @return {array}
  */
 function getSignatureOf (expression) {
-  return map(expression.paths, (_, nextIndex) => IDENT_PREFIX + nextIndex)
+  return map(expression.paths, (_, i) => IDENT_PREFIX + i)
 }
 
 /**

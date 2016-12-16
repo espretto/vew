@@ -38,8 +38,8 @@ const Action = Base.derive({
 	/*
 	compute: <function>
 	paths: <array>
-	DOMEffect: <function>
-	path: <array>
+	effect: <function>
+	mountPath: <array>
 	 */
 
 	init (template, scope) {
@@ -49,7 +49,7 @@ const Action = Base.derive({
 
 , call (scope) {
 		var args = map(this.paths, path => scope.resolve(path))
-		this.DOMEffect(this.node, this.compute.apply(null, args))
+		this.effect(this.node, this.compute.apply(null, args))
   }
 })
 
@@ -95,44 +95,39 @@ const Section = Base.derive({
 
       if (nodeType === TEXT_NODE) {
         var nodeValue = node.nodeValue
-          , index = nodeValue.indexOf(expressionPrefix)
+          , begin = nodeValue.indexOf(expressionPrefix)
 
-        if (index > -1) {
-          if (index > 0) {
-            if (!node.parentNode) {
-              this.template = DocumentFragment(node)
+        if (begin > -1) {
+          var expression = mangle(nodeValue, begin + expressionPrefix.length, expressionSuffix)
+            , end = expression.lastIndex + expressionSuffix.length
+            , len = nodeValue.length
+
+          if (end <= len) {
+            if (DEBUG && expression.errors.length) {
+              throw new Error(expression.errors.join('\n'))
             }
 
-            node = node.splitText(index)
-            nodeValue = node.nodeValue
-            nodeIndex += 1
-          }
-
-          index = nodeValue.indexOf(expressionSuffix, expressionPrefix.length)
-
-          if (DEBUG && index < 0) {
-            throw new Error('unterminated expression')
-          }
-          
-          var source = nodeValue.substring(expressionPrefix.length, index)
-            , expression = mangle(source)
-
-          this.Actions.push(Action.derive({
-            compute: evaluate(expression)
-          , paths: expression.paths
-          , mountPath: nodePath.concat(nodeIndex)
-          , DOMEffect: setNodeValue
-          }))
-
-          index += expressionSuffix.length
-
-          if (index < nodeValue.length) {
-            if (!node.parentNode) {
-              this.template = DocumentFragment(node)
+            if (begin > 0) {
+              if (!node.parentNode) {
+                this.template = DocumentFragment(node)
+              }
+              node = node.splitText(begin)
+              nodeIndex += 1
             }
 
-            // loop step takes next sibling
-            node.splitText(index)
+            this.Actions.push(Action.derive({
+              compute: evaluate(expression)
+            , paths: expression.paths
+            , mountPath: nodePath.concat(nodeIndex)
+            , effect: setNodeValue
+            }))
+
+            if (end < len) {
+              if (!node.parentNode) {
+                this.template = DocumentFragment(node)
+              }
+              node.splitText(end-begin)
+            }
           }
         }
       }
