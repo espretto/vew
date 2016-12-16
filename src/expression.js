@@ -200,7 +200,7 @@ function mangle (input, nextIndex, paths) {
       key = chain.pop()
 
       // if it's a valid identifier we can use dot-notation
-      appendix = key.match(matchIdent)[0].length === key.length ? '.${key}' : `["'${key}'"]`
+      appendix = key.match(matchIdent)[0].length === key.length ? `.${key}` : `["'${key}'"]`
       nextIndex -= 1
       break
     }
