@@ -15,7 +15,7 @@ import { map, forEach, fold, indexOf } from './util/array'
 
 import Scope from './scope'
 import registry from './registry'
-import { evaluate, mangle } from './expression'
+import { evaluate, parse as parseExpression } from './expression'
 import {
 	DocumentFragment
 , extractChildNodes
@@ -23,7 +23,7 @@ import {
 , setNodeValue
 , getNodeName
 , Element
-, parse
+, parse as parseHTML
 , preorder
 , replaceNode
 , appendChild
@@ -80,7 +80,7 @@ const Section = Base.derive({
     this.Actions = []
     this.Children = []
 
-    var node = this.template = parse(this.template)
+    var node = this.template = parseHTML(this.template)
       , nodeTemp
       , nodeType = node.nodeType
       , nodePath = []
@@ -98,7 +98,7 @@ const Section = Base.derive({
           , begin = nodeValue.indexOf(expressionPrefix)
 
         if (begin > -1) {
-          var expression = mangle(nodeValue, begin + expressionPrefix.length, expressionSuffix)
+          var expression = parseExpression(nodeValue, begin + expressionPrefix.length, expressionSuffix)
             , end = expression.lastIndex + expressionSuffix.length
             , len = nodeValue.length
 

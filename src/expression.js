@@ -59,7 +59,6 @@
  *   
  */
 
-import { Error } from './util/global'
 import { isArray } from './util/type'
 import { indexOfUnescaped, startsWith } from './util/string'
 import { findIndex, map, eqArray, last } from './util/array'
@@ -105,7 +104,7 @@ const allowedKeywords =
  */
 findMatch.lastIndex = 0 // JIT: preset
 
-function findMatch (string, regex, offset) {
+function findMatch (string, offset, regex) {
   regex.lastIndex = offset
   
   var match = regex.exec(string)
@@ -121,17 +120,17 @@ function findMatch (string, regex, offset) {
 }
 
 
-parsePath.lastIndex = 0 // JIT: preset
+mangle.lastIndex = 0 // JIT: preset
 
-function parsePath (input, nextIndex, paths, errors) {
+function mangle (input, nextIndex, paths, errors) {
   var appendix = ''
-    , segment = findMatch(input, matchIdent, nextIndex)
+    , segment = findMatch(input, nextIndex, matchIdent)
     , length = input.length
     , path, chr
 
   // early exit for allowed keywords
   if (allowedKeywords.hasOwnProperty(segment)) {
-    parsePath.lastIndex = findMatch.lastIndex
+    mangle.lastIndex = findMatch.lastIndex
     return segment
   }
 
@@ -141,19 +140,19 @@ function parsePath (input, nextIndex, paths, errors) {
   while (nextIndex < length) {
 
     // skip whitespace
-    chr = findMatch(input, noWhitespace, nextIndex)
+    chr = findMatch(input, nextIndex, noWhitespace)
     nextIndex = findMatch.lastIndex
 
     // dot notation
     if (chr === '.') {
 
       // skip whitespace
-      if (!findMatch(input, noWhitespace, nextIndex)) {
+      if (!findMatch(input, nextIndex, noWhitespace)) {
         if (DEBUG) errors.push('missing name after . operator')
       }
 
       // findMatch path segment, reconsume non-whitespace character
-      segment = findMatch(input, matchIdent, findMatch.lastIndex-1)
+      segment = findMatch(input, findMatch.lastIndex-1, matchIdent)
 
       if (!segment) {
         if (DEBUG) errors.push('missing name after . operator')
@@ -166,7 +165,7 @@ function parsePath (input, nextIndex, paths, errors) {
     else if (chr === '[') {
 
       // skip whitespace
-      chr = findMatch(input, noWhitespace, nextIndex)
+      chr = findMatch(input, nextIndex, noWhitespace)
       nextIndex = findMatch.lastIndex
 
       // string notation
@@ -186,7 +185,7 @@ function parsePath (input, nextIndex, paths, errors) {
         nextIndex += 1
 
         // bail out if this is a more complex expression than a simple string
-        chr = findMatch(input, noWhitespace, nextIndex)
+        chr = findMatch(input, nextIndex, noWhitespace)
         nextIndex = findMatch.lastIndex
 
         if (chr !== ']') {
@@ -219,7 +218,7 @@ function parsePath (input, nextIndex, paths, errors) {
     }
   }
   
-  parsePath.lastIndex = nextIndex
+  mangle.lastIndex = nextIndex
 
   // deduplicate in O(n*m) - opt for a trie structure instead
   var index = findIndex(paths, other => eqArray(path, other))
@@ -230,7 +229,7 @@ function parsePath (input, nextIndex, paths, errors) {
   return (IDENT_PREFIX + index) + appendix
 }
 
-export function mangle (input, offset, delim) {
+export function parse (input, offset, delim) {
   // output vars
   var source = ''
     , paths = []
@@ -250,12 +249,12 @@ export function mangle (input, offset, delim) {
   while (nextIndex < length) {
 
     // skip whitespace
-    chr = findMatch(input, noWhitespace, nextIndex)
+    chr = findMatch(input, nextIndex, noWhitespace)
     nextIndex = findMatch.lastIndex
 
     // skip numbers
     if (passNumber.test(chr)) {
-      findMatch(input, noNumber, nextIndex)
+      findMatch(input, nextIndex, noNumber)
       nextIndex = findMatch.lastIndex - 1
     }
     // skip strings and regular expressions, throw on comments
@@ -298,7 +297,7 @@ export function mangle (input, offset, delim) {
     else if (chr === ',') {
       inValue = false
     }
-    // parse key-chains
+    // parse static key-chains
     else if (passIdent.test(chr)) {
 
       // reconsume current character
@@ -306,7 +305,7 @@ export function mangle (input, offset, delim) {
 
       // protect keys of object literals
       if (!inValue && last(brackets) === '{') {
-        findMatch(input, matchIdent, nextIndex)
+        findMatch(input, nextIndex, matchIdent)
         nextIndex = findMatch.lastIndex
       }
       else {
@@ -317,19 +316,16 @@ export function mangle (input, offset, delim) {
         }
 
         // append path replacement
-        source += parsePath(input, nextIndex, paths)
+        source += mangle(input, nextIndex, paths)
 
         // set indices to continue after the path
-        nextIndex = pendingIndex = parsePath.lastIndex
+        nextIndex = pendingIndex = mangle.lastIndex
       }
     }
-    // skip follow-ups of dynamic paths that `parsePath` bailed out of.
-    // example: `prop` in `object[condition ? foo : bar].prop`
-    // example: `test` in `/re/.test(value)`
-    // property access via strings is handled by string skipping
+    // skip key-chains of runtime values
     else if (chr === '.') {
       
-      if (!findMatch(input, noWhitespace, nextIndex)) { // eof
+      if (!findMatch(input, nextIndex, noWhitespace)) {
         if (DEBUG) errors.push('missing name after . operator')
       }
 
