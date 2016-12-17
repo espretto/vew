@@ -43,7 +43,7 @@
  * expr.paths == [["obj", "prop", "startsWith"], ["prefix"]]
  * ```
  * note that the above example only works (throws an error) because the
- * key-chain is completely replaced. this is more of a bug than a feature
+ * key-path is completely replaced. this is more of a bug than a feature
  * because usually, to achieve the same behaviour, you would have to write
  * an expression sequence which evaluates to the function:
  * ```
@@ -51,7 +51,7 @@
  * ```
  *
  * TODO:
- *   what about `array.length` as a key-chain?
+ *   what about `array.length` as a key-path?
  *   preserve `length` or mangle it?
  *
  * TODO:
@@ -127,7 +127,7 @@ function mangle (input, nextIndex, paths) {
   var key = find(input, nextIndex, matchIdent)
     , length = input.length
     , appendix = ''
-    , chain, char, pendIndex
+    , path, char, pendIndex
 
   // early exit for allowed keywords
   if (keywords.indexOf(key) > -1) {
@@ -135,7 +135,7 @@ function mangle (input, nextIndex, paths) {
     return key
   }
 
-  chain = [key]
+  path = [key]
   nextIndex = find.lastIndex
 
   while (nextIndex < length) {
@@ -152,7 +152,7 @@ function mangle (input, nextIndex, paths) {
         if (DEBUG) throw new Error(MissingNameError(input))
       }
 
-      // find chain key, reconsume non-whitespace character
+      // find path key, reconsume non-whitespace character
       key = find(input, find.lastIndex-1, matchIdent)
       nextIndex = find.lastIndex
 
@@ -160,7 +160,7 @@ function mangle (input, nextIndex, paths) {
         if (DEBUG) throw new Error(MissingNameError(input))
       }
 
-      chain.push(key)
+      path.push(key)
     }
     // bracket notation
     else if (char === '[') {
@@ -180,7 +180,7 @@ function mangle (input, nextIndex, paths) {
         }
 
         key = input.substring(pendIndex, nextIndex)
-        chain.push(key)
+        path.push(key)
 
         // skip the single-/double-quote
         nextIndex += 1
@@ -190,7 +190,7 @@ function mangle (input, nextIndex, paths) {
         nextIndex = find.lastIndex
 
         if (char !== ']') {
-          appendix = `["${chain.pop()}"`
+          appendix = `["${path.pop()}"`
           nextIndex -= 1
           break
         }
@@ -202,8 +202,8 @@ function mangle (input, nextIndex, paths) {
       }
     }
     // function calls - preserve potential this-binding
-    else if (char === '(' && chain.length > 1) {
-      key = chain.pop()
+    else if (char === '(' && path.length > 1) {
+      key = path.pop()
 
       // if it's a valid identifier we can use dot-notation
       appendix = key.match(matchIdent)[0].length === key.length ? `.${key}` : `["'${key}'"]`
@@ -219,20 +219,20 @@ function mangle (input, nextIndex, paths) {
   mangle.lastIndex = nextIndex
 
   // deduplicate in O(n*m) - opt for a trie structure instead
-  var nextIndex = findIndex(paths, other => eqArray(chain, other))
+  var nextIndex = findIndex(paths, other => eqArray(path, other))
   if (nextIndex < 0) {
-    nextIndex = paths.push(chain) - 1
+    nextIndex = paths.push(path) - 1
   }
 
   return (IDENT_PREFIX + nextIndex) + appendix
 }
 
-export function parse (input, nextIndex, suffix) {
+export function parse (input, offset, suffix) {
   var output = ''
     , paths = []
 
     // parser state
-    , nextIndex = +nextIndex || 0
+    , nextIndex = +offset || 0
     , pendIndex = nextIndex
     , lastIndex = -1
     , brackets = []
@@ -244,7 +244,7 @@ export function parse (input, nextIndex, suffix) {
 
     /* -------------------------------------------------------------------------
      * skip whitespace, numbers, strings and regular expressions
-     * (anything that would otherwise be falsely recognized as part of a key-chain)
+     * (anything that would otherwise be falsely recognized as part of a key-path)
      */
     char = find(input, nextIndex, noWhitespace)
     nextIndex = find.lastIndex
@@ -317,10 +317,10 @@ export function parse (input, nextIndex, suffix) {
           // due update of `pendIndex` follows
         }
 
-        // append chain replacement
+        // append path replacement
         output += mangle(input, nextIndex, paths)
 
-        // set indices to continue after the chain
+        // set indices to continue after the path
         nextIndex = pendIndex = mangle.lastIndex
       }
     }
@@ -338,7 +338,7 @@ export function parse (input, nextIndex, suffix) {
       // reconsume previously found non-whitespace character
       currIndex = find.lastIndex - 1
 
-      // skip chain key or continue to handle floating point number
+      // skip path key or continue to handle floating point number
       matchIdent.lastIndex = currIndex
       match = matchIdent.exec(input)
       if (match && match.index === currIndex) {
