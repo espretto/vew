@@ -10,8 +10,8 @@
 //   the recursion must be conditional.
 
 import Base from './util/oloo'
-import { Error } from './util/global'
-import { map, forEach, fold, indexOf } from './util/array'
+import { Error, Array } from './util/global'
+import { map, forEach, fold, indexOf, toArray } from './util/array'
 
 import Scope from './scope'
 import registry from './registry'
@@ -23,6 +23,7 @@ import {
 , setNodeValue
 , getNodeName
 , Element
+, isEmptyElement
 , parse as parseHTML
 , preorder
 , replaceNode
@@ -65,6 +66,23 @@ const Action = Base.derive({
  * component, not each time it is instantiated.
  */
 var prefix = '${', suffix = '}'
+
+function getSlot (node, nodeName) {
+  var slotName, slotTemplate
+
+  nodeName || (nodeName = node.nodeName.toLowerCase())
+
+  if (nodeName === 'slot') {
+    slotName = node.getAttribute('name') || 'content'
+    slotTemplate = extractChildNodes(node)
+  }
+  else if (slotName = node.getAttribute('slot')) {
+    node.removeAttribute('slot')
+    slotTemplate = node
+  }
+
+  return slotName ? [slotName, slotTemplate] : null
+}
 
 const Section = Base.derive({
 
@@ -126,64 +144,37 @@ const Section = Base.derive({
       }
       else if (nodeType === ELEMENT_NODE) {
         var nodeName = getNodeName(node)
-          , CustomComp = registry[nodeName]
+          , BootstrappedComponent = registry[nodeName]
+          , FinalizedComponent
+          , slotArgs
 
-        if (CustomComp) {
-          var Children = CustomComp.Children.slice()
-            , Child = CustomComp.derive({
-                // inherit from future parent component
-                isTranscluded: this.isTranscluded
-              , mountPath: nodePath.concat(nodeIndex)
-              , Children: Children
-              })
+        if (BootstrappedComponent) {
+          FinalizedComponent = BootstrappedComponent.derive({
+            // inherit from parent component
+            isTranscluded: this.isTranscluded
+          , mountPath: nodePath.concat(nodeIndex)
+          }).finalize(node)
 
-          forEach(node.childNodes, childNode => {
-            
-            node.removeChild(childNode)
-
-            if (getNodeName(childNode) === 'slot') {
-
-              var defaultSlot = Child.Slots[ childNode.getAttribute('name') ]
-              var replaceSlot = Section.derive({
-                isTranscluded: true
-              , template: extractChildNodes(childNode)
-              , mountPath: defaultSlot.mountPath
-              }).bootstrap()
-
-              var index = indexOf(Children, defaultSlot)
-
-              // the predefined slot may be no more than a mount path
-              if (index < 0) {
-                Children.push(replaceSlot)
-              }
-              else {
-                Children[index] = replaceSlot
-              }
-            }
-          })
-
-          this.Children.push(Child)
+          this.Children.push(FinalizedComponent)
         }
-        else if (nodeName === 'slot') {
+        else if (slotArgs = getSlot(node, nodeName)) {
+          var [slotName, slotTemplate] = slotArgs
+            , mountPath = nodePath.concat(nodeIndex)
 
           if (DEBUG && !this.Slots) {
-            throw new Error('misplaced slot')
+            throw new Error(`misplaced slot: ${slotArgs[0]}`)
           }
 
-          var slotName = node.getAttribute('name')
-            , template = extractChildNodes(node)
-
-          if (template) {
-            var slot = Section.derive({
-              template: template
-            , mountPath: nodePath.concat(nodeIndex)
-            }).bootstrap()
-
-            this.Children.push(slot)
-            this.Slots[slotName] = slot  
+          if (!slotTemplate) {
+            this.Slots[slotName] = { mountPath }
           }
           else {
-            this.Slots[slotName] = { mountPath: nodePath.concat(nodeIndex) }
+            this.Slots[slotName] = Section.derive({
+              template: slotTemplate
+            , mountPath: mountPath
+            }).bootstrap()
+
+            this.Children.push(this.Slots[slotName])
           }
         }
       }
@@ -241,6 +232,50 @@ const Component = Section.derive({
     // this.replace = this['replace'] // GCC: externs
     this.Slots = {}
     return Section.bootstrap.call(this)
+  }
+
+, finalize (mountNode) {
+    // keep instance specifics apart from the prototype before transclusion
+    this.Children = this.Children.slice()
+
+    forEach(toArray(mountNode.children), node => {
+      var slotArgs = getSlot(node)
+
+      if (slotArgs) {
+        mountNode.removeChild(node)
+        this.transclude(slotArgs)
+      }
+    })
+
+    if (!isEmptyElement(mountNode)) {
+      this.transclude(['content', extractChildNodes(mountNode)])
+    }
+
+    return this
+  }
+
+, transclude ( [slotName, slotTemplate] ) {
+    var Slot = this.Slots[slotName]
+      , Children = this.Children
+      , slotIndex = indexOf(Children, Slot)
+      , TranscludedSlot
+      
+    if (DEBUG && !Slot) {
+      throw new Error(`cannot replace unknown slot: "${slotName}"`)
+    }
+
+    TranscludedSlot = Section.derive({
+      isTranscluded: true
+    , template: slotTemplate
+    , mountPath: Slot.mountPath
+    }).bootstrap()
+
+    if (slotIndex < 0) {
+      Children.push(TranscludedSlot)
+    }
+    else {
+      Children[slotIndex] = TranscludedSlot
+    }
   }
 
 , init (parent, topScope, mountNode) {
