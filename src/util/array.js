@@ -11,7 +11,7 @@
  * - do support offsets for find and findIndex
  */
 
-import { Error } from './global'
+import { Error, Array } from './global'
 
 export function last (array) {
   return array[array.length-1]
