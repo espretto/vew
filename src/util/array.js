@@ -11,7 +11,15 @@
  * - do support offsets for find and findIndex
  */
 
+import { idNative } from './type'
 import { Error, Array } from './global'
+
+/**
+ * fails if passed one number
+ * @param  {*} collection
+ * @return {Array}
+ */
+export const toArray = idNative(Array.from) || (collection => Array.apply(null, collection))
 
 export function last (array) {
   return array[array.length-1]
