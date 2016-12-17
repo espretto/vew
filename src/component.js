@@ -80,7 +80,7 @@ const Section = Base.derive({
     this.Actions = []
     this.Children = []
 
-    var node = this.template = parseHTML(this.template)
+    var node = this.template = parseHTML(this['template']) // GCC: export
       , nodeTemp
       , nodeType = node.nodeType
       , nodePath = []
@@ -238,6 +238,7 @@ const Component = Section.derive({
   replace: true
 
 , bootstrap () {
+    // this.replace = this['replace'] // GCC: externs
     this.Slots = {}
     return Section.bootstrap.call(this)
   }
@@ -272,8 +273,17 @@ const Component = Section.derive({
 , set () {
 		var scope = this.scope
 		scope.merge.apply(scope, arguments)
+
+    requestAnimationFrame(function () {
+      scope.update()
+    })
 	}
 
 })
+
+Component['new'] = Component.new // GCC: export
+Component['mount'] = Component.mount // GCC: export
+// Component['get'] = Component.get // GCC: externs
+// Component['set'] = Component.set // GCC: externs
 
 export default Component
