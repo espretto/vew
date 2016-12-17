@@ -40,6 +40,34 @@ export const startsWith = nativeStartsWith
   : startsWithShim
 
 /**
+ * startsWithRegex
+ * @param  {string} string
+ * @param  {regex} regex
+ * @param  {number} [offset=0]
+ * @param {bool} [checkLast=false] whether or not to take the regex's `lastIndex`
+ *                                 property into account. 
+ * @return {array|null}
+ */
+export function startsWithRegex (string, regex, offset, checkLast) {
+  var index, match
+
+  if (DEBUG && !regex.global) {
+    throw new Error('cannot preset regex without global flag')
+  }
+  
+  index = +offset || 0
+
+  if (checkLast && regex.lastIndex > index) {
+    return null
+  }
+
+  regex.lastIndex = index
+  match = regex.exec(string)
+
+  return match && match.index === index ? match : null
+}
+
+/**
  * startsWithIgn - case-insensitive version of startsWith
  * @param  {string} string - the input string
  * @param  {string} search - the substring to search for

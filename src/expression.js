@@ -60,8 +60,8 @@
  */
 
 import { isArray } from './util/type'
-import { indexOfUnescaped, startsWith } from './util/string'
 import { findIndex, map, eqArray, last } from './util/array'
+import { indexOfUnescaped, startsWith, startsWithRegex } from './util/string'
 
 /** used to prefix mangled identifiers */
 const IDENT_PREFIX = '$'
@@ -132,7 +132,7 @@ function mangle (input, nextIndex, paths) {
   // early exit for allowed keywords
   if (keywords.indexOf(key) > -1) {
     mangle.lastIndex = find.lastIndex
-    return key
+    return ' ' + key // account for identifiers next to keywords
   }
 
   path = [key]
@@ -221,7 +221,7 @@ function mangle (input, nextIndex, paths) {
   // deduplicate in O(n*m) - opt for a trie structure instead
   var nextIndex = findIndex(paths, other => eqArray(path, other))
   if (nextIndex < 0) {
-    nextIndex = paths.push(path) - 1
+    nextIndex = paths.push(path)-1
   }
 
   return (IDENT_PREFIX + nextIndex) + appendix
@@ -240,6 +240,8 @@ export function parse (input, offset, suffix) {
     , length = input.length
     , char
 
+  matchOperator.lastIndex = nextIndex // reset
+
   while (nextIndex < length) {
 
     /* -------------------------------------------------------------------------
@@ -251,7 +253,7 @@ export function parse (input, offset, suffix) {
 
     if (passNumber.test(char)) {
       find(input, nextIndex, noNumber)
-      nextIndex = find.lastIndex - 1
+      nextIndex = find.lastIndex-1
     }
     else if (char === '"' || char === "'" || char === '/') {
 
@@ -276,8 +278,8 @@ export function parse (input, offset, suffix) {
     /* -------------------------------------------------------------------------
      * break on expression suffix
      */
-    else if (suffix && !brackets.length && startsWith(input, suffix, nextIndex - 1)) {
-      lastIndex = nextIndex - 1
+    else if (suffix && !brackets.length && startsWith(input, suffix, nextIndex-1)) {
+      lastIndex = nextIndex-1
       break
     }
     /* -------------------------------------------------------------------------
@@ -328,24 +330,16 @@ export function parse (input, offset, suffix) {
      * skip key-chains resolved on runtime values e.g. `/regex/.test(str)`
      */
     else if (char === '.') {
-      var currIndex, match
       
       if (!find(input, nextIndex, noWhitespace)) {
         if (DEBUG) throw new Error(MissingNameError(input))
         break
       }
 
-      // reconsume previously found non-whitespace character
-      currIndex = find.lastIndex - 1
-
       // skip path key or continue to handle floating point number
-      matchIdent.lastIndex = currIndex
-      match = matchIdent.exec(input)
-      if (match && match.index === currIndex) {
+      nextIndex = find.lastIndex
+      if (startsWithRegex(input, matchIdent, nextIndex-1)) {
         nextIndex = matchIdent.lastIndex
-      }
-      else {
-        nextIndex = currIndex + 1
       }
     }
     /* -------------------------------------------------------------------------
@@ -355,14 +349,10 @@ export function parse (input, offset, suffix) {
       throw new Error(StatementError(input))
     }
     else if (DEBUG) {
-      var currIndex = nextIndex - 1
-        , match, operator
-
-      matchOperator.lastIndex = currIndex
-      match = matchOperator.exec(input)
-
-      if (match && match.index === currIndex) {
-        operator = match[0]
+      var operator = startsWithRegex(input, matchOperator, nextIndex-1, true)
+      
+      if (operator) {
+        operator = operator[0]
 
         switch (operator) {
         case '=':
@@ -388,7 +378,7 @@ export function parse (input, offset, suffix) {
         }
       }
 
-      nextIndex = currIndex + 1
+      nextIndex = currIndex+1
     }
   }
 
