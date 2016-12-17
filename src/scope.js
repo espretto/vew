@@ -11,50 +11,28 @@ import { Object, Array, Date, Error } from './util/global'
 import { isPlainObject, isArray, isObject, isDate } from './util/type'
 import { isEmptyObject, getOwn, hasOwn, forOwn, del } from './util/object'
 
-/**
- * subscription sub
- */
+
 const SubscriptionNode = Base.derive({
 
-  /**
-   * @this SubscriptionNode
-   * @return {SubscriptionNode}
-   */
   init (parent) {
-    /** @type {SubscriptionNode} */
     this.parent = parent
     this.actions = []
     this.children = {}
   }
 
-  /**
-   * @this SubscriptionNode
-   * @return {bool}
-   */
 , isEmpty () {
     return this.actions.length === 0 && isEmptyObject(this.children)
   }
 
-  /**
-   * @this SubscriptionNode
-   */
 , remove () {
     const parent = this.parent
     if (parent) del(parent.children, this)
   }
 
-  /**
-   * @this SubscriptionNode
-   * @return {SubscriptionNode}
-   */
 , resolve (path) {
     return fold(path, this, (sub, key) => sub && getOwn(sub.children, key))
   }
 
-  /**
-   * @this SubscriptionNode
-   * @return {SubscriptionNode}
-   */
 , resolveOrCreate (path) {
     return fold(path, this, (sub, key) => {
       const children = sub.children
@@ -72,39 +50,20 @@ const SubscriptionNode = Base.derive({
   }
 })
 
-/**
- * template scope
- */
-const Scope = Base.derive({
 
-  /**
-   * @this Scope
-   */
+export default Base.derive({
+
   init (data) {
-
-    /** @type {*} */
     this.data = data
-
-    /** @type {SubscriptionNode} */
     this.root = SubscriptionNode.new()
-
-    /** @type {Set} */
     this.todos = new Set()
-
-    /** @type {Set} */
     this.actions = new Set()
   }
 
-  /**
-   * @this Scope
-   */
 , subscribe (path, action) {
     this.root.resolveOrCreate(toPath(path)).actions.push(action)
   }
 
-  /**
-   * @this Scope
-   */
 , unsubscribe (path, action) {
     var sub = this.root.resolve(toPath(path))
 
@@ -117,9 +76,6 @@ const Scope = Base.derive({
     }
   }
 
-  /**
-   * @this Scope
-   */
 , notify (sub) {
     const todos = this.todos
 
@@ -130,9 +86,6 @@ const Scope = Base.derive({
     }
   }
 
-  /**
-   * @this Scope
-   */
 , update () {
     const scope = this
       , todos = scope.todos
@@ -152,16 +105,10 @@ const Scope = Base.derive({
     actions.clear()
   }
 
-  /**
-   * @this Scope
-   */
 , resolve (path) {
     return fold(toPath(path), this.data, (obj, key) => obj[key] )
   }
 
-  /**
-   * @this Scope
-   */
 , merge (/*[path,] src*/) {
     
     if (arguments.length < 2) {
@@ -192,9 +139,6 @@ const Scope = Base.derive({
     }
   }
 
-  /**
-   * @this Scope
-   */
 , mergeDeep (trg, src, sub) {
 
     // test mutability
@@ -219,9 +163,6 @@ const Scope = Base.derive({
     return trg
   }
 
-  /**
-   * @this Scope
-   */
 , cloneDeep (src, sub) {
     this.notify(sub)
 
@@ -244,9 +185,6 @@ const Scope = Base.derive({
     return src
   }
 
-  /**
-   * @this Scope
-   */
 , mergeEach (trg, src, trgHas, srcEach, parent) {
     const trgIsArray = isArray(trg, true)
         , trgLength = trg.length
@@ -283,13 +221,3 @@ const Scope = Base.derive({
     throw new Error('not yet implemented')
   }
 })
-
-/*
-Scope['get'] = Scope.get
-Scope['set'] = Scope.set
-Scope['update'] = Scope.update
-Scope['subscribe'] = Scope.subscribe
-Scope['unsubscribe'] = Scope.unsubscribe
-*/
-
-export default Scope
