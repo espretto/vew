@@ -374,11 +374,9 @@ export function parse (input, offset, suffix) {
         case '!=':
         case '!==':
         default:
-          currIndex += operator.length
+          nextIndex += operator.length-1
         }
       }
-
-      nextIndex = currIndex+1
     }
   }
 
