@@ -5,6 +5,8 @@ import registry from './registry'
 
 function Vew () {
   var CustomComp = Component.derive.apply(Component, arguments)
+
+  CustomComp.tag = CustomComp['tag'] // GCC: export
 	
 	if (CustomComp.tag) {
 		registry[CustomComp.tag] = CustomComp
