@@ -72,23 +72,29 @@ const passNumber = /\d/
 /** used to match the first character of a javascript identifier or keyword */
 const passIdent = /[a-zA-Z\$_]/
 
-/** used to match javascript identifiers and keywords */
-const matchIdent = /[a-zA-Z\$_][\w\$]*/g
-
 /** used to skip binary, octal, hexadecimal, decimal, floating point and exponent characters */
 const noNumber = /[^\d\.a-fx]/gi
 
 /** used to skip whitespace */
 const noWhitespace = /\S/g
 
-/** used to lookup assignments e.g. `foo %= 2` */
-const assops = '+-^&|%*/'
+/** used to match javascript identifiers and keywords */
+const matchIdent = /[a-zA-Z\$_][\w\$]*/g
 
-/** used to lookup comparison e.g. `foo <= 2` */
-const comops = '<!>'
+/** used to match javascript operators */
+const matchOperator = /[\+\-]{2}|[\+\-\*\/\^\&\|<%>]=|={1,3}|!==?|<<=?|>>>?=?/g
 
 /** preserved keywords in expressions */
 const keywords = 'false|in|instanceof|new|null|true|typeof|void'
+
+/** parser error message factories */
+const AssignError = op => `assignments are not allowed: found ${op} operator`
+const CommentError = input => `comments are not allowed\n > ${input}`
+const MissingNameError = input => `missing name after . operator\n > ${input}`
+const StatementError = input => `statements are not allowed\n > ${input}`
+const UtermRegexError = input => `unterminated regex literal\n > ${input}`
+const UtermStringError = input => `unterminated string literal\n > ${input}`
+const UtermTemplError = input => `unterminated template expression\n > ${input}`
 
 /**
  * find
@@ -143,18 +149,18 @@ function mangle (input, nextIndex, paths) {
 
       // skip whitespace
       if (!find(input, nextIndex, noWhitespace)) {
-        if (DEBUG) throw new Error(`missing name after . operator\n > ${input}`)
+        if (DEBUG) throw new Error(MissingNameError(input))
       }
 
       // find chain key, reconsume non-whitespace character
       key = find(input, find.lastIndex-1, matchIdent)
+      nextIndex = find.lastIndex
 
       if (!key) {
-        if (DEBUG) throw new Error(`missing name after . operator\n > ${input}`)
+        if (DEBUG) throw new Error(MissingNameError(input))
       }
 
       chain.push(key)
-      nextIndex = find.lastIndex
     }
     // bracket notation
     else if (char === '[') {
@@ -169,7 +175,7 @@ function mangle (input, nextIndex, paths) {
         nextIndex = indexOfUnescaped(input, char, pendIndex)
 
         if (nextIndex < 0) {
-          if (DEBUG) throw new Error(`unterminated string literal\n > ${input}`)
+          if (DEBUG) throw new Error(UtermStringError(input))
           break
         }
 
@@ -213,12 +219,12 @@ function mangle (input, nextIndex, paths) {
   mangle.lastIndex = nextIndex
 
   // deduplicate in O(n*m) - opt for a trie structure instead
-  var index = findIndex(paths, other => eqArray(chain, other))
-  if (index < 0) {
-    index = paths.push(chain) - 1
+  var nextIndex = findIndex(paths, other => eqArray(chain, other))
+  if (nextIndex < 0) {
+    nextIndex = paths.push(chain) - 1
   }
 
-  return (IDENT_PREFIX + index) + appendix
+  return (IDENT_PREFIX + nextIndex) + appendix
 }
 
 export function parse (input, nextIndex, suffix) {
@@ -230,9 +236,9 @@ export function parse (input, nextIndex, suffix) {
     , pendIndex = nextIndex
     , lastIndex = -1
     , brackets = []
-    , inValue = false
+    , inObjKey = false
     , length = input.length
-    , char, next
+    , char
 
   while (nextIndex < length) {
 
@@ -250,19 +256,19 @@ export function parse (input, nextIndex, suffix) {
     else if (char === '"' || char === "'" || char === '/') {
 
       if (DEBUG && char === '/') {
-        next = input.charAt(nextIndex)
+        var next = input.charAt(nextIndex)
 
         if (next === '=') {
-          throw new Error(`assignments are not allowed\n > ${input}`)
+          throw new Error(AssignError(char + next))
         }
         else if (next === '/' || next === '*') {
-          throw new Error(`comments are not allowed\n > ${input}`)
+          throw new Error(CommentError(input))
         }
       }
 
       nextIndex = indexOfUnescaped(input, char, nextIndex)
       if (nextIndex < 0) {
-        if (DEBUG) throw new Error(`unterminated ${char === '/' ? 'regex' : 'string'} literal\n > ${input}`)
+        if (DEBUG) throw new Error((char === '/' ? UtermRegexError : UtermStringError)(input))
         break
       }
       nextIndex += 1 // skip quote or slash
@@ -280,16 +286,16 @@ export function parse (input, nextIndex, suffix) {
      */
     else if (char === '(' || char === '[' || char === '{') {
       brackets.push(char)
-      inValue = false
+      inObjKey = true
     }
     else if (char === ')' || char === ']' || char === '}') {
       brackets.pop()
     }
     else if (char === ':') {
-      inValue = true
+      inObjKey = false
     }
     else if (char === ',') {
-      inValue = false
+      inObjKey = true
     }
     /* -------------------------------------------------------------------------
      * mangle and record key-chains
@@ -300,7 +306,7 @@ export function parse (input, nextIndex, suffix) {
       nextIndex -= 1
 
       // protect keys of object literals
-      if (!inValue && last(brackets) === '{') {
+      if (inObjKey && last(brackets) === '{') {
         find(input, nextIndex, matchIdent)
         nextIndex = find.lastIndex
       }
@@ -319,85 +325,76 @@ export function parse (input, nextIndex, suffix) {
       }
     }
     /* -------------------------------------------------------------------------
-     * skip key-chains of runtime values
+     * skip key-chains resolved on runtime values e.g. `/regex/.test(str)`
      */
     else if (char === '.') {
+      var currIndex, match
       
       if (!find(input, nextIndex, noWhitespace)) {
-        if (DEBUG) throw new Error(`missing name after . operator\n > ${input}`)
+        if (DEBUG) throw new Error(MissingNameError(input))
         break
       }
 
       // reconsume previously found non-whitespace character
-      nextIndex = find.lastIndex - 1
+      currIndex = find.lastIndex - 1
 
       // skip chain key or continue to handle floating point number
-      matchIdent.lastIndex = nextIndex
-      var match = matchIdent.exec(input)
-      if (match && match.index === nextIndex) {
+      matchIdent.lastIndex = currIndex
+      match = matchIdent.exec(input)
+      if (match && match.index === currIndex) {
         nextIndex = matchIdent.lastIndex
+      }
+      else {
+        nextIndex = currIndex + 1
       }
     }
     /* -------------------------------------------------------------------------
      * enforce limited expression syntax forbidding assignments and semicola
      */
+    else if (DEBUG && char === ';') {
+      throw new Error(StatementError(input))
+    }
     else if (DEBUG) {
-      next = input.charAt(nextIndex)
+      var currIndex = nextIndex - 1
+        , match, operator
 
-      if (char === '=') {
-        if (next === '=') {
-          nextIndex += 1
-          if (input.charAt(nextIndex) === '=') {
-            nextIndex += 1
-          }
-        }
-        else {
-          throw new Error(`assignments not allowed\n > ${input}`)
-        }
-      }
-      else if (char === '+' || char === '-') {
-        if (next === char) {
-          throw new Error(`assignments not allowed\n > ${input}`)
-        }
-        nextIndex += 1
-      }
-      else if (assops.indexOf(char) > -1) {
-        if (next === '=') {
-          throw new Error(`assignments not allowed\n > ${input}`)
-        }
-        nextIndex += 1
-      }
-      else if (comops.indexOf(char) > -1 && next === '=') {
-        nextIndex += 1
-      }
-      else if (char === '>' && next === '>') {
-        nextIndex += 1
-        next = input.charAt(nextIndex)
-        if (next === '=') {
-          throw new Error(`assignments not allowed\n > ${input}`)
-        }
-        else if (next === '>') {
-          nextIndex += 1
-          next = input.charAt(nextIndex)
-          if (next === '=') {
-            throw new Error(`assignments not allowed\n > ${input}`)
-          }
+      matchOperator.lastIndex = currIndex
+      match = matchOperator.exec(input)
+
+      if (match && match.index === currIndex) {
+        operator = match[0]
+
+        switch (operator) {
+        case '=':
+        case '++':
+        case '--':
+        case '+=':
+        case '-=':
+        case '*=':
+        case '/=':
+        case '|=':
+        case '&=':
+        case '^=':
+        case '<<=':
+        case '>>=':
+        case '>>>=':
+          throw new Error(AssignError(operator))
+        case '<=':
+        case '>=':
+        case '!=':
+        case '!==':
+        default:
+          currIndex += operator.length
         }
       }
-      else if (char === '<' && next === '<') {
-        nextIndex += 1
-        next = input.charAt(nextIndex)
-        if (next === '=') {
-          throw new Error(`assignments not allowed\n > ${input}`)
-        }
-      }
-      else if (char === ';') {
-        throw new Error(`statements are not allowed\n > ${input}`)
-      }
+
+      nextIndex = currIndex + 1
     }
   }
 
-  if (lastIndex < 0) throw new Error(`unterminated template expression\n > ${input}`)
+  if (suffix && lastIndex < 0) {
+    throw new Error(UtermTemplError(input))
+  }
 
   // flush remaining output
   if (pendIndex < length) {
