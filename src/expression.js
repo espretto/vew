@@ -125,9 +125,7 @@ mangle.lastIndex = 0 // JIT: preset
 
 function mangle (input, nextIndex, paths) {
   var key = find(input, nextIndex, matchIdent)
-    , length = input.length
-    , appendix = ''
-    , path, char, pendIndex
+    , appendix, length, path, char
 
   // early exit for allowed keywords
   if (keywords.indexOf(key) > -1) {
@@ -135,8 +133,10 @@ function mangle (input, nextIndex, paths) {
     return ' ' + key // account for identifiers next to keywords
   }
 
-  path = [key]
   nextIndex = find.lastIndex
+  appendix = ''
+  length = input.length
+  path = [key]
 
   while (nextIndex < length) {
 
@@ -171,7 +171,7 @@ function mangle (input, nextIndex, paths) {
 
       // string notation
       if (char === '"' || char === "'") {
-        pendIndex = nextIndex
+        var pendIndex = nextIndex
         nextIndex = indexOfUnescaped(input, char, pendIndex)
 
         if (nextIndex < 0) {
