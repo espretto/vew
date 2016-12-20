@@ -1,5 +1,5 @@
 
-import { fold } from './util/array'
+import { fold, every } from './util/array'
 import { global, document } from './util/global'
 
 
@@ -63,6 +63,14 @@ export function cloneNode (node, deep) {
   return node.cloneNode(deep)
 }
 
+export function isEmptyTextNode (node) {
+  return node.nodeType === TEXT_NODE && !/\S/.test(node.nodeValue)
+}
+
+export function isEmptyElement (node) {
+  return !node.children.length && every(node.childNodes, isEmptyTextNode)
+}
+
 /**
  * replaceNode
  * @param  {Element} attached - node to be replaced
@@ -71,6 +79,13 @@ export function cloneNode (node, deep) {
  */
 export function replaceNode (attached, loose) {
   return attached.parentNode.replaceChild(loose, attached)
+}
+
+/**
+ * Placeholder
+ */
+export function Placeholder () {
+  return document.createComment('')
 }
 
 /**

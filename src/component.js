@@ -17,21 +17,25 @@ import Scope from './scope'
 import registry from './registry'
 import { evaluate, parse as parseExpression } from './expression'
 import {
-	DocumentFragment
-, extractChildNodes
+  DOCUMENT_FRAGMENT
+, ELEMENT_NODE
+, TEXT_NODE
+  
+, DocumentFragment
+, Placeholder
+, Element
+
+, parse as parseHTML
+, isEmptyElement
 , resolveElement
+, preorder
+
+, extractChildNodes
 , setNodeValue
 , getNodeName
-, Element
-, isEmptyElement
-, parse as parseHTML
-, preorder
 , replaceNode
 , appendChild
 , cloneNode
-, DOCUMENT_FRAGMENT
-, ELEMENT_NODE
-, TEXT_NODE
 } from './dom'
 
 const Action = Base.derive({
@@ -169,6 +173,20 @@ const Section = Base.derive({
             this.Slots[slotName] = { mountPath }
           }
           else {
+            // insert placeholder if the slot's element is part of its template
+            if (node === slotTemplate) {
+              if (node === this.template) {
+                this.template = Placeholder()
+              }
+              else {
+                if (!node.parentNode) {
+                  this.template = DocumentFragment(node)
+                }
+
+                replaceChild(node, Placeholder())
+              }
+            }
+            
             this.Slots[slotName] = Section.derive({
               template: slotTemplate
             , mountPath: mountPath
@@ -235,7 +253,7 @@ const Component = Section.derive({
   }
 
 , finalize (mountNode) {
-    // keep instance specifics apart from the prototype before transclusion
+    // copy over from prototype to instance before content distribution (transclusion)
     this.Children = this.Children.slice()
 
     forEach(toArray(mountNode.children), node => {
