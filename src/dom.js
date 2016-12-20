@@ -158,10 +158,25 @@ export function preorder (node, func) {
  * @param  {array} path
  * @return {Element}
  */
-export function resolveElement (node, path) {
-  return node.nodeType === DOCUMENT_FRAGMENT
-    ? fold(path, node, (node, i) => node.childNodes[i])
-    : fold(path, { childNodes: [node] }, (node, i) => node.childNodes[i])
+export function resolveElement (node, nodePath) {
+  var len = nodePath.length
+    , i = -1
+    , nodeIndex
+
+  if (node.nodeType === ELEMENT_NODE) {
+    i += 1
+  }
+
+  while (++i < len) {
+    node = node.firstChild
+    nodeIndex = nodePath[i]
+    
+    while (nodeIndex--) {
+      node = node.nextSibling
+    }
+  }
+  
+  return node
 }
 
 /**
