@@ -1,8 +1,7 @@
 
-
+import { Set } from './global'
 import { forEach } from './array'
 import { uniqueId } from './misc'
-import { Set as NativeSet } from './global'
 import { isUndefined, isFunction } from './type'
 
 function SetShim (items) {
@@ -16,7 +15,7 @@ function SetShim (items) {
 
 SetShim.prototype = {
 
-, has (item) {
+	has (item) {
 		return item[this.ident]
 	}
 
@@ -43,24 +42,8 @@ SetShim.prototype = {
 	}
 }
 
-const isNative = (
-	!isUndefined(NativeSet) &&
-	isFunction(new NativeSet().values) &&
-	isUndefined(new NativeSet().values.next)
-)
-
-export const Set = isNative ? NativeSet : SetShim
-
-// const CustomEnum = Base.derive({
-
-// 	init (keys) {
-// 		var enums = this.enums = {}
-// 		forEach(keys, key => { enums[key] = 1 })
-// 	}
-
-// , has (key) {
-// 		return this.enums.hasOwnProperty(key)
-// 	}
-// })
-
-// export const Enum = isNative ? NativeSet : keys => CustomEnum.new(keys)
+export default (
+	!isUndefined(Set) &&
+	isFunction(new Set().values) &&
+	isUndefined(new Set().values.next)
+) ? Set : SetShim
