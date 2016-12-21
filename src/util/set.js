@@ -1,31 +1,25 @@
 
 
-import Base from './oloo'
 import { forEach } from './array'
 import { uniqueId } from './misc'
 import { Set as NativeSet } from './global'
 import { isUndefined, isFunction } from './type'
 
-const CustomSet = Base.derive({
+function SetShim (items) {
+	this.items = []
+	this.ident = uniqueId('__set')
 
-	/**
-	 * @this CustomSet
-	 */
-	init (items) {
-		this.items = items ? items.slice() : []
-		this.ident = uniqueId('__set')
+	if (items) {
+		forEach(items, item => { this.add(item) })
 	}
+}
 
-	/**
-	 * @this CustomSet
-	 */
+SetShim.prototype = {
+
 , has (item) {
 		return item[this.ident]
 	}
 
-	/**
-	 * @this CustomSet
-	 */
 , add (item) {
 		if (!item[this.ident]) {
 			item[this.ident] = true
@@ -33,9 +27,6 @@ const CustomSet = Base.derive({
 		}
 	}
 
-	/**
-	 * @this CustomSet
-	 */
 , clear (cleanup) {
 		var that = this
 
@@ -47,14 +38,10 @@ const CustomSet = Base.derive({
 		that.items.length = 0
 	}
 
-	/**
-	 * @this CustomSet
-	 */
 , forEach (func) {
 		forEach(this.items, func)
 	}
-
-})
+}
 
 const isNative = (
 	!isUndefined(NativeSet) &&
@@ -62,7 +49,7 @@ const isNative = (
 	isUndefined(new NativeSet().values.next)
 )
 
-export const Set = isNative ? NativeSet : items => CustomSet.new(items)
+export const Set = isNative ? NativeSet : SetShim
 
 // const CustomEnum = Base.derive({
 
