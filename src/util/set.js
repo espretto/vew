@@ -9,7 +9,8 @@ function SetShim (items) {
 	this.ident = uniqueId('__set')
 
 	if (items) {
-		forEach(items, item => { this.add(item) })
+		var that = this // babel function hoisting
+		forEach(items, item => { that.add(item) })
 	}
 }
 
@@ -27,7 +28,7 @@ SetShim.prototype = {
 	}
 
 , clear (cleanup) {
-		var that = this
+		var that = this // babel function hoisting
 
 		forEach(that.items, cleanup
 			? item => { delete item[that.ident] }
