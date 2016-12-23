@@ -164,7 +164,7 @@ export function resolveElement (node, nodePath) {
     , nodeIndex
 
   if (node.nodeType === ELEMENT_NODE) {
-    i += 1
+    i += 1 // skip path[0] == 0
   }
 
   while (++i < len) {

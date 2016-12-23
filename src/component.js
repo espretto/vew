@@ -132,10 +132,10 @@ const Section = Base.derive({
           }
 
           this.Actions.push(Action.derive({
-            compute: evaluate(expr)
-          , paths: expr.paths
-          , mountPath: nodePath.concat(nodeIndex)
+            paths: expr.paths
           , effect: setNodeValue
+          , compute: evaluate(expr)
+          , mountPath: nodePath.concat(nodeIndex)
           }))
 
           if (end < nodeValue.length) {
@@ -173,7 +173,7 @@ const Section = Base.derive({
             this.Slots[slotName] = { mountPath }
           }
           else {
-            // insert placeholder if the slot's element is part of its template
+            // insert placeholder if the slot's element is the template itself
             if (node === slotTemplate) {
               if (node === this.template) {
                 this.template = Placeholder()
@@ -187,12 +187,12 @@ const Section = Base.derive({
               }
             }
             
-            this.Slots[slotName] = Section.derive({
+            var Slot = this.Slots[slotName] = Section.derive({
               template: slotTemplate
             , mountPath: mountPath
             }).bootstrap()
 
-            this.Children.push(this.Slots[slotName])
+            this.Children.push(Slot)
           }
         }
       }
@@ -222,10 +222,10 @@ const Section = Base.derive({
       , actions = parent.actions
       , children = parent.children
       , template = this.template = this.template.cloneNode(true)
+        // retrieve node references before mounting components which may invalidate other mount paths
       , mountNodes = map(this.Children, Child => resolveElement(template, Child.mountPath))
 
-    // retrieve node references before mounting components
-    // which may invalidate other mount paths
+
     if (mountNode) this.mount(mountNode)
 
     forEach(this.Actions, Action => {
@@ -244,10 +244,9 @@ const Section = Base.derive({
 
 const Component = Section.derive({
 
-  replace: true
+  replace: true // GCC: externs
 
 , bootstrap () {
-    // this.replace = this['replace'] // GCC: externs
     this.Slots = {}
     return Section.bootstrap.call(this)
   }
