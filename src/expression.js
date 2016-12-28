@@ -196,8 +196,8 @@ function mangle (input, nextIndex, paths) {
         }
       }
       else {
-        appendix = '['
-        nextIndex -= 1
+        // reconsume opening bracket
+        nextIndex -= 2
         break
       }
     }
@@ -219,12 +219,12 @@ function mangle (input, nextIndex, paths) {
   mangle.lastIndex = nextIndex
 
   // deduplicate in O(n*m) - opt for a trie structure instead
-  var nextIndex = findIndex(paths, other => eqArray(path, other))
-  if (nextIndex < 0) {
-    nextIndex = paths.push(path)-1
+  var argIndex = findIndex(paths, other => eqArray(path, other))
+  if (argIndex < 0) {
+    argIndex = paths.push(path)-1
   }
 
-  return (IDENT_PREFIX + nextIndex) + appendix
+  return (IDENT_PREFIX + argIndex) + appendix
 }
 
 export function parse (input, offset, suffix) {
@@ -386,7 +386,7 @@ export function parse (input, offset, suffix) {
 
   // flush remaining output
   if (pendIndex < length) {
-    output += input.substring(pendIndex, lastIndex)
+    output += input.substring(pendIndex, suffix ? lastIndex : length)
   }
 
   return { paths, source: output.trim(), lastIndex }
