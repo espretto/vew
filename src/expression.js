@@ -195,6 +195,23 @@ function mangle (input, nextIndex, paths) {
           break
         }
       }
+      else if (passNumber.test(char)) {
+        var pendIndex = nextIndex-1
+        nextIndex = find(input, pendIndex, noNumber)
+
+        key = input.substring(pendIndex, nextIndex)
+        path.push(key)
+
+        // bail out if this is a more complex expression than a simple string
+        char = find(input, nextIndex, noWhitespace)
+        nextIndex = find.lastIndex
+
+        if (char !== ']') {
+          appendix = `["${path.pop()}"`
+          nextIndex -= 1
+          break
+        }
+      }
       else {
         // reconsume opening bracket
         nextIndex -= 2
