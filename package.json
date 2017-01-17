@@ -8,7 +8,7 @@
     "test": "test"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "mocha-webpack 'src/**/*_test.js'",
     "gzip": "gzip -c dist/vew.min.js > dist/vew.min.js.gz && ls -la dist",
     "build": "BABEL_ENV=development webpack",
     "bundle": "BABEL_ENV=production rollup -c"
@@ -24,10 +24,13 @@
     "babel-preset-es2015": "^6.18.0",
     "babelrc-rollup": "^3.0.0",
     "eslint": "^3.10.2",
+    "expect.js": "^0.3.1",
     "google-closure-compiler": "^20161024.3.0",
+    "mocha": "^3.2.0",
+    "mocha-webpack": "^0.7.0",
     "rollup": "^0.36.3",
     "rollup-plugin-babel": "^2.6.1",
     "usertiming": "^0.1.8",
-    "webpack": "^1.13.3"
+    "webpack": "^2.2.0-rc.3"
   }
 }
