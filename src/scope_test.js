@@ -1,5 +1,6 @@
 
 import expect from 'expect.js'
+import sinon from 'sinon'
 
 import Scope from './scope'
 
@@ -44,14 +45,22 @@ describe('Scope', function() {
   })
 
   describe('#update', () => {
+
+    var callback
+    beforeEach(() => callback = sinon.spy())
+
     it('should execute subscribed callback', () => {
-      var called = false;
-      scope.subscribe('test', () => {
-        called = true
-      })
+      scope.subscribe('test', callback)
       scope.merge({test: 'works for me'})
       scope.update()
-      expect(called).to.be(true)
+      expect(callback.called).to.be(true)
+    })
+    it('should not execute unsubscribed callback', () => {
+      scope.subscribe('test', callback)
+      scope.unsubscribe('test', callback)
+      scope.merge({test: 'works for me'})
+      scope.update()
+      expect(callback.called).to.be(false)
     })
   })
 
