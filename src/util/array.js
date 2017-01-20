@@ -52,29 +52,6 @@ export function insertAt (array, i, item) {
   array[i] = item
 }
 
-export function sortedIndex (array, item, crit, trail) {
-  var lo = 0
-    , hi = array.length
-    , mid
-    , val = item[crit]
-
-  while (lo < hi) {
-    mid = (lo + hi) >> 1 // Math.floor( (hi+lo) / 2 )
-    
-    if (trail
-        ? array[mid][crit] <= val
-        : array[mid][crit] <  val
-    ) {
-      lo = mid + 1
-    }
-    else {
-      hi = mid
-    }
-  }
-
-  return hi
-}
-
 export function indexOf (array, item, off) {
   var len = array.length
     , i = +off || 0
