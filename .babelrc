@@ -13,7 +13,6 @@
 	, ["transform-es2015-destructuring", { "loose": true }]
 	, "transform-es2015-block-scoping"
 
-	, "transform-hoist-nested-functions"
 	]
 
 , "env": {
@@ -27,6 +26,7 @@
 
 , "comments":
 	[ "transform-es2015-sticky-regex"
+	, "transform-hoist-nested-functions"
 	, "transform-es2015-unicode-regex"
 	, ["transform-es2015-computed-properties", { "loose": false }]
 	, ["transform-es2015-for-of", { "loose": false }]
