@@ -1,5 +1,4 @@
 
-import { Error } from './global'
 import { hasOwn } from './object'
 import { isObject, isArray } from './type'
 
@@ -11,13 +10,6 @@ export function has (object, key) {
     ? key < object.length
     : hasOwn.call(object, key)
   )
-}
-
-/**
- * toString
- */
-function toString (path) {
-  return [].concat('[', path, ']').join(' -> ')
 }
 
 /**
@@ -49,26 +41,4 @@ export function toPath (str) {
   })
 
   return keys
-}
-
-/**
- * resolvePath
- */
-export function resolvePath (object, path) {
-	var len = path.length
-		, i = -1
-		, key
-
-	while (++i < len) {
-		key = path[i]
-
-		if (has(object, key)) {
-			object = object[key]
-		}
-		else {
-			if (DEBUG) throw new Error('cannot resolve path \n\n' + toString(path))
-		}
-	}
-
-	return object
 }
