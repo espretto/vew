@@ -4,30 +4,17 @@ import { thisify } from './function'
 import { idNative } from './type'
 import { append, filter, forEach, some } from './array'
 
+const hasEnumBug = !({ valueOf: null }).propertyIsEnumerable('valueOf')
+
 /**
  * hasOwn
- * @this {object}
- * @param {key} key
- * @return {bool}
  */
 export const hasOwn = Object.prototype.hasOwnProperty
 
 /**
  * keys
- * @param  {*}
- * @return {array}
  */
-const hasEnumBug = !({ valueOf: null }).propertyIsEnumerable('valueOf')
-
-const brokenKeys =
-[ 'constructor'
-, 'hasOwnProperty'
-, 'isPrototypeOf'
-, 'propertyIsEnumerable'
-, 'toLocaleString'
-, 'toString'
-, 'valueOf'
-]
+const brokenKeys = 'constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf'.split(',')
 
 function ownKeys (object) {
   var hasOwnLocal = hasOwn // JIT: lift to loop
@@ -51,10 +38,8 @@ export const keys = idNative(Object.keys) || (hasEnumBug ? safeKeys : ownKeys)
 
 /**
  * isEmptyObject
- * @param  {object}
- * @return {bool}
  */
-function hasNoOwnKeys (object) {
+function isEmptyOwner (object) {
   var hasOwnLocal = hasOwn // JIT: lift to loop
 
   for (var key in object) {
@@ -66,20 +51,21 @@ function hasNoOwnKeys (object) {
   return true
 }
 
-function hasNoSafeKeys (object) {
-  return hasNoOwnKeys(object) && !some(brokenKeys, thisify(hasOwn, object, 1))
+function isSafeEmptyOwner (object) {
+  return isEmptyOwner(object) && !some(brokenKeys, thisify(hasOwn, object, 1))
 }
 
-export const isEmptyObject = hasEnumBug ? hasNoSafeKeys : hasNoOwnKeys
+export const isEmptyObject = hasEnumBug ? isSafeEmptyOwner : isEmptyOwner
 
+/**
+ * getOwn
+ */
 export function getOwn (object, key, alt) {
   return hasOwn.call(object, key) ? object[key] : alt
 }
 
 /**
  * forOwn
- * @param  {object} object
- * @param  {function} func
  */
 export function forOwn (object, func) {
   forEach(keys(object), key => func(object[key], key))
@@ -87,76 +73,33 @@ export function forOwn (object, func) {
 
 /**
  * extend
- * @param  {object} trg
- * @param  {object} src
- * @return {object}
  */
-const nativeAssign = idNative(Object.assign)
-
-export const extend = nativeAssign || function (trg, src) {
-  
-  if (src != null) {
-    forEach(keys(src), key => { trg[key] = src[key] })
-  }
-
-  return trg
-}
-
-/**
- * assign
- * @param  {object} trg
- * @param  {...object} src
- * @return {object}
- */
-export const assign = nativeAssign || function (trg) {
-  var len = arguments.length
-    , i = 0
-
-  while (++i < len) {
-    extend(trg, arguments[i])
-  }
-
+export const extend = idNative(Object.assign) || function (trg, src) {
+  if (src != null) forEach(keys(src), key => { trg[key] = src[key] })
   return trg
 }
 
 /**
  * create
- * @param {object} proto the instances prototype
- * @return {object} a `new`ly created object with the given prototype
  */
-export const create = idNative(Object.create) || function (proto) {
+function Null () {}
 
+export const create = idNative(Object.create) || function (proto) {
   Null.prototype = proto
   var instance = new Null()
   Null.prototype = null
-
+  
   return instance
 }
 
-function Null () {}
-
 /**
- * @param  {object} object
- * @param  {*} prop 
- * @return {string|undefined} the own property's key on the object
+ * deleteValue
  */
-export function findKey (object, prop) {
-  for (var key in object) {
-    if (hasOwn.call(object, key) && object[key] === prop) {
-      return key
+export function deleteValue (object, value) {
+  forOwn(object, (val, key) => {
+    if (val === value) {
+      delete object[key]
+      return false
     }
-  }
-}
-
-/**
- * remove the own property from its parent
- * @param  {object} object
- * @param  {*} prop
- */
-export function del (object, prop) {
-  var key = findKey(object, prop)
-
-  if (key !== undefined) {
-    delete object[key]
-  }
+  })
 }

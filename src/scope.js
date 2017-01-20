@@ -9,7 +9,7 @@ import { toPath, resolve, has } from './util/path'
 import { forEach, remove, fold } from './util/array'
 import { Object, Array, Date, Error } from './util/global'
 import { isPlainObject, isArray, isObject, isDate } from './util/type'
-import { isEmptyObject, getOwn, hasOwn, forOwn, del } from './util/object'
+import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue } from './util/object'
 
 
 const SubscriptionNode = Base.derive({
@@ -26,7 +26,7 @@ const SubscriptionNode = Base.derive({
 
 , remove () {
     const parent = this.parent
-    if (parent) del(parent.children, this)
+    if (parent) deleteValue(parent.children, this)
   }
 
 , resolve (path) {
