@@ -15,7 +15,7 @@ import { map, forEach, fold, indexOf, toArray } from './util/array'
 
 import Scope from './scope'
 import registry from './registry'
-import { evaluate, parse as parseExpression } from './expression'
+import Expression from './expression'
 import {
   DOCUMENT_FRAGMENT
 , ELEMENT_NODE

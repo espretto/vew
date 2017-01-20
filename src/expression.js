@@ -1,444 +1,402 @@
 
-/**
- * javascript expression mangler for ES5 syntax
- *
- * mangles all statically resolvable JavaScript key-chains **including most keywords**
- * and returns the mangled source with a source-map-like array of paths.
- * paths are supposed to be resolved to values using a secure scope object
- * and passed as arguments in the same order to the evaluated source/function.
- *
- * this approach drastically reduces the complexity of the parser because
- * it does not have to create an abstract syntax tree and imposes strong
- * restrictions on the input source code.
- * 
- * function and variable declarations, flow-control statements,
- * and access to the global scope are no longer possible. keywords like
- * `this`, `arguments`, and `undefined` can be conveniently remapped to their
- * desired/secure values. to a certain degree this remedies *strict mode*.
- *
- * the parser further disallows comments, statements/semicola, and assignments
- * of all variations. in general, side-effects are not allowed.
- *
- * the parser explicitely allows keywords `null`, `true` and `false`,
- * sequences/commata, function calls and operators `typeof`, `void`,
- * `instanceof`, `new` and `in`. all other keywords will be
- * interpreted as identifiers!
- * 
- * if you wish to use one of the allowed keywords as an actual key,
- * map `this` to your root object and access properties like so: `this["new"]`
- *
- * in order for function calls to not loose their potential this-binding
- * the last key of affected paths will be preserved. example:
- * ```
- * var expr = mangle("obj.prop.startsWith(prefix)")
- * expr.source == "$0.startsWith($1)"
- * expr.paths == [["obj", "prop"], ["prefix"]]
- * ```
- * keep this behaviour in mind if you intend to watch the given paths
- * for value-changes upon which you call the function. if you wish to *bind* 
- * to changes of the function itself, wrap it in a dedicated expression:
- * ```
- * var expr = mangle("( obj.prop.startsWith )(prefix)")
- * expr.source == "($0)($1)"
- * expr.paths == [["obj", "prop", "startsWith"], ["prefix"]]
- * ```
- * note that the above example only works (throws an error) because the
- * key-path is completely replaced. this is more of a bug than a feature
- * because usually, to achieve the same behaviour, you would have to write
- * an expression sequence which evaluates to the function:
- * ```
- * (true, obj.prop.startsWith)(prefix) // startsWith lost its context
- * ```
- *
- * TODO:
- *   what about `array.length` as a key-path?
- *   preserve `length` or mangle it?
- *
- * TODO:
- *   make `undefined` an optional keyword if you screw IE8
- *   
- */
+import Base from './util/base'
+import { Array } from './util/global'
+import { trim, chr } from '.util/string'
+import { indexOf, findIndex, eqArray } from './util/array'
 
-import { isArray } from './util/type'
-import { findIndex, map, eqArray, last } from './util/array'
-import { indexOfUnescaped, startsWith, startsWithRegex } from './util/string'
-
-/** used to prefix mangled identifiers */
-const IDENT_PREFIX = '$'
-
-/** used to mark the beginning of a number (any format except e.g. `.5`) */
-const passNumber = /\d/
+/** used skip numbers (any format except e.g. `.5`) */
+const passNum = /^\d/
 
 /** used to match the first character of a javascript identifier or keyword */
 const passIdent = /[a-zA-Z\$_]/
 
-/** used to skip binary, octal, hexadecimal, decimal, floating point and exponent characters */
-const noNumber = /[^\d\.a-fx]/gi
-
 /** used to skip whitespace */
-const noWhitespace = /\S/g
+const noWs = /\S/g
+
+/** used to skip numbers (bin, oct, hex, exp) */
+const noNum = /[^a-fox\d]/gi
+
+/** used to skip object keys */
+const noIdent = /[^\w\$]/g
 
 /** used to match javascript identifiers and keywords */
 const matchIdent = /[a-zA-Z\$_][\w\$]*/g
 
-/** used to match javascript operators */
-const matchOperator = /[\+\-]{2}|[\+\-\*\/\^\&\|<%>]=|={1,3}|!==?|<<=?|>>>?=?/g
+/** preserved keywords in expressions (operators and values only) */
+const keywords = 'false,in,instanceof,new,null,true,typeof,void'.split(',')
 
-/** preserved keywords in expressions */
-const keywords = 'false|in|instanceof|new|null|true|typeof|void'
-
-/** parser error message factories */
-const AssignError = op => `assignments are not allowed: found ${op} operator`
-const CommentError = input => `comments are not allowed\n > ${input}`
-const MissingNameError = input => `missing name after . operator\n > ${input}`
-const StatementError = input => `statements are not allowed\n > ${input}`
-const UtermRegexError = input => `unterminated regex literal\n > ${input}`
-const UtermStringError = input => `unterminated string literal\n > ${input}`
-const UtermTemplError = input => `unterminated template expression\n > ${input}`
-
-/**
- * find
- * @param  {string} string
- * @param  {regex} regex 
- * @param  {number} nextIndex
- * @return {string}
- */
-find.lastIndex = 0 // JIT: preset
-
-function find (string, nextIndex, regex) {
-  regex.lastIndex = nextIndex
-  
-  var match = regex.exec(string)
-
-  if (match) {
-    find.lastIndex = regex.lastIndex
-    return match[0]
+function toIdent (i) {
+  if (i > 25) {
+    if (DEBUG) throw new Error('surpassed max no. arguments')
   }
-  else {
-    find.lastIndex = string.length
-    return '' // JIT: monomorphism
-  }
+  return chr(97 + i)
 }
 
+/* -----------------------------------------------------------------------------
+ * expression parser/evaluator singleton
+ */
+export default Base.create.call({
+ 
+  constructor () {
+    /** parser index */
+    this.index = 0
 
-mangle.lastIndex = 0 // JIT: preset
+    /** input source code */
+    this.input = ''
 
-function mangle (input, nextIndex, paths) {
-  var key = find(input, nextIndex, matchIdent)
-    , appendix, length, path, char
+    /** input delimiter */
+    this.suffix = ''
 
-  // early exit for allowed keywords
-  if (keywords.indexOf(key) > -1) {
-    mangle.lastIndex = find.lastIndex
-    return ' ' + key // account for identifiers next to keywords
+    /** pending index used for buffering, copying parts from input to output */
+    this.anchor = ''
+
+    /** used to keep track of brackets/braces/parentheses */
+    this.brackets = []
+
+    /** indicates whether the current identifier could be an object key */
+    this.maybeKey = false
+
+    /** array of key-chains being collected (result) */
+    this.paths = []
+
+    /** mangled output source (result) */
+    this.output = ''
   }
 
-  nextIndex = find.lastIndex
-  appendix = ''
-  length = input.length
-  path = [key]
+, parse (input, delimiters) {
+    var [prefix, suffix] = delimiters || ['', '']
+      , begin = input.indexOf(prefix)
+      , expression
+    
+    if (begin < 0) return
+    
+    this.index = begin + prefix.length
+    this.input = input
+    this.suffix = suffix
 
-  while (nextIndex < length) {
+    this.dataState()
 
-    // skip whitespace
-    char = find(input, nextIndex, noWhitespace)
-    nextIndex = find.lastIndex
-
-    // dot notation
-    if (char === '.') {
-
-      // skip whitespace
-      if (!find(input, nextIndex, noWhitespace)) {
-        if (DEBUG) throw new Error(MissingNameError(input))
-      }
-
-      // find path key, reconsume non-whitespace character
-      key = find(input, find.lastIndex-1, matchIdent)
-      nextIndex = find.lastIndex
-
-      if (!key) {
-        if (DEBUG) throw new Error(MissingNameError(input))
-      }
-
-      path.push(key)
+    expression =
+    { paths: this.paths
+    , source: trim(this.output)
+    , begin: begin
+    , end: this.index + suffix.length
     }
-    // bracket notation
-    else if (char === '[') {
 
-      // skip whitespace
-      char = find(input, nextIndex, noWhitespace)
-      nextIndex = find.lastIndex
+    this.constructor() // reset
 
-      // string notation
-      if (char === '"' || char === "'") {
-        var pendIndex = nextIndex
-        nextIndex = indexOfUnescaped(input, char, pendIndex)
+    return expression
+  }
 
-        if (nextIndex < 0) {
-          if (DEBUG) throw new Error(UtermStringError(input))
-          break
-        }
+  /** @static */
+, evaluate (expression) {
+    var argc = expression.paths.length
+      , signature = Array(argc)
 
-        key = input.substring(pendIndex, nextIndex)
-        path.push(key)
-
-        // skip the single-/double-quote
-        nextIndex += 1
-
-        // bail out if this is a more complex expression than a simple string
-        char = find(input, nextIndex, noWhitespace)
-        nextIndex = find.lastIndex
-
-        if (char !== ']') {
-          appendix = `["${path.pop()}"`
-          nextIndex -= 1
-          break
-        }
-      }
-      else if (passNumber.test(char)) {
-        var pendIndex = nextIndex-1
-        nextIndex = find(input, pendIndex, noNumber)
-
-        key = input.substring(pendIndex, nextIndex)
-        path.push(key)
-
-        // bail out if this is a more complex expression than a simple string
-        char = find(input, nextIndex, noWhitespace)
-        nextIndex = find.lastIndex
-
-        if (char !== ']') {
-          appendix = `["${path.pop()}"`
-          nextIndex -= 1
-          break
-        }
-      }
-      else {
-        // reconsume opening bracket
-        nextIndex -= 2
-        break
-      }
+    while (argc--) {
+      signature[argc] = toIdent(argc)
     }
-    // function calls - preserve potential this-binding
-    else if (char === '(' && path.length > 1) {
-      key = path.pop()
 
-      // if it's a valid identifier we can use dot-notation
-      appendix = key.match(matchIdent)[0].length === key.length ? `.${key}` : `["'${key}'"]`
-      nextIndex -= 1
-      break
+    signature.push('return ' + expression.source)
+
+    return Function.apply(null, signature)
+  }
+
+  /* ---------------------------------------------------------------------------
+   * parser utilities
+   */
+, buffer () {
+    this.anchor = this.index
+  }
+
+, flush () {
+    if (this.anchor < this.index) {
+      this.output += this.input.substring(this.anchor, this.index)
+      this.anchor = this.index
+    }
+  }
+
+, seek (regex, offset) {
+    if (offset) this.index += offset
+    regex.lastIndex = this.index
+    const match = regex.exec(this.input)
+
+    if (match) {
+      this.index = match.index
+      return match[0]
     }
     else {
-      nextIndex -= 1
-      break
+      this.index = this.input.length
+      return '' // JIT: monomorphism
     }
   }
-  
-  mangle.lastIndex = nextIndex
 
-  // deduplicate in O(n*m) - opt for a trie structure instead
-  var argIndex = findIndex(paths, other => eqArray(path, other))
-  if (argIndex < 0) {
-    argIndex = paths.push(path)-1
+, seekUnescaped (chr, offset) {
+    if (offset) this.index += offset
+
+    do {
+      var index = this.input.indexOf(chr, this.index)
+      this.index = index+1
+    }
+    while (this.input.charAt(index-1) === '\\')
   }
 
-  return (IDENT_PREFIX + argIndex) + appendix
-}
+, hasReachedSuffix () {
+    var suffix = this.suffix
 
-export function parse (input, offset, suffix) {
-  var output = ''
-    , paths = []
+    return (
+      suffix &&
+      this.brackets.length == 0 &&
+      this.input.substr(this.index, suffix.length) === suffix
+    )
+  }
 
-    // parser state
-    , nextIndex = +offset || 0
-    , pendIndex = nextIndex
-    , lastIndex = -1
-    , brackets = []
-    , inObjKey = false
-    , length = input.length
-    , char
+  /* ---------------------------------------------------------------------------
+   * parser state tree (no recursion)
+   *
+   * dataState
+   * - slashState
+   * - identState
+   *   - pathState
+   *     - dotState
+   *     - bracketOpenState
+   *       - bracketCloseState
+   * - dotState
+   * - [debugState]
+   */
+, dataState () {
+    var length = this.input.length
+      , index, chr
 
-  matchOperator.lastIndex = nextIndex // reset
+    this.buffer()
 
-  while (nextIndex < length) {
+    while (this.index < length) {
+      index = this.index
+      chr = this.seek(noWs)
 
-    /* -------------------------------------------------------------------------
-     * skip whitespace, numbers, strings and regular expressions
-     * (anything that would otherwise be falsely recognized as part of a key-path)
-     */
-    char = find(input, nextIndex, noWhitespace)
-    nextIndex = find.lastIndex
-
-    if (passNumber.test(char)) {
-      find(input, nextIndex, noNumber)
-      nextIndex = find.lastIndex-1
-    }
-    else if (char === '"' || char === "'" || char === '/') {
-
-      if (DEBUG && char === '/') {
-        var next = input.charAt(nextIndex)
-
-        if (next === '=') {
-          throw new Error(AssignError(char + next))
-        }
-        else if (next === '/' || next === '*') {
-          throw new Error(CommentError(input))
-        }
-      }
-
-      nextIndex = indexOfUnescaped(input, char, nextIndex)
-      if (nextIndex < 0) {
-        if (DEBUG) throw new Error((char === '/' ? UtermRegexError : UtermStringError)(input))
+      if (this.hasReachedSuffix()) {
         break
       }
-      nextIndex += 1 // skip quote or slash
-    }
-    /* -------------------------------------------------------------------------
-     * break on expression suffix
-     */
-    else if (suffix && !brackets.length && startsWith(input, suffix, nextIndex-1)) {
-      lastIndex = nextIndex-1
-      break
-    }
-    /* -------------------------------------------------------------------------
-     * track object literals to avoid mangling their keys
-     * (needs to disambiguate the meaning of a comma)
-     */
-    else if (char === '(' || char === '[' || char === '{') {
-      brackets.push(char)
-      inObjKey = true
-    }
-    else if (char === ')' || char === ']' || char === '}') {
-      brackets.pop()
-    }
-    else if (char === ':') {
-      inObjKey = false
-    }
-    else if (char === ',') {
-      inObjKey = true
-    }
-    /* -------------------------------------------------------------------------
-     * mangle and record key-chains
-     */
-    else if (passIdent.test(char)) {
+      else if (passNum.test(chr)) {
+        this.seek(noNum, 1)
+      }
+      else if (chr === '/') {
+        this.slashState()
+      }
+      else if (chr === '"' || chr === "'") {
+        this.seekUnescaped(chr, 1)
+        if (!this.index) if (DEBUG) throw new Error('unterminated string literal')
+      }
+      else if (chr === '(' || chr === '[' || chr === '{') {
+        this.brackets.unshift(chr)
+        this.maybeKey = true
+      }
+      else if (chr === ')' || chr === ']' || chr === '}') {
+        this.brackets.shift()
+      }
+      else if (chr === ':') {
+        this.maybeKey = false
+      }
+      else if (chr === ',') {
+        this.maybeKey = true
+      }
+      else if (passIdent.test(chr)) {
+        this.identState()
+      }
+      else if (chr === '.') {
+        this.dotState()
+      }
+      else if (DEBUG) {
+        // not on prototype for dead-code removal
+        debugState.call(this, chr)
+      }
 
-      // reconsume current character
-      nextIndex -= 1
+      // ensure increment
+      if (this.index === index) this.index += 1
+    }
 
-      // protect keys of object literals
-      if (inObjKey && last(brackets) === '{') {
-        find(input, nextIndex, matchIdent)
-        nextIndex = find.lastIndex
+    this.flush()
+  }
+
+, slashState () {
+    var chr = this.input.charAt(++this.index)
+
+    if (chr === '/' || chr === '*') {
+      if (DEBUG) throw new Error('comments not allowed')
+    }
+    else if (chr === '=') {
+      if (DEBUG) throw new Error('assignments not allowed')  
+    }
+    else {
+      this.seekUnescaped('/')
+      if (!this.index) if (DEBUG) throw new Error('unterminated regular expression')
+    }
+  }
+
+, identState () {
+    if (this.maybeKey && this.brackets[0] === '{') {
+      this.seek(noIdent, 1)
+    }
+    else {
+      var ident = this.seek(matchIdent)
+
+      if (indexOf(keywords, ident) < 0) {
+        this.flush()
+        this.index += ident.length
+        this.pathState( [ident] )
+      }
+    }
+  }
+
+, pathState (path) {
+    var length = this.input.length
+      , chr
+
+    while (this.index < length) {
+      chr = this.seek(noWs)
+
+      if (chr === '.') {
+        this.buffer()
+        this.dotState(path)
+      }
+      else if (chr === '[') {
+        this.buffer()
+        if (this.bracketOpenState(path)) break
+      }
+      // preserve this-bindings of function calls
+      else if (chr === '(' && path.length > 1) {
+        path.pop()
+        break
       }
       else {
-        // append what we skipped up until now
-        if (pendIndex < nextIndex) {
-          output += input.substring(pendIndex, nextIndex)
-          // due update of `pendIndex` follows
-        }
-
-        // append path replacement
-        output += mangle(input, nextIndex, paths)
-
-        // set indices to continue after the path
-        nextIndex = pendIndex = mangle.lastIndex
-      }
-    }
-    /* -------------------------------------------------------------------------
-     * skip key-chains resolved on runtime values e.g. `/regex/.test(str)`
-     */
-    else if (char === '.') {
-      
-      if (!find(input, nextIndex, noWhitespace)) {
-        if (DEBUG) throw new Error(MissingNameError(input))
+        this.buffer()
         break
       }
+    }
 
-      // skip path key or continue to handle floating point number
-      nextIndex = find.lastIndex
-      if (startsWithRegex(input, matchIdent, nextIndex-1)) {
-        nextIndex = matchIdent.lastIndex
-      }
+    // else to the while
+    if (this.index === length) this.buffer()
+
+    // add expression dependency - the path - to argument list
+    var argIndex = findIndex(this.paths, path_ => eqArray(path, path_))
+    if (argIndex < 0) argIndex = this.paths.push(path)-1
+
+    this.output += toIdent(argIndex)
+    this.flush()
+  }
+
+, dotState (path) {
+    var chr = this.seek(noWs, 1)
+      , ident
+
+    if (passIdent.test(chr)) {
+      ident = this.seek(matchIdent)
+      this.index += ident.length
+      if (path) path.push(ident)
     }
-    /* -------------------------------------------------------------------------
-     * enforce limited expression syntax forbidding assignments and semicola
-     */
-    else if (DEBUG && char === ';') {
-      throw new Error(StatementError(input))
+    else if (!passNum.test(chr)) {
+      if (DEBUG) throw new Error('missing name after dot operator')
     }
-    else if (DEBUG) {
-      var operator = startsWithRegex(input, matchOperator, nextIndex-1, true)
+  }
+
+  /**
+   * returns true if the enclosed expression is dynamic
+   * i.e. cannot be statically resolved
+   */
+, bracketOpenState (path) {
+    var chr = this.seek(noWs, 1)
+      , begin, ident
+
+    if (chr === '"' || chr === "'") {
+      begin = this.index
+      this.seekUnescaped(chr, 1)
+
+      if (!this.index) if (DEBUG) throw new Error('unterminated string literal')
       
-      if (operator) {
-        operator = operator[0]
+      ident = this.input.substring(begin+1, this.index-1) // trim quotes
+      path.push(ident) 
+      
+      return this.bracketCloseState(path)
+    }
+    else if (passNum.test(chr)) {
+      begin = this.index
+      this.seek(noNum, 1)
+      
+      ident = this.input.substring(begin, this.index)
+      path.push(+ident) // coarse number
+      
+      return this.bracketCloseState(path)
+    }
+    else if (!chr) {
+      if (DEBUG) throw new Error('expected expression, got end of script')
+    }
+    // do not support keyword values as accessors (true, false, null, etc.)
 
-        switch (operator) {
-        case '=':
-        case '++':
-        case '--':
-        case '+=':
-        case '-=':
-        case '*=':
-        case '/=':
-        case '|=':
-        case '&=':
-        case '^=':
-        case '<<=':
-        case '>>=':
-        case '>>>=':
-          throw new Error(AssignError(operator))
-        case '<=':
-        case '>=':
-        case '!=':
-        case '!==':
-        default:
-          nextIndex += operator.length-1
-        }
-      }
+    return true
+  }
+
+  /**
+   * returns true if the enclosed expression is dynamic
+   * i.e. cannot be statically resolved
+   */
+, bracketCloseState (path) {
+    var chr = this.seek(noWs)
+
+    if (!chr) {
+      if (DEBUG) throw new Error('expected expression, got end of script')
+    }
+    else if (chr === ']') {
+      this.index += 1
+    }
+    else {
+      path.pop()
+      return true
     }
   }
+})
 
-  if (suffix && lastIndex < 0) {
-    throw new Error(UtermTemplError(input))
+/** used to match javascript operators (debug) */
+const matchOperator = /[\+\-]{2}|[\+\-\*\/\^\&\|<%>]=|=>|={1,3}|!==?|<<=?|>>>?=?/g
+
+/** used match the first character of a possibly forbidden operator */
+const beginOperator = '=+-*/|&^<!>'
+
+function debugState (chr) {
+  if (chr === ';') {
+    throw new Error('statements are not allowed')
   }
+  else if (beginOperator.indexOf(chr) > -1) {
+    var match, operator
 
-  // flush remaining output
-  if (pendIndex < length) {
-    output += input.substring(pendIndex, suffix ? lastIndex : length)
+    matchOperator.lastIndex = this.index
+    match = matchOperator.exec(this.input)
+
+    // early exit if not matched at the current position
+    if (!match || match.index !== this.index) return
+
+    operator = match[0]
+    switch (operator) {
+      case '=>':
+        throw new Error('arrow operator not supported')
+      case '=':
+      case '++':
+      case '--':
+      case '+=':
+      case '-=':
+      case '*=':
+      case '/=':
+      case '|=':
+      case '&=':
+      case '^=':
+      case '<<=':
+      case '>>=':
+      case '>>>=':
+        throw new Error('assignments are not allowed')
+      case '<=':
+      case '>=':
+      case '!=':
+      case '!==':
+        this.index += operator.length
+    }
   }
-
-  return { paths, source: output.trim(), lastIndex }
-}
-
-/**
- * getSignatureOf
- * @param  {expression} expression
- * @return {array}
- */
-function getSignatureOf (expression) {
-  return map(expression.paths, (_, i) => IDENT_PREFIX + i)
-}
-
-/**
- * evaluate
- * @param  {expression} expression
- * @return {function}
- */
-export function evaluate (expression) {
-  var signature = getSignatureOf(expression)
-  signature.push('return ' + expression.source)
-  return Function.apply(null, signature)
-}
-
-/**
- * serialize an expression to function wrapped output code
- * @param  {expression} expression
- * @param  {string} name
- * @return {string}
- */
-export function serialize (expression, name) {
-  var code = 'function '
-  if (name) code += name
-  code += '(' + getSignatureOf(expression).join(',') + ')'
-  code += '{return ' + expression.source + '}'
-  return code
 }
