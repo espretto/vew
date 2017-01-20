@@ -1,7 +1,4 @@
 
-/**
- * for the scope to work you have to subscribe AND provide the data
- */
 import Set from './util/set'
 import Base from './util/base'
 import { thisify } from './util/function'
@@ -11,63 +8,23 @@ import { Object, Array, Date, Error } from './util/global'
 import { isPlainObject, isArray, isObject, isDate } from './util/type'
 import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue } from './util/object'
 
-
-const SubscriptionNode = Base.derive({
-
-  constructor (parent) {
-    this.parent = parent
-    this.actions = []
-    this.children = {}
-  }
-
-, isEmpty () {
-    return this.actions.length === 0 && isEmptyObject(this.children)
-  }
-
-, remove () {
-    const parent = this.parent
-    if (parent) deleteValue(parent.children, this)
-  }
-
-, resolve (path) {
-    return fold(path, this, (sub, key) => sub && getOwn(sub.children, key))
-  }
-
-, resolveOrCreate (path) {
-    return fold(path, this, (sub, key) => {
-      const children = sub.children
-      var child
-
-      if (hasOwn.call(children, key)) {
-        child = children[key]
-      }
-      else {
-        child = children[key] = SubscriptionNode.create(sub)
-      }
-
-      return child
-    })
-  }
-})
-
-
 export default Base.derive({
 
   constructor (data) {
     this.data = data
-    this.root = SubscriptionNode.create()
-    this.todos = new Set()
-    this.actions = new Set()
+    this._root = SubscriptionTreeNode.create()
+    this._tasks = new Set()
+    this._dirtySubs = new Set()
   }
 
-, subscribe (path, action) {
-    this.root.resolveOrCreate(toPath(path)).actions.push(action)
+, subscribe (path, task) {
+    this._root.resolveOrCreate(toPath(path)).tasks.push(task)
   }
 
-, unsubscribe (path, action) {
-    var sub = this.root.resolve(toPath(path))
+, unsubscribe (path, task) {
+    var sub = this._root.resolve(toPath(path))
 
-    remove(sub.actions, action)
+    remove(sub.tasks, task)
 
     for (; sub; sub = sub.parent) {
       if (sub.isEmpty()) {
@@ -76,55 +33,53 @@ export default Base.derive({
     }
   }
 
-, notify (sub) {
-    const todos = this.todos
+, resolve (path) {
+    return toPath(path).reduce((obj, key) => obj[key], this.data)
+  }
 
-    for (; sub && !todos.has(sub); sub = sub.parent) {
-      if (sub.actions.length) {
-        todos.add(sub)
+, _notify (sub) {
+    for (; sub && !this._dirtySubs.has(sub); sub = sub.parent) {
+      if (sub.tasks.length) {
+        this._dirtySubs.add(sub)
       }
     }
   }
 
 , update () {
     const scope = this
-      , todos = scope.todos
-      , actions = scope.actions
+        , tasks = scope._tasks
+        , dirtySubs = scope._dirtySubs
 
-    todos.forEach(todo => {
-      forEach(todo.actions, action => {
-        actions.add(action)
+    dirtySubs.forEach(sub => {
+      forEach(sub.tasks, task => {
+        tasks.add(task)
       })
     })
 
     // begin requestAnimationFrame
-    actions.forEach(action => { action.call(scope) })
+    tasks.forEach(task => { task.call(scope) })
     // end requestAnimationFrame
 
-    todos.clear()
-    actions.clear()
-  }
-
-, resolve (path) {
-    return fold(toPath(path), this.data, (obj, key) => obj[key] )
+    tasks.clear()
+    dirtySubs.clear()
   }
 
 , merge (/*[path,] src*/) {
     
     if (arguments.length < 2) {
-      var sub = this.root
+      var sub = this._root
         , trg = this.data
         , src = arguments[0]
 
       this.data = trg !== undefined
-        ? this.mergeDeep(trg, src, sub)
-        : this.cloneDeep(src, sub)
+        ? this._mergeDeep(trg, src, sub)
+        : this._cloneDeep(src, sub)
     }
     else {
       var path = toPath(arguments[0])
-        , sub = this.root.resolve(path)
+        , sub = this._root.resolve(path)
         , tail = path.pop() // [1]
-        , trg = resolvePath(this.data, path)
+        , trg = this.resolve(path)
         , src = arguments[1]
 
       path.push(tail) // [1]
@@ -134,12 +89,12 @@ export default Base.derive({
       }
 
       trg[tail] = has(trg, tail)
-        ? this.mergeDeep(trg[tail], src, sub)
-        : this.cloneDeep(src, sub)
+        ? this._mergeDeep(trg[tail], src, sub)
+        : this._cloneDeep(src, sub)
     }
   }
 
-, mergeDeep (trg, src, sub) {
+, _mergeDeep (trg, src, sub) {
 
     // test mutability
     const trgHas = isArray(trg) || isPlainObject(trg)
@@ -147,34 +102,34 @@ export default Base.derive({
 
     // merge mutables with keys
     if (trgHas && srcEach) {
-      trg = this.mergeEach(trg, src, trgHas, srcEach, sub)
+      trg = this._mergeEach(trg, src, trgHas, srcEach, sub)
     }
     // mutate date objects
     else if (isDate(trg) && isDate(src) && +trg !== +src) {
       trg.setTime(src)
-      this.notify(sub)
+      this._notify(sub)
     }
     // override if immutable values differ by SameValueZero-comparison
     else if (!trgHas && !srcEach && (trg === trg ? trg !== src : src === src)) {
       trg = src
-      this.notify(sub)
+      this._notify(sub)
     }
 
     return trg
   }
 
-, cloneDeep (src, sub) {
-    this.notify(sub)
+, _cloneDeep (src, sub) {
+    this._notify(sub)
 
     if (isObject(src)) {
       
-      if (isArray(src, true)) {
-        return this.mergeEach(Array(src.length), src, false, forEach, sub)
+      if (isArray(src)) {
+        return this._mergeEach(Array(src.length), src, false, forEach, sub)
       }
-      else if (isPlainObject(src, true)) {
-        return this.mergeEach({}, src, false, forOwn, sub)
+      else if (isPlainObject(src)) {
+        return this._mergeEach({}, src, false, forOwn, sub)
       }
-      else if (isDate(src, true)) {
+      else if (isDate(src)) {
         return new Date(src)
       }
       else if (DEBUG) {
@@ -185,26 +140,25 @@ export default Base.derive({
     return src
   }
 
-, mergeEach (trg, src, trgHas, srcEach, parent) {
-    const trgIsArray = isArray(trg, true)
-        , trgLength = trg.length
-        , children = parent.children
-
-    var once = true
+, _mergeEach (trg, src, trgHas, srcEach, parent) {
+    var trgIsArray = isArray(trg)
+      , trgLength = trg.length
+      , children = parent.children
+      , once = true
 
     srcEach(src, (value, key) => {
       var sub = getOwn(children, key, parent)
 
       // merge if the key is common
       if (trgHas && (trgIsArray ? key < trgLength : hasOwn.call(trg, key))) {
-        trg[key] = this.mergeDeep(trg[key], value, sub)
+        trg[key] = this._mergeDeep(trg[key], value, sub)
       }
       // clone if the key is foreign
       else {
-        trg[key] = this.cloneDeep(value, sub)
+        trg[key] = this._cloneDeep(value, sub)
 
         if (once && trgIsArray) {
-          this.notify( sub.children['length'] )
+          this._notify( sub.children['length'] )
           once = false
         }
       }
@@ -219,5 +173,38 @@ export default Base.derive({
    */
 , replace () {
     throw new Error('not yet implemented')
+  }
+})
+
+const SubscriptionTreeNode = Base.derive({
+
+  constructor (parent) {
+    this.parent = parent
+    this.tasks = []
+    this.children = {}
+  }
+
+, isEmpty () {
+    return !this.tasks.length &&
+           isEmptyObject(this.children)
+  }
+
+, remove () {
+    const parent = this.parent
+    if (parent) deleteValue(parent.children, this)
+  }
+
+, resolve (path) {
+    var sub = this
+    forEach(path, key => !!(sub = getOwn(sub.children, key)))
+    return sub
+  }
+
+, resolveOrCreate (path) {
+    return fold(path, this, (sub, key) => {
+      var children = sub.children
+      return getOwn(children, key) ||
+                   (children[key] = SubscriptionTreeNode.create(sub))
+    })
   }
 })
