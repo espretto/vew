@@ -86,7 +86,7 @@ function Null () {}
 
 export const create = idNative(Object.create) || function (proto) {
   Null.prototype = proto
-  var instance = new Null()
+  const instance = new Null()
   Null.prototype = null
   
   return instance

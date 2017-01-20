@@ -18,5 +18,5 @@ export const chr = String.fromCharCode
  * trim
  */
 export const trim = nativeTrim
-  ? uncurry(trim, 0)
+  ? uncurry(nativeTrim, 0)
   : string => string.replace(reTrim, '')

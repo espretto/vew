@@ -82,7 +82,7 @@ const Section = Base.derive({
     )
 
     forEach(this.Tasks, Task => {
-      var node = resolveNode(this.template, Child.mountPath)
+      var node = resolveNode(this.template, Task.mountPath)
       this.tasks.push( Task.create(node, topScope) )
     })
     
