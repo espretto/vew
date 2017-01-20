@@ -9,7 +9,7 @@ export default extend(create(null), {
 
 , create () {
     var instance = create(this)
-    instance.init.apply(instance, arguments)
+    instance.constructor.apply(instance, arguments)
     return instance
   }
 
