@@ -1,15 +1,15 @@
 
 import { Set } from './global'
-import { forEach } from './array'
 import { uniqId } from './misc'
+import { forEach } from './array'
 import { isUndefined, isFunction } from './type'
 
-function SetShim () {
+function Shim () {
 	this._items = []
 	this._ident = uniqId('__set')
 }
 
-SetShim.prototype = {
+Shim.prototype = {
 
 	has (item) {
 		return item[this._ident]
@@ -40,4 +40,4 @@ export default (
 	!isUndefined(Set) &&
 	isFunction(new Set().values) &&
 	isUndefined(new Set().values.next)
-) ? Set : SetShim
+) ? Set : Shim
