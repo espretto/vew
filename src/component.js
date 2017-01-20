@@ -77,12 +77,12 @@ const Section = Base.derive({
     // ORDER MATTERS!
     
     // resolve node-paths before mounting/mutating the template
-    const mountNodes = map(this.ChildComponents, ChildComponent =>
-      resolveNode(this.template, ChildComponent.mountPath)
+    const mountNodes = map(this.ChildComponents, Child =>
+      resolveNode(this.template, Child.mountPath)
     )
 
     forEach(this.Tasks, Task => {
-      var node = resolveNode(this.template, ChildComponent.mountPath)
+      var node = resolveNode(this.template, Child.mountPath)
       this.tasks.push( Task.create(node, topScope) )
     })
     
@@ -92,9 +92,9 @@ const Section = Base.derive({
       this.mount(mountNode)
     }
 
-    forEach(this.ChildComponents, (ChildComponent, i) => {
-      var scope = ChildComponent.isTranscluded ? topScope : component.scope
-      this.childComponents.push( ChildComponent.create(component, scope, mountNodes[i]) )
+    forEach(this.ChildComponents, (Child, i) => {
+      var scope = Child.isTranscluded ? topScope : component.scope
+      this.childComponents.push( Child.create(component, scope, mountNodes[i]) )
     })
   }
 
