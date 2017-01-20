@@ -1,12 +1,12 @@
 
 import { Set } from './global'
 import { forEach } from './array'
-import { uniqueId } from './misc'
+import { uniqId } from './misc'
 import { isUndefined, isFunction } from './type'
 
 function SetShim (items) {
 	this.items = []
-	this.ident = uniqueId('__set')
+	this.ident = uniqId('__set')
 
 	if (items) {
 		var that = this // babel function hoisting
