@@ -14,12 +14,16 @@
 import { idNative } from './type'
 import { Error, Array } from './global'
 
-/**
- * fails if passed one number
- * @param  {*} collection
- * @return {Array}
- */
-export const toArray = idNative(Array.from) || (collection => Array.apply(null, collection))
+export const toArray = idNative(Array.from) || function (countable) {
+  var i = countable.length
+    , array = Array(i)
+
+  while (i--) {
+    array[i] = countable[i]
+  }
+
+  return array
+}
 
 export function last (array) {
   return array[array.length-1]

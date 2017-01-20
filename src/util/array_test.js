@@ -3,7 +3,8 @@ import { expect } from 'chai'
 import sinon from 'sinon'
 
 import {
-  last
+  toArray
+, last
 , indexOf
 , lastIndexOf
 , includes
@@ -36,6 +37,19 @@ describe('Array Utils', function() {
 
   let array
   beforeEach(() => array = [1, 2, 3, 4, 5])
+
+  describe('#toArray', () => {
+    it('should exist', () => {
+      expect(toArray).to.be.a('function')
+    })
+    it('should return an array of the same length', () => {
+      expect(toArray({ length: 0 })).to.deep.equal([])
+      expect(toArray({ length: 1 })).to.deep.equal([void 0])
+    })
+    it('should copy values', () => {
+      expect(toArray({ length: 1, '0': 2 })).to.deep.equal([2])
+    })
+  })
 
   describe('#last', () => {
     it('should exist', () => {
