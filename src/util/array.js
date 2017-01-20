@@ -1,5 +1,8 @@
 
-/**
+import { idNative } from './type'
+import { Error, Array } from './global'
+
+/* -----------------------------------------------------------------------------
  * array extras
  *
  * non-conformance
@@ -10,9 +13,6 @@
  * - do not support initial value for reduce functions (use fold instead)
  * - do support offsets for find and findIndex
  */
-
-import { idNative } from './type'
-import { Error, Array } from './global'
 
 export const toArray = idNative(Array.from) || function (countable) {
   var i = countable.length

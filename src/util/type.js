@@ -11,6 +11,8 @@ const funcTag = '[object Function]'
 
 const arrayTag = '[object Array]'
 
+const protoProp = '__proto__'
+
 const objectTypes = { 'object': true, 'function': true }
 
 function isFunc (any) {
@@ -18,7 +20,7 @@ function isFunc (any) {
 }
 
 /* -----------------------------------------------------------------------------
- * exports
+ * type checking
  */
 export function isObject (any) {
   return any != null && objectTypes[typeof any]
@@ -50,8 +52,8 @@ export function isDate (any) {
   return isObject(any) && toString.call(any) === dateTag
 }
 
-const protoOf = idNative(Object.getPrototypeOf) || ('__proto__' in objectTypes
-  ? any => any.__proto__
+const protoOf = idNative(Object.getPrototypeOf) || (protoProp in objectTypes
+  ? any => any[protoProp]
   : any => any.constructor.prototype
 )
 
