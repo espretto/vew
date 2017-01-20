@@ -1,106 +1,60 @@
 
-import { Array, Date, Number, Object, RegExp, Set, String } from './global'
+import { Array, Object } from './global'
 
 const objectProto = Object.prototype
 
 const toString = objectProto.toString
 
-/**
- * isObject
- * @param  {*}
- * @return {bool}
- */
+const dateTag = '[object Date]'
+
+const funcTag = '[object Function]'
+
+const arrayTag = '[object Array]'
+
 const objectTypes = { 'object': true, 'function': true }
 
+function isFunc (any) {
+  return typeof any === 'function'
+}
+
+/* -----------------------------------------------------------------------------
+ * exports
+ */
 export function isObject (any) {
   return any != null && objectTypes[typeof any]
 }
 
-/**
- * isFunction
- * @param  {*}
- * @return {bool}
- */
-const funcTag = '[object Function]'
-
-function isTypeFunction (any) {
-  return typeof any === 'function'
+export function isString (any) {
+  return typeof any === 'string'
 }
 
-export const isFunction = isTypeFunction(/r/)
-  ? any => isTypeFunction(any) && toString.call(any) === funcTag
-  : isTypeFunction
-
-/**
- * idNative
- * @param  {function}
- * @return {function}
- */
-export function idNative (any) {
-  return !isFunction(any) || 'prototype' in any ? false : any
-}
-
-/**
- * protoOf
- * @param  {*} any
- * @return {object} prototype of any
- */
-export const protoOf = idNative(Object.getPrototypeOf) || ('__proto__' in objectTypes
-  ? any => any.__proto__
-  : any => any.constructor.prototype
-)
-
-/**
- * isPlainObject
- * @param  {*}
- * @param  {bool}
- * @return {bool}
- */
-export function isPlainObject (any, isObj) {
-  return (isObj || isObject(any)) && protoOf(any) === objectProto
-}
-
-/**
- * isArray
- * @param  {*}  any
- * @param  {bool} isObj
- * @return {bool}
- */
-const arrayTag = '[object Array]'
-
-function isArrayShim (any, isObj) {
-  return (isObj || isObject(any)) && toString.call(any) === arrayTag
-}
-
-export const isArray = idNative(Array.isArray) || isArrayShim
-
-/**
- * isDate
- * @param  {*}
- * @param  {bool}
- * @return {bool}
- */
-const dateTag = '[object Date]'
-
-export function isDate (any, isObj) {
-  return (isObj || isObject(any)) && toString.call(any) === dateTag
-}
-
-/**
- * isUndefined
- * @param  {*}
- * @return {bool}
- */
 export function isUndefined (any) {
   return any === void 0
 }
 
-/**
- * isString
- * @param  {*}
- * @param  {bool}
- * @return {bool}
- */
-export function isString (any) {
-  return typeof any === 'string'
+export const isFunction = isFunc(/re/)
+  ? any => isFunc(any) && toString.call(any) === funcTag
+  : isFunc
+
+export function idNative (any) {
+  if (isFunction(any) && !('prototype' in any)) {
+    return any
+  }
+}
+
+export const isArray = idNative(Array.isArray) || (any =>
+  isObject(any) && toString.call(any) === arrayTag
+)
+
+export function isDate (any) {
+  return isObject(any) && toString.call(any) === dateTag
+}
+
+const protoOf = idNative(Object.getPrototypeOf) || ('__proto__' in objectTypes
+  ? any => any.__proto__
+  : any => any.constructor.prototype
+)
+
+export function isPlainObject (any) {
+  return isObject(any) && protoOf(any) === objectProto
 }
