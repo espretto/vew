@@ -5,36 +5,34 @@ import { uniqId } from './misc'
 import { isUndefined, isFunction } from './type'
 
 function SetShim () {
-	this.items = []
-	this.ident = uniqId('__set')
+	this._items = []
+	this._ident = uniqId('__set')
 }
 
 SetShim.prototype = {
 
 	has (item) {
-		return item[this.ident]
+		return item[this._ident]
 	}
 
 , add (item) {
-		if (!item[this.ident]) {
-			item[this.ident] = true
-			this.items.push(item)
+		if (!item[this._ident]) {
+			item[this._ident] = true
+			this._items.push(item)
 		}
 	}
 
 , clear (cleanup) {
-		var that = this // babel function hoisting
-
-		forEach(that.items, cleanup
-			? item => { delete item[that.ident] }
-			: item => { item[that.ident] = false }
+		forEach(this._items, cleanup
+			? item => { delete item[this._ident] }
+			: item => { item[this._ident] = false }
 		)
 
-		that.items.length = 0
+		this._items.length = 0
 	}
 
 , forEach (func) {
-		forEach(this.items, func)
+		forEach(this._items, func)
 	}
 }
 
