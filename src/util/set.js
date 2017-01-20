@@ -4,14 +4,9 @@ import { forEach } from './array'
 import { uniqId } from './misc'
 import { isUndefined, isFunction } from './type'
 
-function SetShim (items) {
+function SetShim () {
 	this.items = []
 	this.ident = uniqId('__set')
-
-	if (items) {
-		var that = this // babel function hoisting
-		forEach(items, item => { that.add(item) })
-	}
 }
 
 SetShim.prototype = {
