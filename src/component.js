@@ -9,7 +9,7 @@
 //   reference them by a string. this also enables recursive components.
 //   the recursion must be conditional.
 
-import Base from './util/oloo'
+import Base from './util/base'
 import { Error, Array } from './util/global'
 import { map, forEach, fold, indexOf, toArray } from './util/array'
 
@@ -47,7 +47,7 @@ const Action = Base.derive({
 	mountPath: <array>
 	 */
 
-	init (template, scope) {
+	constructor (template, scope) {
 		this.node = resolveElement(template, this.mountPath)
 		forEach(this.paths, path => { scope.subscribe(path, this) })
 	}
@@ -217,7 +217,7 @@ const Section = Base.derive({
     return this
   }
 
-, init (parent, topScope, mountNode) {
+, constructor (parent, topScope, mountNode) {
     var scope = parent.scope
       , actions = parent.actions
       , children = parent.children
@@ -229,11 +229,11 @@ const Section = Base.derive({
     if (mountNode) this.mount(mountNode)
 
     forEach(this.Actions, Action => {
-      actions.push( Action.new(template, topScope) )
+      actions.push( Action.create(template, topScope) )
     })
 
     forEach(this.Children, (Child, i) => {
-      children.push( Child.new(parent, Child.isTranscluded ? topScope : scope, mountNodes[i]) )
+      children.push( Child.create(parent, Child.isTranscluded ? topScope : scope, mountNodes[i]) )
     })
   }
 
@@ -295,15 +295,15 @@ const Component = Section.derive({
     }
   }
 
-, init (parent, topScope, mountNode) {
+, constructor (parent, topScope, mountNode) {
     this.parent = parent
-    this.scope = Scope.new()
+    this.scope = Scope.create()
     // this.refs = {}
     // this.events = []
     this.actions = []
     this.children = []
 
-    Section.init.call(this, this, topScope || this.scope, mountNode)
+    Section.constructor.call(this, this, topScope || this.scope, mountNode)
   }
 
 , mount: function (node) {

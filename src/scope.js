@@ -3,7 +3,7 @@
  * for the scope to work you have to subscribe AND provide the data
  */
 import Set from './util/set'
-import Base from './util/oloo'
+import Base from './util/base'
 import { thisify } from './util/function'
 import { toPath, resolve, has } from './util/path'
 import { forEach, remove, fold } from './util/array'
@@ -14,7 +14,7 @@ import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue } from './util/objec
 
 const SubscriptionNode = Base.derive({
 
-  init (parent) {
+  constructor (parent) {
     this.parent = parent
     this.actions = []
     this.children = {}
@@ -42,7 +42,7 @@ const SubscriptionNode = Base.derive({
         child = children[key]
       }
       else {
-        child = children[key] = SubscriptionNode.new(sub)
+        child = children[key] = SubscriptionNode.create(sub)
       }
 
       return child
@@ -53,9 +53,9 @@ const SubscriptionNode = Base.derive({
 
 export default Base.derive({
 
-  init (data) {
+  constructor (data) {
     this.data = data
-    this.root = SubscriptionNode.new()
+    this.root = SubscriptionNode.create()
     this.todos = new Set()
     this.actions = new Set()
   }

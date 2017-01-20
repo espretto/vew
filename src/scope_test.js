@@ -8,7 +8,7 @@ import Scope from './scope'
 describe('Scope', function() {
 
   var scope
-  beforeEach(() => scope = Scope.new())
+  beforeEach(() => scope = Scope.create())
 
   it('object should instantiate', function() {
     expect(scope).to.be.an('object')

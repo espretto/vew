@@ -1,20 +1,20 @@
 
 
-import Component from './component'
 import registry from './registry'
+import Component from './component'
 
-function Vew () {
-  var CustomComp = Component.derive.apply(Component, arguments)
+function Vew (proto) {
+  const Comp = Component.derive(proto)
 
-  CustomComp.tag = CustomComp['tag'] // GCC: export
+  Comp.tag = Comp['tag'] // GCC: export
 	
-	if (CustomComp.tag) {
-		registry[CustomComp.tag] = CustomComp
+	if (Comp.tag) {
+		registry[Comp.tag] = Comp
 	}
 
-	CustomComp.bootstrap()
+	Comp.bootstrap()
   
-  return CustomComp
+  return Comp
 }
 
 Vew.registry = registry
@@ -28,7 +28,7 @@ Vew.registry = registry
 			template: '<p><greet>${name}</greet></p>'
 		})
 
-		var app = App.new().mount(document.body)
+		var app = App.create().mount(document.body)
 		
 		app.set({ name: 'Alice' })
 		app.scope.update()
