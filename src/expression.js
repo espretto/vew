@@ -1,7 +1,7 @@
 
 import Base from './util/base'
 import { Array } from './util/global'
-import { trim, chr } from '.util/string'
+import { trim, chr } from './util/string'
 import { indexOf, findIndex, eqArray } from './util/array'
 
 /** used skip numbers (any format except e.g. `.5`) */

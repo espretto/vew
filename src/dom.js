@@ -1,69 +1,16 @@
 
-import { fold, every } from './util/array'
+import Base from './util/base'
+import { every } from './util/array'
 import { global, document } from './util/global'
 
+export const ELEMENT_TYPE = 1
+export const TEXTNODE_TYPE = 3
+export const FRAGMENT_TYPE = 11
 
-export function setCssText (node, value) {
-  node.style.cssText = value
-}
-
-/**
- * setNodeValue
- * @param {element} node
- * @param {string} value
+/* -----------------------------------------------------------------------------
+ * query
  */
-export function setNodeValue (node, value) {
-  node.nodeValue = value
-}
-
-export function setText (node, value) {
-  node.textContent = value
-}
-
-export function setClass (node, value) {
-	node.className = value
-}
-
-export function setAttribute (node, name, value) {
-	node.setAttribute(name, value)
-}
-
-export function getNodeName (node) {
-  return node.nodeName.toLowerCase()
-}
-
-export const DOCUMENT_FRAGMENT = 11
-export const ELEMENT_NODE = 1
-export const TEXT_NODE = 3
-
-/**
- * nextElementSibling
- * @param  {Element} node
- * @return {Element}
- */
-function nextElementSibling (node) {
-	return node.nextElementSibling
-}
-
-function nextElementSiblingShim (node) {
-	do node = node.nextSibling
-	while (node && node.nodeType !== 1)
-	return node
-}
-
-export const next = 'nextElementSibling' in document.documentElement
-	? nextElementSibling
-	: nextElementSiblingShim
-
-export function appendChild (parent, child) {
-  parent.appendChild(child)
-}
-
-export function cloneNode (node, deep) {
-  return node.cloneNode(deep)
-}
-
-export function isEmptyTextNode (node) {
+function isEmptyTextNode (node) {
   return node.nodeType === TEXT_NODE && !/\S/.test(node.nodeValue)
 }
 
@@ -71,119 +18,22 @@ export function isEmptyElement (node) {
   return !node.children.length && every(node.childNodes, isEmptyTextNode)
 }
 
-/**
- * replaceNode
- * @param  {Element} attached - node to be replaced
- * @param  {Element} loose    - replacement node
- * @return {Element}          replaced node
+/* -----------------------------------------------------------------------------
+ * create
  */
-export function replaceNode (attached, loose) {
-  return attached.parentNode.replaceChild(loose, attached)
-}
-
-/**
- * Placeholder
- */
-export function Placeholder () {
-  return document.createComment('')
-}
-
-/**
- * Element
- * @param {Element} nodeName - name of DOM elment node
- */
-export function Element (nodeName) {
-  return document.createElement(nodeName)
-}
-
-/**
- * DocumentFragment
- * @param {Element} node
- * @return {DocumentFragment}
- */
-export function DocumentFragment (node) {
+export function Fragment (node) {
   var frag = document.createDocumentFragment()
-
-  if (node) {
-  	frag.appendChild(node)
-  }
-
+  if (node) frag.appendChild(node)
   return frag
 }
 
-/**
- * traverse DOM tree in pre-order
- * @param  {Element} node - root node
- * @param  {Function} func - iteree function (node, index, indexPath)
+/* -----------------------------------------------------------------------------
+ * mutate
  */
-    /* do this before calling preorder
-
-ex: preorder(tmpl.nodeType === DOCUMENT_FRAGMENT ? node.firstChild : node)
-
-  if (node.nodeType === DOCUMENT_FRAGMENT) {
-    node = node.firstChild
-  }
-*/
-export function preorder (node, func) {
-  var path = []
-    , i = 0
-    , next
-    , temp
-
-  main: do {
-
-    next = func(node, i, path)
-    if (next) [node, i] = next
-
-    if (temp = node.firstChild) {
-      node = temp
-      path.push(i)
-      i = 0
-    }
-    else do {
-      if (temp = node.nextSibling) {
-        node = temp
-        i += 1
-        continue main
-      }
-      node = node.parentNode
-      i = path.pop()
-    } while (node)
-  } while (node)
+export function setNodeValue (node, value) {
+  node.nodeValue = value
 }
 
-/**
- * resolveElement
- * @param  {Element} node
- * @param  {array} path
- * @return {Element}
- */
-export function resolveElement (node, nodePath) {
-  var len = nodePath.length
-    , i = -1
-    , nodeIndex
-
-  if (node.nodeType === ELEMENT_NODE) {
-    i += 1 // skip path[0] == 0
-  }
-
-  while (++i < len) {
-    node = node.firstChild
-    nodeIndex = nodePath[i]
-    
-    while (nodeIndex--) {
-      node = node.nextSibling
-    }
-  }
-  
-  return node
-}
-
-/**
- * extractChildNodes
- * @param  {Element} node
- * @return {Element|DocumentFragement}
- */
 export function extractChildNodes (node) {
   var firstChild = node.firstChild
     , childNodes
@@ -194,17 +44,87 @@ export function extractChildNodes (node) {
       childNodes = node.removeChild(firstChild)
     }
     else {
-      childNodes = DocumentFragment()
+      childNodes = Fragment()
       
       do childNodes.appendChild( node.removeChild(firstChild) )
-      while ( firstChild = node.firstChild )
+      while ( firstChild = node.firstChild );
     }
   }
  
   return childNodes
 }
 
-// TODO cleanup and es6-ify
+/* -----------------------------------------------------------------------------
+ * traverse
+ */
+export function resolveNode (node, path) {
+  var len = path.length
+    , i = -1
+    , nodeIndex
+
+  if (node.nodeType === ELEMENT_TYPE) {
+    i += 1 // skip first node index which is always zero for elements
+  }
+
+  while (++i < len) {
+    node = node.firstChild
+    nodeIndex = path[i]
+    
+    while (nodeIndex--) {
+      node = node.nextSibling
+    }
+  }
+  
+  return node
+}
+
+export const TreeWalker = Base.derive({
+
+  constructor () {
+    this.node = null
+    this._path = []
+    this._index = 0
+  }
+
+, seed (node) {
+    if (node.nodeType === FRAGMENT_TYPE) {
+      node = node.firstChild
+    }
+    
+    return (this.node = node)
+  }
+
+, next () {
+    var node = this.node
+      , next
+
+    if (next = node.firstChild) {
+      this._path.push(this._index)
+      this._index = 0
+    }
+    else {
+      do {
+        if (next = node.nextSibling) {
+          this._index += 1
+          break
+        }
+        node = node.parentNode
+        this._index = this._path.pop()
+      }
+      while (node)
+    }
+
+    return (this.node = next)
+  }
+
+, getPath () {
+    return this._path.concat(this._index)
+  }
+})
+
+/* -----------------------------------------------------------------------------
+ * parse
+ */
 export const parse = (function (window) {
 
   var document = window.document

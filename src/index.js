@@ -6,14 +6,12 @@ import Component from './component'
 function Vew (proto) {
   const Comp = Component.derive(proto)
 
-  Comp.tag = Comp['tag'] // GCC: export
-	
 	if (Comp.tag) {
-		registry[Comp.tag] = Comp
+		registry[Comp.tag.toUpperCase()] = Comp
 	}
 
 	Comp.bootstrap()
-  
+	
   return Comp
 }
 
