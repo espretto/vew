@@ -5,7 +5,7 @@
 import Set from './util/set'
 import Base from './util/base'
 import { thisify } from './util/function'
-import { toPath, resolve, has } from './util/path'
+import { toPath, resolvePath, has } from './util/path'
 import { forEach, remove, fold } from './util/array'
 import { Object, Array, Date, Error } from './util/global'
 import { isPlainObject, isArray, isObject, isDate } from './util/type'
@@ -124,7 +124,7 @@ export default Base.derive({
       var path = toPath(arguments[0])
         , sub = this.root.resolve(path)
         , tail = path.pop() // [1]
-        , trg = resolve(this.data, path)
+        , trg = resolvePath(this.data, path)
         , src = arguments[1]
 
       path.push(tail) // [1]

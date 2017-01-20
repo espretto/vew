@@ -4,10 +4,7 @@ import { hasOwn } from './object'
 import { isObject, isArray } from './type'
 
 /**
- * has own property or index
- * @param  {*}  object 
- * @param  {string|number}  key
- * @return {bool}
+ * has
  */
 export function has (object, key) {
   return isObject(object) && (isArray(object)
@@ -17,9 +14,14 @@ export function has (object, key) {
 }
 
 /**
- * parse string to corresponding key-chain
- * @param  {string} str
- * @return {array}
+ * toString
+ */
+function toString (path) {
+  return [].concat('[', path, ']').join(' -> ')
+}
+
+/**
+ * toPath
  */
 const reUnescapeQuotes = /\\('|")/g
 
@@ -50,12 +52,9 @@ export function toPath (str) {
 }
 
 /**
- * resolve key chain
- * @param  {object} object
- * @param  {array} path
- * @return {*}
+ * resolvePath
  */
-export function resolve (object, path) {
+export function resolvePath (object, path) {
 	var len = path.length
 		, i = -1
 		, key
@@ -66,8 +65,8 @@ export function resolve (object, path) {
 		if (has(object, key)) {
 			object = object[key]
 		}
-		else if (DEBUG) {
-			throw new Error('cannot resolve path \n\n' + [].concat('^', path, '$').join(' -> '))
+		else {
+			if (DEBUG) throw new Error('cannot resolve path \n\n' + toString(path))
 		}
 	}
 
