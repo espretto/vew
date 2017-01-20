@@ -23,7 +23,6 @@ Vew.registry = registry
 		
 		var Greet = Vew({
 			tag: 'greet',
-			replace: false,
 			template: 'Hello there!'
 		})
 
@@ -33,6 +32,18 @@ Vew.registry = registry
 		})
 
 		var app = App.create().mount(document.body)
+
+	example:
+	
+		var Cowsay = Vew({
+			replace: false,
+			template: '${name} says Moo!'
+		})
+
+		var cowsay = Cowsay.create().mount(document.body)
+
+		cowsay.set({ name: 'Bob' })
+		cowsay.set('name', 'Alice')
  */
 
 export default Vew
