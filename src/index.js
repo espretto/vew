@@ -7,7 +7,7 @@ function Vew (proto) {
   const Comp = Component.derive(proto)
 
   if (Comp.tag) {
-    registry[Comp.tag.toUpperCase()] = Comp
+    registry[Comp.tag.toLowerCase()] = Comp
   }
 
   Comp.bootstrap()

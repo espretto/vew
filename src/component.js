@@ -21,7 +21,7 @@ import {
  * helper methods
  */
 function getComponent (node) {
-  return getOwn(registry, node.nodeName.toUpperCase()) ||
+  return getOwn(registry, node.nodeName.toLowerCase()) ||
          getOwn(registry, node.getAttribute('is'))
 }
 
