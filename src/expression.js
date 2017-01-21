@@ -2,7 +2,7 @@
 import Base from './util/base'
 import { Array } from './util/global'
 import { trim, chr } from './util/string'
-import { indexOf, findIndex, eqArray } from './util/array'
+import { includes, findIndex, eqArray } from './util/array'
 
 /** used skip numbers (any format except e.g. `.5`) */
 const passNum = /^\d/
@@ -240,7 +240,7 @@ export default Base.create.call({
     else {
       const ident = this.seek(matchIdent)
 
-      if (indexOf(keywords, ident) < 0) {
+      if (includes(keywords, ident)) {
         this.flush()
         this.index += ident.length
         this.pathState( [ident] )
