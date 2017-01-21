@@ -33,7 +33,7 @@ export default Base.derive({
   }
 
 , resolve (path) {
-    return toPath(path).reduce((obj, key) => obj[key], this.data)
+    return fold(toPath(path), this.data, (obj, key) => obj[key])
   }
 
 , _notify (sub) {
