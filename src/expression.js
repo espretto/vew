@@ -238,7 +238,7 @@ export default Base.create.call({
       this.seek(noIdent, 1)
     }
     else {
-      var ident = this.seek(matchIdent)
+      const ident = this.seek(matchIdent)
 
       if (indexOf(keywords, ident) < 0) {
         this.flush()
