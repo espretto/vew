@@ -11,7 +11,7 @@ export const FRAGMENT_TYPE = 11
  * query
  */
 function isEmptyTextNode (node) {
-  return node.nodeType === TEXT_NODE && !/\S/.test(node.nodeValue)
+  return node.nodeType === TEXTNODE_TYPE && !/\S/.test(node.nodeValue)
 }
 
 export function isEmptyElement (node) {
