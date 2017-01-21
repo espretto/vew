@@ -5,7 +5,9 @@ import { uncurry } from './function'
 
 const stringProto = String.prototype
 
-const reTrim = /^\s+|\s+$/g
+const reTrimLeft = /^\s\s*/
+
+const reTrimRight = /\s\s*$/;
 
 const nativeTrim = idNative(stringProto.trim)
 
@@ -16,7 +18,11 @@ export const chr = String.fromCharCode
 
 /**
  * trim
+ *
+ * credits:
+ * 	 http://blog.stevenlevithan.com/archives/faster-trim-javascript
  */
 export const trim = nativeTrim
   ? uncurry(nativeTrim, 0)
-  : string => string.replace(reTrim, '')
+  : string => string.replace(reTrimLeft, '')
+                    .replace(reTrimRight, '')
