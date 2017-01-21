@@ -9,6 +9,7 @@ import {
   ELEMENT_TYPE
 , TEXTNODE_TYPE
 , FRAGMENT_TYPE
+, clone
 , Fragment
 , TreeWalker
 , resolveNode
@@ -72,7 +73,7 @@ const Section = Base.derive({
 , constructor (component, topScope, mountNode) {
     this.tasks = []
     this.childComponents = []
-    this.template = this.template.cloneNode(true)
+    this.template = clone(this.template)
 
     // ORDER MATTERS!
     

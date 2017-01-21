@@ -240,3 +240,50 @@ export const parse = (function (window) {
   return parse
 
 }(global))
+
+/* -----------------------------------------------------------------------------
+ * clone
+ */
+export const clone = (function (global) {
+
+  function TextNode (text) {
+    return document.createTextNode(text)
+  }
+
+  /**
+   * cloneNode may rejoin once seperated text-nodes into one.
+   */
+  var text = TextNode('ab')
+    , frag = Fragment(text)
+    , rejoinsTextNodes
+
+  text.splitText(1)
+  rejoinsTextNodes = frag.childNodes.length !== clone(frag).childNodes.length
+
+  /**
+   * clone
+   */
+  function clone (orig) {
+    return orig.cloneNode(true)
+  }
+
+  /**
+   * clone shim
+   */
+  function shim (orig) {
+    var copy = clone(orig)
+      , tw = TreeWalker.create()
+      , node = tw.seed(orig)
+
+    for (; node; node = tw.next()) {
+      if (node.nodeType === TEXTNODE_TYPE && node.nextSibling) {
+        resolveNode(copy, tw.getPath()).splitText(node.nodeValue.length)
+      }
+    }
+
+    return copy
+  }
+
+  return rejoinsTextNodes ? shim : clone
+
+}(global))
