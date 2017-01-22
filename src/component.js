@@ -71,32 +71,30 @@ const Section = Base.derive({
   isTranscluded: false
 
 , constructor (component, topScope, mountNode) {
-    this.tasks = []
-    this.childComponents = []
     this.template = clone(this.template)
-
-    // ORDER MATTERS!
     
     // resolve node-paths before mounting/mutating the template
     const mountNodes = map(this.ChildComponents, Child =>
       resolveNode(this.template, Child.mountPath)
     )
 
-    forEach(this.Tasks, Task => {
-      var node = resolveNode(this.template, Task.mountPath)
-      this.tasks.push( Task.create(node, topScope) )
-    })
+    this.tasks = map(this.Tasks, Task =>
+      Task.create(resolveNode(this.template, Task.mountPath), topScope)
+    )
     
-    // mount this component before this' child-components
-    // which may replace otherwise non-existant elements
+    // mount component tree "inorder" because child-components
+    // may replace otherwise non-existant elements
     if (mountNode) {
       this.mount(mountNode)
     }
 
-    forEach(this.ChildComponents, (Child, i) => {
-      var scope = Child.isTranscluded ? topScope : component.scope
-      this.childComponents.push( Child.create(component, scope, mountNodes[i]) )
-    })
+    this.childComponents = map(this.ChildComponents, (Child, i) =>
+      Child.create(
+        component
+      , Child.isTranscluded ? topScope : component.scope
+      , mountNodes[i]
+      )
+    )
   }
 
 , mount (node) {
