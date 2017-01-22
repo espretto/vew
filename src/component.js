@@ -17,6 +17,7 @@ import {
 , TreeWalker
 , resolveNode
 , replaceNode
+, getNodeName
 , setNodeValue
 , isEmptyElement
 , parse as parseHTML
@@ -178,7 +179,7 @@ const Section = Base.derive({
 
 , elementState (tw) {
     var node = tw.node
-      , nodeName = node.nodeName
+      , nodeName = getNodeName(node)
       , attrValue
 
     if (hasOwn.call(registry, nodeName)) {
@@ -303,7 +304,7 @@ export default Section.derive({
     forEach(toArray(mountNode.children), node => {
       var attrValue
       
-      if (node.nodeName === SLOT_NODENAME) {
+      if (getNodeName(node) === SLOT_NODENAME) {
         this.transclude(mountNode.removeChild(node), node.getAttribute(NAME_ATTR))
       }
       else if (attrValue = node.getAttribute(SLOT_ATTR)) {

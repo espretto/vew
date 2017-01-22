@@ -10,6 +10,10 @@ export const FRAGMENT_TYPE = 11
 /* -----------------------------------------------------------------------------
  * query
  */
+export const getNodeName = document.createElement('custom').nodeName !== 'CUSTOM'
+  ? node => node.nodeName.toUpperCase()
+  : node => node.nodeName
+
 function isEmptyTextNode (node) {
   return node.nodeType === TEXTNODE_TYPE && !/\S/.test(node.nodeValue)
 }
