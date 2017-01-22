@@ -290,7 +290,7 @@ export default Section.derive({
    * bootstrap
    */
 , bootstrap () {
-    this.Slots = {} // TODO: record slots when bootstrapping
+    this.Slots = {}
     Section.bootstrap.call(this)
   }
 
