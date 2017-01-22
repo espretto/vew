@@ -39,7 +39,7 @@ export const keys = idNative(Object.keys) || (hasEnumBug ? safeKeys : ownKeys)
 /**
  * isEmptyObject
  */
-function isEmptyOwner (object) {
+function isOwnEmptyObject (object) {
   var hasOwnLocal = hasOwn // JIT: lift to loop
 
   for (var key in object) {
@@ -51,11 +51,11 @@ function isEmptyOwner (object) {
   return true
 }
 
-function isSafeEmptyOwner (object) {
-  return isEmptyOwner(object) && !some(brokenKeys, thisify(hasOwn, object, 1))
+function isSafeEmptyObject (object) {
+  return isOwnEmptyObject(object) && !some(brokenKeys, thisify(hasOwn, object, 1))
 }
 
-export const isEmptyObject = hasEnumBug ? isSafeEmptyOwner : isEmptyOwner
+export const isEmptyObject = hasEnumBug ? isSafeEmptyObject : isOwnEmptyObject
 
 /**
  * getOwn
