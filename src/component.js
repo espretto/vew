@@ -185,7 +185,7 @@ const Section = Base.derive({
       this.componentState(tw, nodeName)
     }
     else if (attrValue = node.getAttribute(IS_ATTR)) {
-      this.componentState(tw, attrValue, true)
+      this.componentState(tw, attrValue.toUpperCase(), true)
     }
     else if (nodeName === SLOT_NODENAME) {
       this.slotState(tw, node.getAttribute(NAME_ATTR))
