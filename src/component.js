@@ -3,27 +3,30 @@ import Base from './util/base'
 import Scope from './scope'
 import registry from './registry'
 import Expression from './expression'
-import { getOwn } from './util/object'
-import { forEach, map } from './util/array'
+import { Error } from './util/global'
+import { hasOwn } from './util/object'
+import { toArray, indexOf, forEach, map } from './util/array'
 import {
   ELEMENT_TYPE
 , TEXTNODE_TYPE
 , FRAGMENT_TYPE
+, gut
 , clone
 , Fragment
+, Placeholder
 , TreeWalker
 , resolveNode
+, replaceNode
 , setNodeValue
+, isEmptyElement
 , parse as parseHTML
 } from './dom'
 
-/* -----------------------------------------------------------------------------
- * helper methods
- */
-function getComponent (node) {
-  return getOwn(registry, node.nodeName.toLowerCase()) ||
-         getOwn(registry, node.getAttribute('is'))
-}
+const DEFAULT_SLOT_NAME = 'content'
+const SLOT_NODENAME = 'SLOT'
+const IS_ATTR = 'k-is'
+const SLOT_ATTR = 'k-slot'
+const NAME_ATTR = 'name'
 
 /* -----------------------------------------------------------------------------
  * Task
@@ -98,7 +101,7 @@ const Section = Base.derive({
   }
 
 , mount (node) {
-    node.parentNode.replaceChild(this.template, node)
+    replaceNode(node, this.template)
   }
 
   /* ---------------------------------------------------------------------------
@@ -114,9 +117,19 @@ const Section = Base.derive({
     return this
   }
 
-, ensureParent (textNode) {
-    if (!textNode.parentNode) {
-      this.template = Fragment(textNode)
+, ensureParent (node) {
+    if (!node.parentNode) {
+      this.template = Fragment(node)
+    }
+  }
+
+, placehold (node) {
+    if (node === this.template) {
+      this.template = Placeholder()
+    }
+    else {
+      this.ensureParent(node)
+      replaceNode(node, Placeholder())
     }
   }
 
@@ -164,32 +177,74 @@ const Section = Base.derive({
 
 , elementState (tw) {
     var node = tw.node
-      , Comp
+      , nodeName = node.nodeName
+      , attrValue
 
-    if (Comp = getComponent(node)) {
-      this.componentState(tw, Comp)
+    if (hasOwn.call(registry, nodeName)) {
+      this.componentState(tw, nodeName)
     }
-
-    // stat the node for
-    // - is component   or has component attribute
-    // - is slot        or has component attribute
-    // - is conditional or has component attribute
-    // - is iterator    or has component attribute
-    // 
-    // what other attributes does the node have and
-    // - what does each one of them imply?
-    // - how are they compatible with each other?
+    else if (attrValue = node.getAttribute(IS_ATTR)) {
+      this.componentState(tw, attrValue, true)
+    }
+    else if (nodeName === SLOT_NODENAME) {
+      this.slotState(tw, node.getAttribute(NAME_ATTR))
+    }
+    else if (attrValue = node.getAttribute(SLOT_ATTR)) {
+      this.slotState(tw, attrValue, true)
+    }
   }
 
-, componentState (tw, Comp) {
-    Comp = Comp.derive({
+, componentState (tw, tag, hasIsAttr) {
+    var node = tw.node
+      , Component = registry[tag]
+
+    if (hasIsAttr) {
+      node.removeAttribute(IS_ATTR)
+
+      if (Component.replace) {
+        if (DEBUG) throw new Error(
+          `cannot replace mount-node with attribute "${IS_ATTR}".
+           either reconfigure the component or use its custom element.`
+        )
+      }
+    }
+
+    this.ChildComponents.push(Component.derive({
       isTranscluded: this.isTranscluded
     , mountPath: tw.getPath()
-    })
+    }).finalize(node))
+  }
 
-    Comp = Comp.finalize(tw.node)
+, slotState (tw, name, hasSlotAttr) {
+    var node = tw.node
+      , mountPath = tw.getPath()
+      , template, Slot
 
-    this.ChildComponents.push(Comp)
+    // the element itself is the slot's default template
+    if (hasSlotAttr) {
+      template = node
+      template.removeAttribute(SLOT_ATTR)
+      this.placehold(node)
+    }
+    // the element is the placeholder containing its default template
+    else {
+      template = gut(node)
+    }
+
+    // slots without a default template require one to be transcluded
+    if (template) {
+      Slot = Section.derive({
+        template: template
+      , mountPath: mountPath
+      }).bootstrap()
+
+      this.ChildComponents.push(Slot)
+    }
+    else {
+      Slot = { mountPath }
+    }
+
+    this.Slots[name || DEFAULT_SLOT_NAME] = Slot
   }
 })
 
@@ -208,7 +263,7 @@ export default Section.derive({
 
 , mount (node) {
     if (this.replace) {
-      Section.mount.call(this, node)
+      replaceNode(node, this.template)
     }
     else {
       node.appendChild(this.template)
@@ -241,7 +296,57 @@ export default Section.derive({
    * finalize
    */
 , finalize (mountNode) {
+    // copy over from prototype to instance before content distribution (transclusion)
+    this.ChildComponents = this.ChildComponents.slice()
+
+    forEach(toArray(mountNode.children), node => {
+      var attrValue
+      
+      if (node.nodeName === SLOT_NODENAME) {
+        this.transclude(mountNode.removeChild(node), node.getAttribute(NAME_ATTR))
+      }
+      else if (attrValue = node.getAttribute(SLOT_ATTR)) {
+        this.transclude(mountNode.removeChild(node), attrValue, true)
+      }
+    })
+
+    if (!isEmptyElement(mountNode)) {
+      this.transclude(mountNode)
+    }
+
     return this
-    // TODO: content distribution / transclusion
+  }
+
+, transclude (node, name, hasSlotAttr) {
+    var Slot = this.Slots[name || DEFAULT_SLOT_NAME]
+      , ChildComponents = this.ChildComponents
+      , TranscludedSlot, slotIndex, template
+      
+    if (!Slot) {
+      if (DEBUG) throw new Error(`cannot replace unknown slot: ${name}`)
+    }
+
+    if (hasSlotAttr) {
+      template = node
+      template.removeAttribute(SLOT_ATTR)
+    }
+    else {
+      template = gut(node)
+    }
+
+    TranscludedSlot = Section.derive({
+      isTranscluded: true
+    , template: template
+    , mountPath: Slot.mountPath
+    }).bootstrap()
+
+    slotIndex = indexOf(ChildComponents, Slot)
+    
+    if (slotIndex < 0) {
+      ChildComponents.push(TranscludedSlot)
+    }
+    else {
+      ChildComponents[slotIndex] = TranscludedSlot
+    }
   }
 })

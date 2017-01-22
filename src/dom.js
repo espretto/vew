@@ -27,14 +27,22 @@ export function Fragment (node) {
   return frag
 }
 
+export function Placeholder () {
+  return document.createComment('')
+}
+
 /* -----------------------------------------------------------------------------
  * mutate
  */
+export function replaceNode (oldNode, newNode) {
+  return oldNode.parentNode.replaceChild(newNode, oldNode)
+}
+
 export function setNodeValue (node, value) {
   node.nodeValue = value
 }
 
-export function extractChildNodes (node) {
+export function gut (node) {
   var firstChild = node.firstChild
     , childNodes
 
