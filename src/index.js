@@ -44,6 +44,24 @@ Vew.registry = registry
 
     cowsay.set({ name: 'Bob' })
     cowsay.set('name', 'Alice')
+
+  example:
+    
+    var Greet = Vew({
+      tag: 'greet',
+      template: 'Hello <slot>there</slot>!'
+    })
+
+    var App = Vew({
+      replace: false,
+      template: '<p><greet>${name}</greet></p>'
+      // template: '<p><em k-is="greet">${name}</em></p>' 
+      // set { replace: false } on greet component for this to work
+    })
+
+    var app = App.create().mount(document.body)
+
+    app.set({ name: 'Alice' })
  */
 
 export default Vew
