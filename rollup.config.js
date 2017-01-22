@@ -7,7 +7,7 @@ var external = Object.keys(pkg.dependencies || {})
 
 var ccBanner =
 [ '/** @define {boolean} */'
-, 'var DEBUG = false;'
+, 'var DEBUG = true;'
 ].join('\n')
 
 module.exports = {
@@ -25,7 +25,7 @@ module.exports = {
     , format: 'iife'
     , moduleName: 'Vew'
     , banner: ccBanner
-    //, sourceMap: true
+    // , sourceMap: true
     }
   , { dest: pkg['jsnext:main']
     , format: 'es'
