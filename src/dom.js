@@ -70,8 +70,8 @@ export function resolveNode (node, path) {
     , i = -1
     , nodeIndex
 
-  if (node.nodeType === ELEMENT_TYPE) {
-    i += 1 // skip first node index which is always zero for elements
+  if (node.nodeType !== FRAGMENT_TYPE) {
+    i += 1 // skip first node index which is always zero for elements/text-nodes
   }
 
   while (++i < len) {
