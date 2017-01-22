@@ -74,6 +74,7 @@ const Section = Base.derive({
   isTranscluded: false
 
 , constructor (component, topScope, mountNode) {
+    this.scope = component.scope
     this.template = clone(this.template)
     
     // resolve node-paths before mounting/mutating the template
@@ -94,7 +95,7 @@ const Section = Base.derive({
     this.childComponents = map(this.ChildComponents, (Child, i) =>
       Child.create(
         component
-      , Child.isTranscluded ? topScope : component.scope
+      , Child.isTranscluded ? topScope : this.scope
       , mountNodes[i]
       )
     )
