@@ -24,6 +24,7 @@
     "babel-preset-es2015": "^6.18.0",
     "babelrc-rollup": "^3.0.0",
     "chai": "^3.5.0",
+    "chai-sinon": "^2.8.1",
     "eslint": "^3.10.2",
     "google-closure-compiler": "^20161024.3.0",
     "mocha": "^3.2.0",
@@ -31,6 +32,7 @@
     "rollup": "^0.36.3",
     "rollup-plugin-babel": "^2.6.1",
     "sinon": "^2.0.0-pre.5",
+    "sinon-chai-in-order": "^0.1.0",
     "usertiming": "^0.1.8",
     "webpack": "^2.2.0-rc.3"
   }

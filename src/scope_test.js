@@ -1,9 +1,11 @@
 
-import { expect } from 'chai'
+import chai, { expect } from 'chai'
 import sinon from 'sinon'
+import chaiSinon from 'chai-sinon'
 
 import Scope from './scope'
 
+chai.use(chaiSinon)
 
 describe('Scope', function() {
 
@@ -46,21 +48,21 @@ describe('Scope', function() {
 
   describe('#update', () => {
 
-    var callback
-    beforeEach(() => callback = sinon.spy())
+    var spy
+    beforeEach(() => spy = sinon.spy())
 
     it('should execute subscribed callback', () => {
-      scope.subscribe('test', callback)
+      scope.subscribe('test', spy)
       scope.merge({test: 'works for me'})
       scope.update()
-      expect(callback.called).to.be.true
+      expect(spy).to.have.been.calledOnce
     })
     it('should not execute unsubscribed callback', () => {
-      scope.subscribe('test', callback)
-      scope.unsubscribe('test', callback)
+      scope.subscribe('test', spy)
+      scope.unsubscribe('test', spy)
       scope.merge({test: 'works for me'})
       scope.update()
-      expect(callback.called).to.equal.false
+      expect(spy).to.not.have.been.called
     })
   })
 
