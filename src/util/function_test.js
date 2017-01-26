@@ -10,7 +10,7 @@ import {
 describe('Function Utils', () => {
 
   let spy
-  beforeEach(() => { spy = sinon.spy() })
+  beforeEach(() => spy = sinon.spy() )
   
   describe('#thisify', () => {
     it('should exist', () => {
