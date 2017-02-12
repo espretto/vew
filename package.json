@@ -8,7 +8,7 @@
     "test": "test"
   },
   "scripts": {
-    "test": "mocha-webpack 'src/**/*_test.js'",
+    "test": "mocha-webpack --recursive --glob '*_test.js'",
     "gzip": "gzip -c dist/vew.min.js > dist/vew.min.js.gz && ls -la dist",
     "build": "BABEL_ENV=development webpack",
     "bundle": "BABEL_ENV=production rollup -c"
