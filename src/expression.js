@@ -4,9 +4,6 @@ import { Array } from './util/global'
 import { trim, chr } from './util/string'
 import { indexOf, findIndex, eqArray } from './util/array'
 
-/** used skip numbers (any format except e.g. `.5`) */
-const passNum = /^\d/
-
 /** used to match the first character of a javascript identifier or keyword */
 const passIdent = /[a-zA-Z\$_]/
 
@@ -48,7 +45,7 @@ export default Base.create.call({
     this.suffix = ''
 
     /** pending index used for buffering, copying parts from input to output */
-    this.anchor = ''
+    this.anchor = 0
 
     /** used to keep track of brackets/braces/parentheses */
     this.brackets = []
@@ -139,6 +136,7 @@ export default Base.create.call({
       this.index = index+1
     }
     while (this.input.charAt(index-1) === '\\')
+    // input.indexOf(-2) === '\\' always yields false
   }
 
 , hasReachedSuffix () {
@@ -177,7 +175,7 @@ export default Base.create.call({
       if (this.hasReachedSuffix()) {
         break
       }
-      else if (passNum.test(chr)) {
+      else if (+chr === +chr) {
         this.seek(noNum, 1)
       }
       else if (chr === '/') {
@@ -294,7 +292,7 @@ export default Base.create.call({
       this.index += ident.length
       if (path) path.push(ident)
     }
-    else if (!passNum.test(chr)) {
+    else if (+chr !== +chr) {
       if (DEBUG) throw new Error('missing name after dot operator')
     }
   }
@@ -318,7 +316,7 @@ export default Base.create.call({
       
       return this.bracketCloseState(path)
     }
-    else if (passNum.test(chr)) {
+    else if (+chr === +chr) {
       begin = this.index
       this.seek(noNum, 1)
       
