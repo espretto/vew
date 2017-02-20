@@ -1,59 +1,76 @@
-<!doctype html>
-<html xmlns:t="tempsoon">
-<!--
-<head><script type="text/javascript" src="//getfirebug.com/firebug-lite.js">
--->
+<!DOCTYPE html>
+<html>
 <head>
   <meta charset="UTF-8">
-  <title>Document</title>
-  <link rel="stylesheet" href="/playground/blackbird-js/blackbird.css">
-  <script type="text/javascript">document.createElement('t:tempsoon')</script>
-  <style>t\: *, t\:tempsoon { display: none }</style>
+  <title>Localhost</title>
 </head>
 <body>
-  <script src="/node_modules/usertiming/src/usertiming.js"></script>
-    
-  <div id="main"></div>
-
-  <!-- 
-  <script src="/playground/blackbird-js/blackbird.js"></script>
-  <script src="/playground/json3.js"></script>
-
-  <script src="/playground/es5-shim.min.js"></script>
-  <script src="/playground/main.ie.js"></script>
-  <script src="/playground/barser.js"></script>
-  <script src="/playground/tagnames.js"></script>
-  <script src="/src/parser/html5/machine.min.js"></script>
-  <script src="/src/parser/html5/tokenizer.js"></script>
-  <script src="/src/parser/xhtml/treector.js"></script>
-  <script src="/src/parser/html5/tokenizer.regex.js"></script>
-  <script src="/src/parser/html5/tokenizer.loop.js"></script>
-  <script src="/src/parser/html5/tokenizer.full.js"></script>
-  <script src="/playground/jquery.js"></script>
-  <script src="/dist/treescious.js"></script>
-  <script src="/playground/uubench.js"></script>
-  <script src="/playground/bench.js"></script>
-
-  <script src="/playground/expression.js"></script>
-  <script src="/playground/domify.js"></script>
-  <script src="/playground/view.js"></script>
-
-  <script src="/playground/scopr.js"></script>
+  <!--[if IE]>
+    <script src="/dist/html5shiv.min.js"></script>
+    <script src="http://getfirebug.com/releases/lite/1.3/firebug-lite.js">
+      { saveCookies: false
+      , startOpened: true // false
+      , startInNewWindow: false
+      , showIconWhenHidden: true
+      , overrideConsole: true
+      , ignoreFirebugElements: true
+      , disableXHRListener: false
+      , disableWhenFirebugActive: true
+      , enableTrace: false
+      , enablePersistent: false
+      }
+    </script>
+  <![endif]-->
+  <!--
+    <script src="/node_modules/usertiming/src/usertiming.js"></script>
   -->
-  <script>
-    var DEBUG = true
-    var main = document.getElementById('main')
-    
-    function spy () {
-      const func = arguments.callee.caller
-      console.log(func.name, JSON.stringify([].slice.call(func.arguments)))
-    }
-  </script>
+  <script>if (typeof html5 !== 'undefined') html5.addElements('slot greet')</script>
+
   <script src="/dist/vew.js"></script>
 
-  <app>
-    <slot name=""></slot>
-  </app>
+  <script type="text/example">
+    var Cowsay = Vew({
+      replace: false,
+      template: '${name} says Moo!'
+    })
 
+    var cowsay = Cowsay.create().mount(document.body)
+
+    cowsay.set({ name: 'Bob' })
+    cowsay.set('name', 'Alice')
+  </script>
+
+  <script type="text/example">
+    var Greet = Vew({
+      tag: 'greet',
+      template: 'Hello there!'
+    })
+
+    var App = Vew({
+      replace: false,
+      template: '<p><greet></greet></p>'
+    })
+
+    var app = App.create().mount(document.body)
+  </script>
+
+
+  <script type="text/example">
+    var Greet = Vew({
+      tag: 'greet',
+      template: 'Hello <slot>there</slot>!'
+    })
+
+    var App = Vew({
+      replace: false,
+      template: '<p><greet>${name}</greet></p>'
+      // template: '<p><em k-is="greet">${name}</em></p>'
+      // set { replace: false } on greet component for this to work
+    })
+
+    var app = App.create().mount(document.body)
+
+    app.set({ name: 'Alice' })
+  </script>
 </body>
 </html>

@@ -3,9 +3,10 @@ import Base from './util/base'
 import { every } from './util/array'
 import { global, document } from './util/global'
 
-export const ELEMENT_TYPE = 1
-export const TEXTNODE_TYPE = 3
-export const FRAGMENT_TYPE = 11
+export const ELEMENT_NODE = 1
+export const TEXT_NODE = 3
+export const COMMENT_NODE = 8
+export const DOCUMENT_FRAGMENT_NODE = 11
 
 /* -----------------------------------------------------------------------------
  * query
@@ -14,8 +15,10 @@ export const getNodeName = document.createElement('custom').nodeName !== 'CUSTOM
   ? node => node.nodeName.toUpperCase()
   : node => node.nodeName
 
+const noWs = /\S/
+
 function isEmptyTextNode (node) {
-  return node.nodeType === TEXTNODE_TYPE && !/\S/.test(node.nodeValue)
+  return node.nodeType === TEXT_NODE && !noWs.test(node.nodeValue)
 }
 
 export function isEmptyElement (node) {
@@ -57,12 +60,12 @@ export function gut (node) {
     }
     else {
       childNodes = Fragment()
-      
+
       do childNodes.appendChild( node.removeChild(firstChild) )
       while ( firstChild = node.firstChild );
     }
   }
- 
+
   return childNodes
 }
 
@@ -74,19 +77,19 @@ export function resolveNode (node, path) {
     , i = -1
     , nodeIndex
 
-  if (node.nodeType !== FRAGMENT_TYPE) {
+  if (node.nodeType !== DOCUMENT_FRAGMENT_NODE) {
     i += 1 // skip first node index which is always zero for elements/text-nodes
   }
 
   while (++i < len) {
     node = node.firstChild
     nodeIndex = path[i]
-    
+
     while (nodeIndex--) {
       node = node.nextSibling
     }
   }
-  
+
   return node
 }
 
@@ -99,10 +102,10 @@ export const TreeWalker = Base.derive({
   }
 
 , seed (node) {
-    if (node.nodeType === FRAGMENT_TYPE) {
+    if (node.nodeType === DOCUMENT_FRAGMENT_NODE) {
       node = node.firstChild
     }
-    
+
     return (this.node = node)
   }
 
@@ -288,7 +291,7 @@ export const clone = (function (global) {
       , node = tw.seed(orig)
 
     for (; node; node = tw.next()) {
-      if (node.nodeType === TEXTNODE_TYPE && node.nextSibling) {
+      if (node.nodeType === TEXT_NODE && node.nextSibling) {
         resolveNode(copy, tw.getPath()).splitText(node.nodeValue.length)
       }
     }

@@ -7,9 +7,9 @@ import { Error } from './util/global'
 import { hasOwn } from './util/object'
 import { toArray, indexOf, forEach, map } from './util/array'
 import {
-  ELEMENT_TYPE
-, TEXTNODE_TYPE
-, FRAGMENT_TYPE
+  TEXT_NODE
+, ELEMENT_NODE
+, COMMENT_NODE
 , gut
 , clone
 , Fragment
@@ -23,11 +23,11 @@ import {
 , parse as parseHTML
 } from './dom'
 
-const DEFAULT_SLOT_NAME = 'content'
+const SLOT_DEFAULT_NAME = 'content'
 const SLOT_NODENAME = 'SLOT'
-const IS_ATTR = 'k-is'
-const SLOT_ATTR = 'k-slot'
-const NAME_ATTR = 'name'
+const ATTR_IS = `k-is`
+const ATTR_SLOT = `k-slot`
+const ATTR_NAME = 'name'
 
 /* -----------------------------------------------------------------------------
  * Task
@@ -53,57 +53,54 @@ const Task = Base.derive({
 })
 
 /* -----------------------------------------------------------------------------
- * Section
- *
- * cirlce-ellipse problem
- * ----------------------
- * - components (ellipses) are more general than sections
- * - sections (circles) should thus inherit from components
- * - sections however have less capabilities and certain constraints which
- *   contradicts the notion of inheritance, noteably the "extends" keyword
- * - sections must have a parent component
- * - sections do not have a scope but subscribe to their parent's scope
- *
- * solution: ?
+ * Component
  */
-const Section = Base.derive({
+const Component = Base.derive({
 
-  /**
-   * whether or not the section represents an argument-slot
-   * or a child-section thereof.
-   */
-  isTranscluded: false
+  replace: true
 
-, constructor (component, topScope, mountNode) {
-    this.scope = component.scope
+, isPartial: false
+
+, isTranscluded: false
+
+, constructor (parent, node, topScope) {
+    this.parent = parent
     this.template = clone(this.template)
-    
-    // resolve node-paths before mounting/mutating the template
-    const mountNodes = map(this.ChildComponents, Child =>
+
+    // Only custom components create scopes.
+    // Partials (if,elif,else,for,slot) subscribe to next component in the hierarchy.
+    // Transcluded slots subscribe to the scope of the component that passed them in.
+    this.scope = !this.isPartial     ? Scope.create() :
+                 !this.isTranscluded ? parent.scope   : topScope
+
+    // resolve mount-paths to actual dom-nodes before mounting child-components,
+    // which will mutate the template invalidating mount-paths.
+    const nodes = map(this.Children, Child =>
       resolveNode(this.template, Child.mountPath)
     )
 
     this.tasks = map(this.Tasks, Task =>
-      Task.create(resolveNode(this.template, Task.mountPath), topScope)
+      Task.create(resolveNode(this.template, Task.mountPath), this.scope)
     )
-    
-    // mount component tree "inorder" because child-components
-    // may replace otherwise non-existant elements
-    if (mountNode) {
-      this.mount(mountNode)
-    }
 
-    this.childComponents = map(this.ChildComponents, (Child, i) =>
-      Child.create(
-        component
-      , Child.isTranscluded ? topScope : this.scope
-      , mountNodes[i]
-      )
+    // mount component-tree in pre-order because child-components
+    // may want to replace otherwise non-existant elements.
+    if (node) this.mount(node)
+
+    this.children = map(this.Children, (Child, i) =>
+      Child.create(this, nodes[i], Child.isTranscluded ? topScope : this.scope)
     )
   }
 
 , mount (node) {
-    replaceNode(node, this.template)
+    if (this.replace) {
+      replaceNode(node, this.template)
+    }
+    else {
+      node.appendChild(this.template)
+    }
+
+    return this
   }
 
   /* ---------------------------------------------------------------------------
@@ -111,16 +108,18 @@ const Section = Base.derive({
    * - parse and traverse the template
    * - register tasks, events, references, and child-components
    */
-, bootstrap () {
+, bootstrap (isSlot) {
+    if (!isSlot) this.Slots = {}
     this.Tasks = []
-    this.ChildComponents = []
+    this.Children = []
     this.template = parseHTML(this.template)
+
     this.templateState()
     return this
   }
 
 , ensureParent (node) {
-    if (!node.parentNode) {
+    if (node === this.template) {
       this.template = Fragment(node)
     }
   }
@@ -130,7 +129,7 @@ const Section = Base.derive({
       this.template = Placeholder()
     }
     else {
-      this.ensureParent(node)
+      // node does have a parent and is thus replaceable
       replaceNode(node, Placeholder())
     }
   }
@@ -141,8 +140,8 @@ const Section = Base.derive({
 
     for (; node; node = tw.next()) {
       switch (node.nodeType) {
-        case TEXTNODE_TYPE: this.textNodeState(tw); break
-        case ELEMENT_TYPE: this.elementState(tw); break
+        case TEXT_NODE: this.textNodeState(tw); break
+        case ELEMENT_NODE: this.elementState(tw); break
       }
     }
   }
@@ -185,47 +184,51 @@ const Section = Base.derive({
     if (hasOwn.call(registry, nodeName)) {
       this.componentState(tw, nodeName)
     }
-    else if (attrValue = node.getAttribute(IS_ATTR)) {
+    else if (attrValue = node.getAttribute(ATTR_IS)) {
       this.componentState(tw, attrValue.toUpperCase(), true)
     }
     else if (nodeName === SLOT_NODENAME) {
-      this.slotState(tw, node.getAttribute(NAME_ATTR))
+      this.slotState(tw, node.getAttribute(ATTR_NAME))
     }
-    else if (attrValue = node.getAttribute(SLOT_ATTR)) {
+    else if (attrValue = node.getAttribute(ATTR_SLOT)) {
       this.slotState(tw, attrValue, true)
     }
   }
 
-, componentState (tw, tag, hasIsAttr) {
+, componentState (tw, tag, byAttr) {
     var node = tw.node
       , Component = registry[tag]
 
-    if (hasIsAttr) {
-      node.removeAttribute(IS_ATTR)
+    if (byAttr) {
+      node.removeAttribute(ATTR_IS)
 
       if (Component.replace) {
         if (DEBUG) throw new Error(
-          `cannot replace mount-node with attribute "${IS_ATTR}".
+          `cannot replace mount-node with attribute "${ATTR_IS}".
            either reconfigure the component or use its custom element.`
         )
       }
     }
 
-    this.ChildComponents.push(Component.derive({
-      isTranscluded: this.isTranscluded
-    , mountPath: tw.getPath()
-    }).finalize(node))
+    this.Children.push(
+      Component.derive({ mountPath: tw.getPath() })
+               .finalize(node)
+    )
   }
 
-, slotState (tw, name, hasSlotAttr) {
+, slotState (tw, name, byAttr) {
+    if (!this.Slots) { // i.e. this.isSlot
+      if (DEBUG) throw new Error('slots are not nestable')
+    }
+
     var node = tw.node
       , mountPath = tw.getPath()
       , template, Slot
 
     // the element itself is the slot's default template
-    if (hasSlotAttr) {
+    if (byAttr) {
       template = node
-      template.removeAttribute(SLOT_ATTR)
+      template.removeAttribute(ATTR_SLOT)
       this.placehold(node)
     }
     // the element is the placeholder containing its default template
@@ -234,44 +237,20 @@ const Section = Base.derive({
     }
 
     // slots without a default template require one to be transcluded
-    if (template) {
-      Slot = Section.derive({
-        template: template
-      , mountPath: mountPath
-      }).bootstrap()
-
-      this.ChildComponents.push(Slot)
-    }
-    else {
+    if (!template) {
       Slot = { mountPath }
     }
-
-    this.Slots[name || DEFAULT_SLOT_NAME] = Slot
-  }
-})
-
-/* -----------------------------------------------------------------------------
- * Component
- */
-export default Section.derive({
-
-  replace: true
-
-, constructor (parent, topScope, mountNode) {
-    this.parent = parent
-    this.scope = Scope.create()
-    Section.constructor.call(this, this, topScope || this.scope, mountNode)
-  }
-
-, mount (node) {
-    if (this.replace) {
-      replaceNode(node, this.template)
-    }
     else {
-      node.appendChild(this.template)
+      Slot = Component.derive({
+        isPartial: true
+      , template: template
+      , mountPath: mountPath
+      }).bootstrap(true)
+
+      this.Children.push(Slot)
     }
 
-    return this
+    this.Slots[name || SLOT_DEFAULT_NAME] = Slot
   }
 
   /* ---------------------------------------------------------------------------
@@ -287,27 +266,22 @@ export default Section.derive({
   }
 
   /* ---------------------------------------------------------------------------
-   * bootstrap
-   */
-, bootstrap () {
-    this.Slots = {}
-    Section.bootstrap.call(this)
-  }
-
-  /* ---------------------------------------------------------------------------
    * finalize
    */
 , finalize (mountNode) {
-    // copy over from prototype to instance before content distribution (transclusion)
-    this.ChildComponents = this.ChildComponents.slice()
+    // copy over from prototype to instance before transclusion
+    this.Children = this.Children.slice()
 
     forEach(toArray(mountNode.children), node => {
       var attrValue
-      
+
+      // [IE]
+      if (node.nodeType === COMMENT_NODE) return
+
       if (getNodeName(node) === SLOT_NODENAME) {
-        this.transclude(mountNode.removeChild(node), node.getAttribute(NAME_ATTR))
+        this.transclude(mountNode.removeChild(node), node.getAttribute(ATTR_NAME))
       }
-      else if (attrValue = node.getAttribute(SLOT_ATTR)) {
+      else if (attrValue = node.getAttribute(ATTR_SLOT)) {
         this.transclude(mountNode.removeChild(node), attrValue, true)
       }
     })
@@ -319,36 +293,40 @@ export default Section.derive({
     return this
   }
 
-, transclude (node, name, hasSlotAttr) {
-    var Slot = this.Slots[name || DEFAULT_SLOT_NAME]
-      , ChildComponents = this.ChildComponents
-      , TranscludedSlot, slotIndex, template
-      
+, transclude (node, name, byAttr) {
+    var Slot = this.Slots[name || SLOT_DEFAULT_NAME]
+      , Children = this.Children
+      , TranscludedSlot, index, template
+
     if (!Slot) {
       if (DEBUG) throw new Error(`cannot replace unknown slot: ${name}`)
     }
 
-    if (hasSlotAttr) {
+    if (byAttr) {
       template = node
-      template.removeAttribute(SLOT_ATTR)
+      template.removeAttribute(ATTR_SLOT)
     }
     else {
       template = gut(node)
     }
 
-    TranscludedSlot = Section.derive({
-      isTranscluded: true
+    TranscludedSlot = Component.derive({
+      isPartial: true
+    , isTranscluded: true
     , template: template
     , mountPath: Slot.mountPath
-    }).bootstrap()
+    }).bootstrap(true)
 
-    slotIndex = indexOf(ChildComponents, Slot)
-    
-    if (slotIndex < 0) {
-      ChildComponents.push(TranscludedSlot)
+    // slots that require transclusion haven't been added yet.
+    index = indexOf(Children, Slot)
+
+    if (index < 0) {
+      Children.push(TranscludedSlot)
     }
     else {
-      ChildComponents[slotIndex] = TranscludedSlot
+      Children[index] = TranscludedSlot
     }
   }
 })
+
+export default Component
