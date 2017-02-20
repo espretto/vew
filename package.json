@@ -1,10 +1,11 @@
 {
   "name": "Vew",
-  "version": "1.0.0",
-  "description": "testing -------",
+  "version": "0.0.1",
+  "description": "javascript view layer",
   "main": "dist/vew.js",
   "jsnext:main": "dist/vew.es6.js",
   "directories": {
+    "src": "src",
     "test": "test"
   },
   "scripts": {
@@ -13,7 +14,6 @@
     "build": "BABEL_ENV=development webpack",
     "bundle": "BABEL_ENV=production rollup -c"
   },
-  "author": "",
   "license": "MIT",
   "devDependencies": {
     "babel-core": "^6.18.2",

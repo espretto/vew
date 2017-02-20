@@ -8,6 +8,7 @@ var external = Object.keys(pkg.dependencies || {})
 var ccBanner =
 [ '/** @define {boolean} */'
 , 'var DEBUG = true;'
+// , 'var DEBUG = false;'
 ].join('\n')
 
 module.exports = {
