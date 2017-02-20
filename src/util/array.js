@@ -134,6 +134,17 @@ export function map (array, func) {
   return mapped
 }
 
+export function mapTo (target, source, func) {
+  var len = target.length = source.length
+    , i = -1
+
+  while (++i < len) {
+    target[i] = func(source[i], i)
+  }
+
+  return target
+}
+
 export function filter (array, func) {
   var len = array.length
     , i = -1

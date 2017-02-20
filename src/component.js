@@ -34,6 +34,9 @@ const ATTR_NAME = 'name'
  */
 const Task = Base.derive({
 
+  /** @static */
+  args: []
+
   /*
   abstract paths: array
   abstract effect: function
@@ -41,14 +44,15 @@ const Task = Base.derive({
   abstract mountPath: array
    */
 
-  constructor (node, scope) {
+, constructor (node, scope) {
     this.node = node
     forEach(this.paths, path => { scope.subscribe(path, this) })
   }
 
 , call (scope) {
-    var args = map(this.paths, path => scope.resolve(path))
+    var args = mapTo(this.args, this.paths, path => scope.resolve(path))
     this.effect(this.node, this.compute.apply(null, args))
+    args.length = 0
   }
 })
 
