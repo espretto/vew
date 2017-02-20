@@ -3,7 +3,7 @@ Vew
 ---
 Vew provides a view layer for javascript applications. It is currently in development and in no shape for production use. It is neither feature-complete nor is it clear which features are going to be included or not. For now think of it as an exercise, one that should read well though.
 
-challenging vritual dom
+challenging virtual dom
 -----------------------
 When writing apps with one of the virtual-dom libraries (react, virtual-dom, mithril) we no longer care about how the current DOM needs to change but only what the next one needs to look like. The former, at times most complicated task, is done by the dom-diffing algorithm. With state-change-management out of the way, the complexity thereof is reduced to a one-way road, never looking back. With human interactions the road bends to a traffic circle: user events feed the vdom-factory, diff-patching the real DOM, presented to the user so he might go into the next round. Of course, we can integrate all kinds of sinks and sources into this cycle. Event-stream libraries let us hook into it to transform our data, cache results or do both to `reduce` the past(s) and the present to the future. Sounds awesome.
 
