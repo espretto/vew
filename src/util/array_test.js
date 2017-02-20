@@ -1,6 +1,8 @@
 
-import { expect } from 'chai'
+import chai, { expect } from 'chai'
 import sinon from 'sinon'
+import chaiSinon from 'chai-sinon'
+import sinonChaiInOrder from 'sinon-chai-in-order'
 
 import {
   toArray
@@ -27,13 +29,17 @@ import {
 , range
 } from './array'
 
+chai.use(chaiSinon)
+chai.use(sinonChaiInOrder)
+
+const noop = () => {}
+const fnTrue = () => true
+const fnFalse = () => false
 
 describe('Array Utils', function() {
 
   // FIXME: global vars are evil
-  beforeEach(() => {
-    (1, eval)('this').DEBUG = undefined
-  })
+  beforeEach(() => (1, eval)('this').DEBUG = undefined )
 
   let array
   beforeEach(() => array = [1, 2, 3, 4, 5])
@@ -170,19 +176,23 @@ describe('Array Utils', function() {
       expect(some(array, item => { return item === 3 })).to.be.true
     })
     it('should return `false`', () => {
-      expect(some(array, () => { return false })).to.be.false
+      expect(some(array, fnFalse)).to.be.false
     })
     it('should call callbacks for each item', () => {
-      let spy = sinon.spy()
+      let spy = sinon.spy(fnFalse)
       some(array, spy)
-      expect(spy.callCount).to.equal(5)
+      expect(spy).to.have.callCount(5)
     })
     it('should call callbacks w/ arguments item and index', () => {
-      let spy = sinon.spy()
+      let spy = sinon.spy(fnFalse)
       some(array, spy)
-      array.forEach((item, index) => {
-        expect(spy.args[index]).to.deep.equal([array[index], index])
-      })
+      expect(spy).to.have.callCount(5)
+      expect(spy).inOrder
+        .to.have.been.calledWithExactly(1, 0)
+        .subsequently.calledWithExactly(2, 1)
+        .subsequently.calledWithExactly(3, 2)
+        .subsequently.calledWithExactly(4, 3)
+        .subsequently.calledWithExactly(5, 4)
     })
   })
 
@@ -191,10 +201,26 @@ describe('Array Utils', function() {
       expect(every).to.be.a('function')
     })
     it('should return `true`', () => {
-      expect(every(array, () => { return true })).to.be.true
+      expect(every(array, fnTrue)).to.be.true
     })
     it('should return `false`', () => {
       expect(every(array, item => { return item === 3 })).to.be.false
+    })
+    it('should call callbacks for each item', () => {
+      let spy = sinon.spy(fnTrue)
+      every(array, spy)
+      expect(spy).to.have.callCount(5)
+    })
+    it('should call callbacks w/ arguments item and index', () => {
+      let spy = sinon.spy(fnTrue)
+      every(array, spy)
+      expect(spy).to.have.callCount(5)
+      expect(spy).inOrder
+        .to.have.been.calledWithExactly(1, 0)
+        .subsequently.calledWithExactly(2, 1)
+        .subsequently.calledWithExactly(3, 2)
+        .subsequently.calledWithExactly(4, 3)
+        .subsequently.calledWithExactly(5, 4)
     })
   })
 
@@ -226,11 +252,11 @@ describe('Array Utils', function() {
       // remove this test once issue is fixed
       // also adjust other #reduce tests
       delete (1, eval)('this').DEBUG
-      expect(() => { reduce(array, () => {} )}).to.not.throw(ReferenceError)
+      expect(() => { reduce(array, noop)}).to.not.throw(ReferenceError)
     })
     it('should throw error on short array in debug mode', () => {
       (1, eval)('this').DEBUG = true
-      expect(() => { reduce([1], () => {} )}).to.throw(/reduce of empty array with no initial value/)
+      expect(() => { reduce([1], noop)}).to.throw(/reduce of empty array with no initial value/)
     })
     it('should be able to calculate a sum of items', () => {
       let sum = reduce(array, (current, item) => {
@@ -241,14 +267,12 @@ describe('Array Utils', function() {
     it('should execute callbacks w/ arguments item and index', () => {
       let spy = sinon.spy(() => { return 'x' })
       reduce(array, spy)
-      ;[
-        [1, 2, 1],
-        ['x', 3, 2],
-        ['x', 4, 3],
-        ['x', 5, 4]
-      ].forEach((expected, index) => {
-        expect(spy.args[index]).to.deep.equal(expected)
-      })
+      expect(spy).to.have.callCount(4)
+      expect(spy).inOrder
+        .to.have.been.calledWithExactly(1, 2, 1)
+        .subsequently.calledWithExactly('x', 3, 2)
+        .subsequently.calledWithExactly('x', 4, 3)
+        .subsequently.calledWithExactly('x', 5, 4)
     })
   })
 
@@ -265,14 +289,12 @@ describe('Array Utils', function() {
     it('should execute callbacks w/ arguments item and index in reverse order', () => {
       let spy = sinon.spy(() => { return 'x' })
       reduceRight(array, spy)
-      ;[
-        [4, 5, 3],
-        [3, 'x', 2],
-        [2, 'x', 1],
-        [1, 'x', 0],
-      ].forEach((expected, index) => {
-        expect(spy.args[index]).to.deep.equal(expected)
-      })
+      expect(spy).to.have.callCount(4)
+      expect(spy).inOrder
+        .to.have.been.calledWithExactly(4, 5, 3)
+        .subsequently.calledWithExactly(3, 'x', 2)
+        .subsequently.calledWithExactly(2, 'x', 1)
+        .subsequently.calledWithExactly(1, 'x', 0)
     })
   })
 
@@ -295,20 +317,17 @@ describe('Array Utils', function() {
     it('should execute callbacks w/ arguments item and index', () => {
       let spy = sinon.spy(() => { return 'x' })
       fold(array, 42, spy)
-      ;[
-        [42, 1, 0],
-        ['x', 2, 1],
-        ['x', 3, 2],
-        ['x', 4, 3],
-        ['x', 5, 4]
-      ].forEach((expected, index) => {
-        expect(spy.args[index]).to.deep.equal(expected)
-      })
+      expect(spy).to.have.callCount(5)
+      expect(spy).inOrder
+        .to.have.been.calledWithExactly(42, 1, 0)
+        .subsequently.calledWithExactly('x', 2, 1)
+        .subsequently.calledWithExactly('x', 3, 2)
+        .subsequently.calledWithExactly('x', 4, 3)
+        .subsequently.calledWithExactly('x', 5, 4)
     })
   })
 
   describe('#foldRight', () => {
-    beforeEach(() => { (1, eval)('this').DEBUG = undefined })
     it('should exist', () => {
       expect(foldRight).to.be.a('function')
     })
@@ -316,7 +335,7 @@ describe('Array Utils', function() {
       // remove this test once issue is fixed
       // also adjust other #reduce tests
       delete (1, eval)('this').DEBUG
-      expect(() => { reduce(array, () => {} )}).to.not.throw(ReferenceError)
+      expect(() => { reduce(array, noop)}).to.not.throw(ReferenceError)
     })
     it('should be able to calculate a sum of items', () => {
       let sum = foldRight(array, 0, (current, item) => {
@@ -333,15 +352,13 @@ describe('Array Utils', function() {
     it('should execute callbacks w/ arguments item and index in reverse order', () => {
       let spy = sinon.spy(() => { return 'x' })
       foldRight(array, 42, spy)
-      ;[
-        [5, 42, 4],
-        [4, 'x', 3],
-        [3, 'x', 2],
-        [2, 'x', 1],
-        [1, 'x', 0],
-      ].forEach((expected, index) => {
-        expect(spy.args[index]).to.deep.equal(expected)
-      })
+      expect(spy).to.have.callCount(5)
+      expect(spy).inOrder
+        .to.have.been.calledWithExactly(5, 42, 4)
+        .subsequently.calledWithExactly(4, 'x', 3)
+        .subsequently.calledWithExactly(3, 'x', 2)
+        .subsequently.calledWithExactly(2, 'x', 1)
+        .subsequently.calledWithExactly(1, 'x', 0)
     })
   })
 
@@ -353,7 +370,7 @@ describe('Array Utils', function() {
       expect(findIndex(array, item => { return item === 3 || item === 5})).to.equal(2)
     })
     it('should return `-1` if not matched', () => {
-      expect(findIndex(array, item => { return false })).to.equal(-1)
+      expect(findIndex(array, fnFalse)).to.equal(-1)
     })
     it('should respect offset', () => {
       expect(findIndex(array, (item, index) => { return index === 2 }, 2)).to.equal(2)
@@ -369,7 +386,7 @@ describe('Array Utils', function() {
       expect(find(array, item => { return item === 3 || item === 5})).to.equal(3)
     })
     it('should return `undefined` if not matched', () => {
-      expect(find(array, item => { return false })).to.be.undefined
+      expect(find(array, fnFalse)).to.be.undefined
     })
     it('should respect offset', () => {
       expect(find(array, (item, index) => { return index === 2 }, 2)).to.equal(3)
@@ -391,26 +408,22 @@ describe('Array Utils', function() {
       let brray = array.map(item => { return ''+item })
       let spy = sinon.spy()
       forBoth(array, brray, spy)
-      ;[
-        [1, '1', 0],
-        [2, '2', 1],
-        [3, '3', 2],
-        [4, '4', 3],
-        [5, '5', 4],
-      ].forEach((expected, index) => {
-        expect(spy.args[index]).to.deep.equal(expected)
-      })
+      expect(spy).to.have.callCount(5)
+      expect(spy).inOrder
+        .to.have.been.calledWithExactly(1, '1', 0)
+        .subsequently.calledWithExactly(2, '2', 1)
+        .subsequently.calledWithExactly(3, '3', 2)
+        .subsequently.calledWithExactly(4, '4', 3)
+        .subsequently.calledWithExactly(5, '5', 4)
     })
     it('should stop executing after false', () => {
       let spy = sinon.spy(item => { return item !== 3 })
       forBoth(array, array, spy)
-      ;[
-        [1, 1, 0],
-        [2, 2, 1],
-        [3, 3, 2],
-      ].forEach((expected, index) => {
-        expect(spy.args[index]).to.deep.equal(expected)
-      })
+      expect(spy).to.have.callCount(3)
+      expect(spy).inOrder
+        .to.have.been.calledWithExactly(1, 1, 0)
+        .subsequently.calledWithExactly(2, 2, 1)
+        .subsequently.calledWithExactly(3, 3, 2)
     })
   })
 
