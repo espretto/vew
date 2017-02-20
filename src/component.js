@@ -5,7 +5,7 @@ import registry from './registry'
 import Expression from './expression'
 import { Error } from './util/global'
 import { hasOwn } from './util/object'
-import { toArray, indexOf, forEach, map } from './util/array'
+import { toArray, indexOf, forEach, map, mapTo } from './util/array'
 import {
   TEXT_NODE
 , ELEMENT_NODE
