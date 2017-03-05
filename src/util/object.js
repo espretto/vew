@@ -40,10 +40,8 @@ export const keys = idNative(Object.keys) || (hasEnumBug ? safeKeys : ownKeys)
  * isEmptyObject
  */
 function isOwnEmptyObject (object) {
-  var hasOwnLocal = hasOwn // JIT: lift to loop
-
   for (var key in object) {
-    if (hasOwnLocal.call(object, key)) {
+    if (hasOwn.call(object, key)) {
       return false
     }
   }
