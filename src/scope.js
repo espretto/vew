@@ -13,7 +13,7 @@ export default Base.derive({
     this.data = data
     this._root = SubscriptionTreeNode.create()
     this._tasks = new Set()
-    this._dirtySubs = new Set()
+    this._dirty = new Set()
   }
 
 , subscribe (path, task) {
@@ -37,9 +37,9 @@ export default Base.derive({
   }
 
 , _notify (sub) {
-    for (; sub && !this._dirtySubs.has(sub); sub = sub.parent) {
+    for (; sub; sub = sub.parent) {
       if (sub.tasks.length) {
-        this._dirtySubs.add(sub)
+        this._dirty.add(sub)
       }
     }
   }
@@ -47,9 +47,9 @@ export default Base.derive({
 , update () {
     const scope = this
         , tasks = scope._tasks
-        , dirtySubs = scope._dirtySubs
+        , dirty = scope._dirty
 
-    dirtySubs.forEach(sub => {
+    dirty.forEach(sub => {
       forEach(sub.tasks, task => {
         tasks.add(task)
       })
@@ -60,7 +60,7 @@ export default Base.derive({
     // end requestAnimationFrame
 
     tasks.clear()
-    dirtySubs.clear()
+    dirty.clear()
   }
 
 , merge (/*[path,] src*/) {
@@ -184,8 +184,7 @@ const SubscriptionTreeNode = Base.derive({
   }
 
 , isEmpty () {
-    return !this.tasks.length &&
-           isEmptyObject(this.children)
+    return !this.tasks.length && isEmptyObject(this.children)
   }
 
 , remove () {
@@ -202,8 +201,7 @@ const SubscriptionTreeNode = Base.derive({
 , resolveOrCreate (path) {
     return fold(path, this, (sub, key) => {
       var children = sub.children
-      return getOwn(children, key) ||
-                   (children[key] = SubscriptionTreeNode.create(sub))
+      return getOwn(children, key) || (children[key] = SubscriptionTreeNode.create(sub))
     })
   }
 })
