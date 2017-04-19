@@ -33,8 +33,10 @@ function toIdent (i) {
  * expression parser/evaluator singleton
  */
 export default Base.create.call({
+
+  brackets: []
  
-  constructor () {
+, constructor () {
     /** parser index */
     this.index = 0
 
@@ -48,7 +50,7 @@ export default Base.create.call({
     this.anchor = 0
 
     /** used to keep track of brackets/braces/parentheses */
-    this.brackets = []
+    this.brackets.length = 0
 
     /** indicates whether the current identifier could be an object key */
     this.maybeKey = false
@@ -276,7 +278,7 @@ export default Base.create.call({
     if (this.index === length) this.buffer()
 
     // add expression dependency - the path - to argument list
-    var argIndex = findIndex(this.paths, path_ => eqArray(path, path_))
+    var argIndex = findIndex(this.paths, qath => eqArray(path, qath))
     if (argIndex < 0) argIndex = this.paths.push(path)-1
 
     this.output += toIdent(argIndex)
