@@ -49,7 +49,7 @@ export function setNodeValue (node, value) {
   node.nodeValue = value
 }
 
-export function gut (node) {
+export function empty (node) {
   var firstChild = node.firstChild
     , childNodes
 

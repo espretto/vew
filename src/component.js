@@ -10,7 +10,7 @@ import {
   TEXT_NODE
 , ELEMENT_NODE
 , COMMENT_NODE
-, gut
+, empty
 , clone
 , Fragment
 , Placeholder
@@ -237,7 +237,7 @@ const Component = Base.derive({
     }
     // the element is the placeholder containing its default template
     else {
-      template = gut(node)
+      template = empty(node)
     }
 
     // slots without a default template require one to be transcluded
@@ -311,7 +311,7 @@ const Component = Base.derive({
       template.removeAttribute(ATTR_SLOT)
     }
     else {
-      template = gut(node)
+      template = empty(node)
     }
 
     TranscludedSlot = Component.derive({
