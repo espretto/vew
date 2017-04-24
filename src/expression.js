@@ -392,13 +392,16 @@ function debugState (chr) {
       case '>>=':
       case '>>>=':
         throw new Error('assignments are not allowed')
-      case '<<':
-      case '>>':
-      case '>>>':
-      case '<=':
-      case '>=':
-      case '!=':
-      case '!==':
+      // case '<<':
+      // case '>>':
+      // case '>>>':
+      // case '<=':
+      // case '>=':
+      // case '==':
+      // case '!=':
+      // case '===':
+      // case '!==':
+      default:
         this.index += operator.length
     }
   }
