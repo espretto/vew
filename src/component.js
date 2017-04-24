@@ -5,7 +5,7 @@ import registry from './registry'
 import Expression from './expression'
 import { Error } from './util/global'
 import { hasOwn } from './util/object'
-import { toArray, indexOf, forEach, map, mapTo } from './util/array'
+import { indexOf, forEach, map, mapTo } from './util/array'
 import {
   TEXT_NODE
 , ELEMENT_NODE
@@ -276,13 +276,13 @@ const Component = Base.derive({
     // copy over from prototype to instance before transclusion
     this.Children = this.Children.slice()
 
-    forEach(toArray(mountNode.children), node => {
+    forEach(mountNode.childNodes, node => {
       var attrValue
 
-      // [IE]
-      if (node.nodeType === COMMENT_NODE) return
-
-      if (getNodeName(node) === SLOT_NODENAME) {
+      if (node.nodeType !== ELEMENT_NODE) {
+        return
+      }
+      else if (getNodeName(node) === SLOT_NODENAME) {
         this.transclude(mountNode.removeChild(node), node.getAttribute(ATTR_NAME))
       }
       else if (attrValue = node.getAttribute(ATTR_SLOT)) {
