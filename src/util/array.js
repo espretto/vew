@@ -35,22 +35,21 @@ export function remove (array, item) {
   return i
 }
 
-export function removeAt (array, i, count) {
-  count = (count = +count) === count ? count : 1
-  var len = array.length - count
+export function removeAt (array, i) {
+  var len = array.length - 1
 
-  for (; i < len; ++i) {
-    array[i] = array[i+count]
+  while (i < len) {
+    array[i] = array[++i]
   }
 
   array.length = len
 }
 
 export function insertAt (array, i, item) {
-  var len = array.length += 1
+  var len = array.length++
 
-  while (--len > i) {
-    array[len] = array[len-1]
+  while (i < len) {
+    array[len] = array[--len]
   }
 
   array[i] = item

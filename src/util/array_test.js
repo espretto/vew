@@ -119,11 +119,7 @@ describe('Array Utils', function() {
     it('should exist', () => {
       expect(removeAt).to.be.a('function')
     })
-    it('should remove items', () => {
-      removeAt(array, 1, 2)
-      expect(array).to.deep.equal([1, 4, 5])
-    })
-    it('should default to remove one item', () => {
+    it('should remove one item', () => {
       removeAt(array, 1)
       expect(array).to.deep.equal([1, 3, 4, 5])
     })
