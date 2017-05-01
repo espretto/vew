@@ -1,43 +1,44 @@
 
+import Base from './base'
 import { Set } from './global'
-import { uniqId } from './misc'
-import { forEach } from './array'
 import { isUndefined, isFunction } from './type'
+import { forEach, insertAt, sortedIndexFor } from './array'
 
-function Shim () {
-	this._items = []
-	this._ident = uniqId('__set')
-}
+/**
+ * this shim uses a sorted array and does not maintain the order in which
+ * the items were added. all items must have the sorting property.
+ */
+const Sett = Base.derive({
 
-Shim.prototype = {
+  constructor (prop) {
+    this._data = []
+    this._prop = prop
+  }
 
-	has (item) {
-		return item[this._ident]
-	}
+, add: function (item) {
+    var data = this._data
+      , prop = this._prop
+      , i = sortedIndexFor(data, item, prop)
+    
+    if (i === data.length) {
+    	data.push(item)
+    }
+    else if (data[i][prop] !== item[prop]) {
+    	insertAt(data, item, i)
+    }
 
-, add (item) {
-		if (!item[this._ident]) {
-			item[this._ident] = true
-			this._items.push(item)
-		}
-	}
+    return this
+  }
+  
+, forEach: function (func) {
+    forEach(this._data, func)
+  }
+  
+, clear: function () {
+    this._data.length = 0
+  }
+})
 
-, clear (cleanup) {
-		forEach(this._items, cleanup
-			? item => { delete item[this._ident] }
-			: item => { item[this._ident] = false }
-		)
-
-		this._items.length = 0
-	}
-
-, forEach (func) {
-		forEach(this._items, func)
-	}
-}
-
-export default (
-	!isUndefined(Set) &&
-	isFunction(new Set().values) &&
-	isUndefined(new Set().values.next)
-) ? Set : Shim
+export default !isUndefined(Set) && isFunction(new Set().values)
+ ? function () { return new Set() }
+ : prop => Sett.create(prop)
