@@ -7,6 +7,8 @@ import Scope from './scope'
 
 chai.use(chaiSinon)
 
+/* @global describe, it, beforeEach */
+
 describe('Scope', function() {
 
   var scope

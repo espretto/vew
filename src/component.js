@@ -34,8 +34,11 @@ const ATTR_NAME = 'name'
  */
 const Task = Base.derive({
 
-  /** @static */
-  args: []
+  /** prototype variable */
+  id: 0
+
+  /** prototype variable */
+, args: []
 
   /*
   abstract paths: array
@@ -45,6 +48,7 @@ const Task = Base.derive({
    */
 
 , constructor (node, scope) {
+    this.id = this.id++
     this.node = node
     forEach(this.paths, path => { scope.subscribe(path, this) })
   }

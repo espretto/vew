@@ -80,6 +80,31 @@ export function lastIndexOf (array, item, i) {
   return i
 }
 
+/**
+ * @return {number} the index at which to insert `item` into `array`
+ *   sorted by its items common property `prop`. the value of `prop`
+ *   must implement the < operator.
+ */
+function sortedIndexFor (array, item, prop) {
+  var lo = 0
+    , hi = array.length
+    , mid
+    , val = item[prop]
+
+  while (lo < hi) {
+    mid = (lo + hi) >> 1 // Math.floor( (hi+lo) / 2 )
+    
+    if (array[mid][prop] < val) {
+      lo = mid + 1
+    }
+    else {
+      hi = mid
+    }
+  }
+
+  return hi
+}
+
 export function includes (array, item) {
   return indexOf(array, item) !== -1
 }

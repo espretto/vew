@@ -1,6 +1,6 @@
 
-import Set from './util/set'
 import Base from './util/base'
+import Sett from './util/sett'
 import { toPath, has } from './util/path'
 import { forEach, remove, fold } from './util/array'
 import { Object, Array, Date, Error } from './util/global'
@@ -12,8 +12,8 @@ export default Base.derive({
   constructor (data) {
     this.data = data
     this._root = SubscriptionTreeNode.create()
-    this._tasks = new Set()
-    this._dirty = new Set()
+    this._tasks = new Sett('id')
+    this._dirty = new Sett('id')
   }
 
 , subscribe (path, task) {
@@ -177,7 +177,11 @@ export default Base.derive({
 
 const SubscriptionTreeNode = Base.derive({
 
-  constructor (parent) {
+  /** class variable */
+  id: 0
+
+, constructor (parent) {
+    this.id = this.id++
     this.parent = parent
     this.tasks = []
     this.children = {}
