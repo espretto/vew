@@ -50,8 +50,11 @@ npm test src/util/array_test.js
 tools
 -----
 
+### test runner: mocha-webpack
+runs mocha tests in node js environemnt. and uses webpack for something.
+
 ### test framework: mocha
-run by `mocha-webpack` to allow es6.
+provides `describe` and `it`. also provides some nifty test handling.
 
 ### assertion library: chai
 allows chainable language to construct assertions. also provides meaningful
