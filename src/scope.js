@@ -4,8 +4,8 @@ import Base from './util/base'
 import { toPath, has } from './util/path'
 import { forEach, remove, fold } from './util/array'
 import { Object, Array, Date, Error } from './util/global'
-import { isPlainObject, isArray, isObject, isDate } from './util/type'
 import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue } from './util/object'
+import { isPlainObject, isArray, isObject, isDate, isUndefined } from './util/type'
 
 export default Base.derive({
 
@@ -70,7 +70,7 @@ export default Base.derive({
         , trg = this.data
         , src = arguments[0]
 
-      this.data = trg !== undefined
+      this.data = isUndefined(trg)
         ? this._mergeDeep(trg, src, sub)
         : this._cloneDeep(src, sub)
     }
