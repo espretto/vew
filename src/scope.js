@@ -12,8 +12,8 @@ export default Base.derive({
   constructor (data) {
     this.data = data
     this._root = SubscriptionTreeNode.create()
-    this._tasks = new Sett('id')
-    this._dirty = new Sett('id')
+    this._tasks = Sett('id')
+    this._dirty = Sett('id')
   }
 
 , subscribe (path, task) {
