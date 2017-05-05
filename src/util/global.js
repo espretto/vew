@@ -9,3 +9,5 @@ export const Error = global.Error
 export const Object = global.Object
 export const Set = global.Set
 export const String = global.String
+
+export const isFinite = global.isFinite

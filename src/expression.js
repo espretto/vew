@@ -1,8 +1,7 @@
 
 import Base from './util/base'
-import { Array } from './util/global'
-import { isNumeric } from './util/type'
 import { trim, chr } from './util/string'
+import { Array, isFinite } from './util/global'
 import { indexOf, findIndex, eqArray } from './util/array'
 
 /** used to match the first character of a javascript identifier or keyword */
@@ -180,7 +179,7 @@ export default Base.create.call({
       if (this.hasReachedSuffix()) {
         break
       }
-      else if (isNumeric(chr)) {
+      else if (isFinite(chr)) { // never whitespace
         this.seek(noNum, true)
       }
       else if (chr === '/') {
@@ -297,7 +296,7 @@ export default Base.create.call({
       this.index += ident.length
       if (path) path.push(ident)
     }
-    else if (!isNumeric(chr)) {
+    else if (!isFinite(chr)) { // never whitespace
       if (DEBUG) throw new Error('missing name after dot operator')
     }
   }
@@ -321,7 +320,7 @@ export default Base.create.call({
       
       return this.bracketCloseState(path)
     }
-    else if (isNumeric(chr)) {
+    else if (isFinite(chr)) { // never whitespace
       begin = this.index
       this.seek(noNum, true)
       
