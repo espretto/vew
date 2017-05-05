@@ -40,5 +40,5 @@ const Sett = Base.derive({
 })
 
 export default !isUndefined(Set) && isFunction(new Set().values)
- ? function () { return new Set() }
+ ? prop => new Set()
  : prop => Sett.create(prop)
