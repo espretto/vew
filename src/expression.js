@@ -1,6 +1,7 @@
 
 import Base from './util/base'
 import { Array } from './util/global'
+import { isNumeric } from './util/type'
 import { trim, chr } from './util/string'
 import { indexOf, findIndex, eqArray } from './util/array'
 
@@ -115,8 +116,8 @@ export default Base.create.call({
     }
   }
 
-, seek (regex, offset) {
-    if (offset) this.index += offset
+, seek (regex, skip) {
+    if (skip) this.index += 1
     regex.lastIndex = this.index
     const match = regex.exec(this.input)
 
@@ -130,11 +131,13 @@ export default Base.create.call({
     }
   }
 
-, seekUnescaped (chr, offset) {
-    if (offset) this.index += offset
+, seekUesc (chr, skip) {
+    var index
+
+    if (skip) this.index += 1
 
     do {
-      var index = this.input.indexOf(chr, this.index)
+      index = this.input.indexOf(chr, this.index)
       this.index = index+1
     }
     while (this.input.charAt(index-1) === '\\')
@@ -177,14 +180,14 @@ export default Base.create.call({
       if (this.hasReachedSuffix()) {
         break
       }
-      else if (+chr === +chr) {
-        this.seek(noNum, 1)
+      else if (isNumeric(chr)) {
+        this.seek(noNum, true)
       }
       else if (chr === '/') {
         this.slashState()
       }
       else if (chr === '"' || chr === "'") {
-        this.seekUnescaped(chr, 1)
+        this.seekUesc(chr, true)
         if (!this.index) if (DEBUG) throw new Error('unterminated string literal')
       }
       else if (chr === '(' || chr === '[' || chr === '{') {
@@ -228,14 +231,14 @@ export default Base.create.call({
       if (DEBUG) throw new Error('assignments not allowed')  
     }
     else {
-      this.seekUnescaped('/')
+      this.seekUesc('/')
       if (!this.index) if (DEBUG) throw new Error('unterminated regular expression')
     }
   }
 
 , identState () {
     if (this.maybeKey && this.brackets[0] === '{') {
-      this.seek(noIdent, 1)
+      this.seek(noIdent, true)
     }
     else {
       const ident = this.seek(matchIdent)
@@ -286,7 +289,7 @@ export default Base.create.call({
   }
 
 , dotState (path) {
-    var chr = this.seek(noWs, 1)
+    var chr = this.seek(noWs, true)
       , ident
 
     if (passIdent.test(chr)) {
@@ -294,7 +297,7 @@ export default Base.create.call({
       this.index += ident.length
       if (path) path.push(ident)
     }
-    else if (+chr !== +chr) {
+    else if (!isNumeric(chr)) {
       if (DEBUG) throw new Error('missing name after dot operator')
     }
   }
@@ -304,12 +307,12 @@ export default Base.create.call({
    * i.e. cannot be statically resolved
    */
 , bracketOpenState (path) {
-    var chr = this.seek(noWs, 1)
+    var chr = this.seek(noWs, true)
       , begin, ident
 
     if (chr === '"' || chr === "'") {
       begin = this.index
-      this.seekUnescaped(chr, 1)
+      this.seekUesc(chr, true)
 
       if (!this.index) if (DEBUG) throw new Error('unterminated string literal')
       
@@ -318,9 +321,9 @@ export default Base.create.call({
       
       return this.bracketCloseState(path)
     }
-    else if (+chr === +chr) {
+    else if (isNumeric(chr)) {
       begin = this.index
-      this.seek(noNum, 1)
+      this.seek(noNum, true)
       
       ident = this.input.substring(begin, this.index)
       path.push(+ident) // coarse number
@@ -355,11 +358,14 @@ export default Base.create.call({
   }
 })
 
+/** used match the first character of a possibly forbidden operator */
+const beginOperator = '=+-*/|&^<!>'
+
 /** used to match javascript operators (debug) */
 const matchOperator = /[\+\-]{2}|[\+\-\*\/\^\&\|<%>]=|=>|={1,3}|!==?|<<=?|>>>?=?/g
 
-/** used match the first character of a possibly forbidden operator */
-const beginOperator = '=+-*/|&^<!>'
+/** used to look up forbidden operators */
+const assignOperators = ['=', '++', '--', '+=', '-=', '*=', '/=', '|=', '&=', '^=', '<<=', '>>=', '>>>=']
 
 function debugState (chr) {
   if (chr === ';') {
@@ -375,34 +381,16 @@ function debugState (chr) {
     if (!match || match.index !== this.index) return
 
     operator = match[0]
-    switch (operator) {
-      case '=>':
-        throw new Error('arrow operator not supported')
-      case '=':
-      case '++':
-      case '--':
-      case '+=':
-      case '-=':
-      case '*=':
-      case '/=':
-      case '|=':
-      case '&=':
-      case '^=':
-      case '<<=':
-      case '>>=':
-      case '>>>=':
-        throw new Error('assignments are not allowed')
-      // case '<<':
-      // case '>>':
-      // case '>>>':
-      // case '<=':
-      // case '>=':
-      // case '==':
-      // case '!=':
-      // case '===':
-      // case '!==':
-      default:
-        this.index += operator.length
+
+    if (operator === '=>') {
+      throw new Error('arrow operator not supported')
+    }
+    else if (indexOf(assignOperators, operator) > -1) {
+      throw new Error('assignments are not allowed')
+    }
+    else {
+      // case: <<, >>, >>>, <=, >=, ==, !=, ===, !==
+      this.index += operator.length
     }
   }
 }

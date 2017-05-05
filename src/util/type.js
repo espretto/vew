@@ -30,6 +30,13 @@ export function isString (any) {
 }
 
 /**
+ * isNumeric
+ */
+export function isNumeric (any) {
+  return +any === +any
+}
+
+/**
  * isUndefined
  */
 export function isUndefined (any) {
