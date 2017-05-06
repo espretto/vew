@@ -149,11 +149,11 @@ export default Base.derive({
     var children = sub.children
     
     forOwn(src, (value, key) => {
-      var child = getOwn(children, key, sub)
+      var closest = getOwn(children, key, sub)
 
       trg[key] = !clone && hasOwn.call(trg, key)
-        ? this._mergeDeep(trg[key], value, child)
-        : this._cloneDeep(value, child)
+        ? this._mergeDeep(trg[key], value, closest)
+        : this._cloneDeep(value, closest)
     })
 
     return trg
@@ -164,11 +164,11 @@ export default Base.derive({
       , length = trg.length
 
     forEach(src, (value, i) => {
-      var child = getOwn(children, i, sub)
+      var closest = getOwn(children, i, sub)
 
       trg[i] = !clone && i < length
-        ? this._mergeDeep(trg[i], value, child)
-        : this._cloneDeep(value, child)
+        ? this._mergeDeep(trg[i], value, closest)
+        : this._cloneDeep(value, closest)
     })
 
     if (length !== trg.length) {
