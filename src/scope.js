@@ -10,7 +10,7 @@ import { Object, ObjectProto, Array, ArrayProto, Date, DateProto, Error } from '
 export default Base.derive({
 
   constructor (data) {
-    this._root = SubscriptionTreeNode.create()
+    this._root = SubscriptionTreeNode.create(null)
     this._tasks = Sett('id')
     this._dirty = Sett('id')
 
@@ -209,14 +209,16 @@ const SubscriptionTreeNode = Base.derive({
 
 , resolve (path) {
     var sub = this
-    forEach(path, key => !!(sub = getOwn(sub.children, key)))
+    forEach(path, key => !!(sub = getOwn(sub.children, key, null)))
     return sub
   }
 
 , resolveOrCreate (path) {
     return fold(path, this, (sub, key) => {
       var children = sub.children
-      return getOwn(children, key) || (children[key] = SubscriptionTreeNode.create(sub))
+      return hasOwn.call(children, key)
+        ? children[key]
+        : (children[key] = SubscriptionTreeNode.create(sub))
     })
   }
 })
