@@ -73,11 +73,11 @@ export function isDate (any) {
 /**
  * isPlainObject
  */
-const protoOf = idNative(Object.getPrototypeOf) || (protoProp in objectTypes
+const protof = idNative(Object.getPrototypeOf) || (protoProp in objectTypes
   ? any => any[protoProp]
   : any => any.constructor.prototype
 )
 
 export function isPlainObject (any) {
-  return isObject(any) && protoOf(any) === objectProto
+  return isObject(any) && protof(any) === objectProto
 }
