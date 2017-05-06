@@ -85,7 +85,7 @@ export function lastIndexOf (array, item, i) {
  *   sorted by its items common property `prop`. the value of `prop`
  *   must implement the < operator.
  */
-function sortedIndexFor (array, item, prop) {
+export function sortedIndexFor (array, item, prop) {
   var lo = 0
     , hi = array.length
     , mid
