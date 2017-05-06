@@ -10,4 +10,9 @@ export const Object = global.Object
 export const Set = global.Set
 export const String = global.String
 
+export const ArrayProto = Array.prototype
+export const DateProto = Date.prototype
+export const ObjectProto = Object.prototype
+export const StringProto = String.prototype
+
 export const isFinite = global.isFinite

@@ -1,15 +1,14 @@
 
-import { String } from './global'
+import { String, StringProto } from './global'
 import { idNative } from './type'
 import { uncurry } from './function'
 
-const stringProto = String.prototype
 
 const reTrimLeft = /^\s\s*/
 
 const reTrimRight = /\s\s*$/;
 
-const nativeTrim = idNative(stringProto.trim)
+const nativeTrim = idNative(StringProto.trim)
 
 /**
  * chr

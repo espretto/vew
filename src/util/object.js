@@ -1,5 +1,5 @@
 
-import { Object } from './global'
+import { Object, ObjectProto } from './global'
 import { thisify } from './function'
 import { idNative } from './type'
 import { append, filter, forEach, some } from './array'
@@ -9,7 +9,7 @@ const hasEnumBug = !({ valueOf: null }).propertyIsEnumerable('valueOf')
 /**
  * hasOwn
  */
-export const hasOwn = Object.prototype.hasOwnProperty
+export const hasOwn = ObjectProto.hasOwnProperty
 
 /**
  * keys

@@ -1,11 +1,9 @@
 
-import { Array, Object } from './global'
+import { Array, Object, ObjectProto } from './global'
 
 const objectTypes = { 'object': true, 'function': true }
 
-const objectProto = Object.prototype
-
-const toString = objectProto.toString
+const getTag = ObjectProto.toString
 
 const protoProp = '__proto__'
 
@@ -44,7 +42,7 @@ function isFunc (any) {
 }
 
 export const isFunction = isFunc(/re/)
-  ? any => isFunc(any) && toString.call(any) === funcTag
+  ? any => isFunc(any) && getTag.call(any) === funcTag
   : isFunc
 
 /**
@@ -60,24 +58,24 @@ export function idNative (any) {
  * isArray
  */
 export const isArray = idNative(Array.isArray) || (any =>
-  isObject(any) && toString.call(any) === arrayTag
+  isObject(any) && getTag.call(any) === arrayTag
 )
 
 /**
  * isDate
  */
 export function isDate (any) {
-  return isObject(any) && toString.call(any) === dateTag
+  return isObject(any) && getTag.call(any) === dateTag
 }
 
 /**
  * isPlainObject
  */
-const protof = idNative(Object.getPrototypeOf) || (protoProp in objectTypes
+export const protof = idNative(Object.getPrototypeOf) || (protoProp in objectTypes
   ? any => any[protoProp]
   : any => any.constructor.prototype
 )
 
 export function isPlainObject (any) {
-  return isObject(any) && protof(any) === objectProto
+  return isObject(any) && protof(any) === ObjectProto
 }

@@ -3,17 +3,19 @@ import Base from './util/base'
 import Sett from './util/sett'
 import { toPath, has } from './util/path'
 import { forEach, remove, fold } from './util/array'
-import { Object, Array, Date, Error } from './util/global'
+import { isObject, isUndefined, protof } from './util/type'
 import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue } from './util/object'
-import { isPlainObject, isArray, isObject, isDate, isUndefined } from './util/type'
+import { Object, ObjectProto, Array, ArrayProto, Date, DateProto, Error } from './util/global'
 
 export default Base.derive({
 
   constructor (data) {
-    this.data = data
     this._root = SubscriptionTreeNode.create()
     this._tasks = Sett('id')
     this._dirty = Sett('id')
+
+    // varies inner class
+    this.data = data
   }
 
 , subscribe (path, task) {
@@ -95,23 +97,30 @@ export default Base.derive({
 
 , _mergeDeep (trg, src, sub) {
 
-    // test mutability
-    const trgHas = isArray(trg) || isPlainObject(trg)
-        , srcEach = isArray(src) && forEach || isPlainObject(src) && forOwn
+    // merge mutables
+    if (isObject(trg) && isObject(src)) {
+      const trgProto = protof(trg)
+          , srcProto = protof(src)
 
-    // merge mutables with keys
-    if (trgHas && srcEach) {
-      trg = this._mergeEach(trg, src, trgHas, srcEach, sub)
+      if (trgProto === ArrayProto || trgProto === ObjectProto) {
+        if (srcProto === ArrayProto) {
+          return this._mergeArray(trg, src, sub, false)
+        }
+        else if (srcProto === ObjectProto) {
+          return this._mergeObject(trg, src, sub, false)
+        }
+      }
+      else if (trgProto === DateProto && srcProto === DateProto && +trg !== +src) {
+        trg.setTime(src)
+        this._notify(sub)
+        return trg
+      }
     }
-    // mutate date objects
-    else if (isDate(trg) && isDate(src) && +trg !== +src) {
-      trg.setTime(src)
+
+    // fall through to same-value-zero comparison
+    if (trg === trg ? trg !== src : src === src) {
       this._notify(sub)
-    }
-    // override if immutable values differ by SameValueZero-comparison
-    else if (!trgHas && !srcEach && (trg === trg ? trg !== src : src === src)) {
-      trg = src
-      this._notify(sub)
+      return src
     }
 
     return trg
@@ -121,47 +130,50 @@ export default Base.derive({
     this._notify(sub)
 
     if (isObject(src)) {
-      
-      if (isArray(src)) {
-        return this._mergeEach(Array(src.length), src, false, forEach, sub)
-      }
-      else if (isPlainObject(src)) {
-        return this._mergeEach({}, src, false, forOwn, sub)
-      }
-      else if (isDate(src)) {
-        return new Date(src)
-      }
-      else if (DEBUG) {
-        throw new Error('cannot clone unknown, non-primitive value format\n\n' + JSON.stringify(src))
+      switch (protof(src)) {
+        case ArrayProto:
+          return this._mergeArray(Array(src.length), src, sub, true)
+        case ObjectProto:
+          return this._mergeObject({}, src, sub, true)
+        case DateProto:
+          return new Date(src)
+        default:
+          throw new Error('cannot clone unknown, non-primitive value format\n\n' + JSON.stringify(src))  
       }
     }
 
     return src
   }
 
-, _mergeEach (trg, src, trgHas, srcEach, parent) {
-    var trgIsArray = isArray(trg)
-      , trgLength = trg.length
-      , children = parent.children
-      , once = true
+, _mergeObject (trg, src, sub, clone) {
+    var children = sub.children
+    
+    forOwn(src, (value, key) => {
+      var child = getOwn(children, key, sub)
 
-    srcEach(src, (value, key) => {
-      var sub = getOwn(children, key, parent)
-
-      // merge if the key is common
-      if (trgHas && (trgIsArray ? key < trgLength : hasOwn.call(trg, key))) {
-        trg[key] = this._mergeDeep(trg[key], value, sub)
-      }
-      // clone if the key is foreign
-      else {
-        trg[key] = this._cloneDeep(value, sub)
-
-        if (once && trgIsArray) {
-          this._notify( sub.children['length'] )
-          once = false
-        }
-      }
+      trg[key] = !clone && hasOwn.call(trg, key)
+        ? this._mergeDeep(trg[key], value, child)
+        : this._cloneDeep(value, child)
     })
+
+    return trg
+  }
+
+, _mergeArray (trg, src, sub, clone) {
+    var children = sub.children
+      , length = trg.length
+
+    forEach(src, (value, i) => {
+      var child = getOwn(children, i, sub)
+
+      trg[i] = !clone && i < length
+        ? this._mergeDeep(trg[i], value, child)
+        : this._cloneDeep(value, child)
+    })
+
+    if (length !== trg.length) {
+      this._notify( children['length'] )
+    }
 
     return trg
   }
