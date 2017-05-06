@@ -171,7 +171,7 @@ export default Base.derive({
     })
 
     if (length !== trg.length) {
-      this._notify( children['length'] )
+      this._notify(getOwn(children, 'length', sub))
     }
 
     return trg
