@@ -120,10 +120,9 @@ export default Base.derive({
     // fall through to same-value-zero comparison
     if (trg === trg ? trg !== src : src === src) {
       this._notify(sub)
-      return src
     }
 
-    return trg
+    return src
   }
 
 , _cloneDeep (src, sub) {
