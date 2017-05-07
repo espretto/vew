@@ -93,11 +93,25 @@ export const create = idNative(Object.create) || function (proto) {
 /**
  * deleteValue
  */
-export function deleteValue (object, value) {
-  forOwn(object, (val, key) => {
-    if (val === value) {
-      delete object[key]
-      return false
+function deleteOwnValue (object, value) {
+  var hasOwnLocal = hasOwn
+
+  for (var key in object) {
+    if (hasOwnLocal.call(object, key) && object[key] === value) {
+      return delete object[key]  
     }
-  })
+  }
+
+  return false
 }
+
+function deleteSafeValue (object, value) {
+  const hasOwnLocal = hasOwn
+  return (
+    deleteOwnValue(object, value) ||
+    some(brokenKeys, key => hasOwnLocal.call(object, key) && object[key] === value && delete object[key])
+  )
+}
+
+export const deleteValue = hasEnumBug ? deleteSafeValue : deleteOwnValue
+
