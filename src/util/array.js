@@ -305,21 +305,10 @@ export function append (trg, src) {
  * @return {bool}
  */
 export function eqArray (array, brray) {
-  var len = array.length
-    , i = -1
-
-  if (len !== brray.length) {
-    return false
-  }
-
-  // JIT: inline Array#every
-  while (++i < len) {
-    if (array[i] !== brray[i]) {
-      return false
-    }
-  }
-  
-  return true
+  return (
+    array.length === brray.length &&
+    every(array, (value, i) => value === brray[i])
+  )
 }
 
 export function range (begin, step, end) {
