@@ -236,17 +236,18 @@ export default Base.create.call({
   }
 
 , identState () {
-    if (this.maybeKey && this.brackets[0] === '{') {
-      this.seek(noIdent, true)
-    }
-    else {
-      const ident = this.seek(matchIdent)
+    const ident = this.seek(matchIdent)
 
-      if (indexOf(keywords, ident) < 0) {
+    if (this.maybeKey && this.brackets[0] === '{') {
+      if (this.seek(noWs) === ',') {
         this.flush()
-        this.index += ident.length
-        this.pathState( [ident] )
+        this.output += ':' + ident
       }
+    }
+    else if (indexOf(keywords, ident) < 0) {
+      this.flush()
+      this.index += ident.length
+      this.pathState( [ident] )
     }
   }
 
