@@ -192,7 +192,7 @@ const SubscriptionTreeNode = Base.derive({
   id: 0
 
 , constructor (parent) {
-    this.id = this.id++
+    this.id = SubscriptionTreeNode.id++
     this.parent = parent
     this.tasks = []
     this.children = {}

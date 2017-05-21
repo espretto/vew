@@ -48,7 +48,7 @@ const Task = Base.derive({
    */
 
 , constructor (node, scope) {
-    this.id = this.id++
+    this.id = Task.id++
     this.node = node
     forEach(this.paths, path => { scope.subscribe(path, this) })
   }
