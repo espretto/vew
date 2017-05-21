@@ -13,7 +13,7 @@ const noWs = /\S/g
 /** used to skip numbers (bin, oct, hex, exp) */
 const noNum = /[^a-fox\d]/gi
 
-/** used to skip object keys */
+/** used to skip unquoted object keys */
 const noIdent = /[^\w\$]/g
 
 /** used to match javascript identifiers and keywords */
