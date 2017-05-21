@@ -350,6 +350,7 @@ export default Base.create.call({
     }
     else if (chr === ']') {
       this.index += 1
+      return false
     }
     else {
       path.pop()
