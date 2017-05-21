@@ -373,25 +373,22 @@ function debugState (chr) {
     throw new Error('statements are not allowed')
   }
   else if (beginOperator.indexOf(chr) > -1) {
-    var match, operator
-
     matchOperator.lastIndex = this.index
-    match = matchOperator.exec(this.input)
+    var match = matchOperator.exec(this.input)
 
-    // early exit if not matched at the current position
-    if (!match || match.index !== this.index) return
+    if (match && match.index === this.index) {
+      var operator = match[0]
 
-    operator = match[0]
-
-    if (operator === '=>') {
-      throw new Error('arrow operator not supported')
-    }
-    else if (indexOf(assignOperators, operator) > -1) {
-      throw new Error('assignments are not allowed')
-    }
-    else {
-      // case: <<, >>, >>>, <=, >=, ==, !=, ===, !==
-      this.index += operator.length
+      if (operator === '=>') {
+        throw new Error('arrow operator not supported')
+      }
+      else if (indexOf(assignOperators, operator) > -1) {
+        throw new Error('assignments are not allowed')
+      }
+      else {
+        // case: <<, >>, >>>, <=, >=, ==, !=, ===, !==
+        this.index += operator.length
+      }
     }
   }
 }
