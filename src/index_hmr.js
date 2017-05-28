@@ -4,7 +4,9 @@ import { findIndex } from './util/array'
 /* -----------------------------------------------------------------------------
  * helpers
  */
-const Util = {
+const global = (0, eval)('this')
+
+global.Util = global.Util || {
 
   qs: selector => document.querySelector(selector),
   qsa: selector => document.querySelectorAll(selector),
