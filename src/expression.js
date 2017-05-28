@@ -7,17 +7,20 @@ import { indexOf, findIndex, eqArray } from './util/array'
 /** used to match the first character of a javascript identifier or keyword */
 const passIdent = /[a-zA-Z\$_]/
 
+/** used to match javascript identifiers and keywords */
+const matchIdent = /[a-zA-Z\$_][\w\$]*/g
+
+/** used mangle identifiers */
+const toIdent = index => chr(97 + index)
+
+/** used to skip unquoted object keys */
+const noIdent = /[^\w\$]/g
+
 /** used to skip whitespace */
 const noWs = /\S/g
 
 /** used to skip numbers (bin, oct, hex, exp) */
 const noNum = /[^a-fox\d]/gi
-
-/** used to skip unquoted object keys */
-const noIdent = /[^\w\$]/g
-
-/** used to match javascript identifiers and keywords */
-const matchIdent = /[a-zA-Z\$_][\w\$]*/g
 
 /** preserved keywords in expressions (operators and values only) */
 const keywords = 'false,in,instanceof,new,null,true,typeof,void'.split(',')
@@ -149,7 +152,7 @@ export default Base.create.call({
 , addPath (path) {
     var index = findIndex(this.paths, other => eqArray(other, path))
     if (index < 0) index = this.paths.push(path) - 1
-    this.output += chr(97 + index)
+    this.output += toIdent(index)
   }
 
   /* ---------------------------------------------------------------------------
