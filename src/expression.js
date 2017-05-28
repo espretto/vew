@@ -247,6 +247,10 @@ export default Base.create.call({
       this.index += ident.length
       this.pathState( [ident] )
     }
+    else {
+      this.index += ident.length
+      this.flush()
+    }
   }
 
 , pathState (path) {
