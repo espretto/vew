@@ -1,4 +1,6 @@
 
+import { findIndex } from './util/array'
+
 /* -----------------------------------------------------------------------------
  * helpers
  */
@@ -11,33 +13,30 @@ const Util = {
   _listeners: [],
 
   on (element, event, handler) {
-    this._listeners.push({ element, event, handler, active: true })
+    this._listeners.push({ element, event, handler })
     element.addEventListener(event, handler, false)
   },
 
   off (element, event, handler) {
-    // remove all for one handler
     if (handler) {
-      this._listeners
-        .filter(listener => listener.element === element && listener.handler === handler)
-        .forEach(listener => {
-          element.removeEventListener(event, handler, false)
-          listener.active = false
-        })
+      var i = findIndex(this._listeners, listener =>
+        listener.element === element &&
+        listener.event === event &&
+        listener.handler === handler
+      )
+      if (i > -1) {
+        element.removeEventListener(event, handler, false)
+        this._listeners.splice(i, 1)
+      }
     }
-    // remove all for one event
     else {
-      this._listeners
-        .filter(listener => listener.element === element && listener.event === event)
-        .forEach(listener => {
+      this._listeners.forEach((listener, i, listeners) => {
+        if (listener.element === element && listener.event === event) {
           element.removeEventListener(event, listener.handler, false)
-          listener.active = false
-        })
+          listeners.splice(i, 1)
+        }
+      })
     }
-    // delete listeners
-    this._listeners.forEach((listener, i, listeners) => {
-      if (!listener.active) listeners.splice(i, 1)
-    })
   },
 
   beautify (data) {
@@ -84,7 +83,7 @@ if (module.hot) {
   function update () {
     console.log('updating...')
     try {
-      var exp = Expression.parse(input.value)
+      var exp = Expression.parse(dom.input.value)
       dom.output.value = [Expression.evaluate(exp).toString(), Util.beautify(exp)]
         .join('\n-----------------------------------\n')
     }
