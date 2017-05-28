@@ -228,10 +228,6 @@ export default Base.create.call({
     else if (chr === '=') {
       if (DEBUG) throw new Error('assignments not allowed')  
     }
-    else {
-      this.seekUesc('/')
-      if (!this.index) if (DEBUG) throw new Error('unterminated regular expression')
-    }
   }
 
 , identState () {
