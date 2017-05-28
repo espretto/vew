@@ -1,7 +1,7 @@
 
 import Base from './util/base'
 import { every } from './util/array'
-import { global, document } from './util/global'
+import { document } from './util/global'
 
 export const ELEMENT_NODE = 1
 export const TEXT_NODE = 3
@@ -140,9 +140,7 @@ export const TreeWalker = Base.derive({
 /* -----------------------------------------------------------------------------
  * parse
  */
-export const parse = (function (window) {
-
-  var document = window.document
+export const parse = (function (document) {
 
   /**
    * Tests for browser support.
@@ -254,12 +252,12 @@ export const parse = (function (window) {
 
   return parse
 
-}(global))
+}(document))
 
 /* -----------------------------------------------------------------------------
  * clone
  */
-export const clone = (function (global) {
+export const clone = (function (document) {
 
   function TextNode (text) {
     return document.createTextNode(text)
@@ -301,4 +299,4 @@ export const clone = (function (global) {
 
   return rejoinsTextNodes ? shim : clone
 
-}(global))
+}(document))

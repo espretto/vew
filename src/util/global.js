@@ -1,5 +1,5 @@
 
-export const global = (1, eval)('this')
+const global = (1, eval)('this')
 
 export const document = global.document
 
