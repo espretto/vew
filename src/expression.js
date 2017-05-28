@@ -22,13 +22,6 @@ const matchIdent = /[a-zA-Z\$_][\w\$]*/g
 /** preserved keywords in expressions (operators and values only) */
 const keywords = 'false,in,instanceof,new,null,true,typeof,void'.split(',')
 
-function toIdent (i) {
-  if (i > 25) {
-    if (DEBUG) throw new Error('surpassed max no. arguments')
-  }
-  return chr(97 + i)
-}
-
 /* -----------------------------------------------------------------------------
  * expression parser/evaluator singleton
  */
@@ -153,6 +146,12 @@ export default Base.create.call({
     )
   }
 
+, addPath (path) {
+    var index = findIndex(this.paths, other => eqArray(other, path))
+    if (index < 0) index = this.paths.push(path) - 1
+    this.output += chr(97 + index)
+  }
+
   /* ---------------------------------------------------------------------------
    * parser state tree (no recursion)
    *
@@ -239,9 +238,12 @@ export default Base.create.call({
     const ident = this.seek(matchIdent)
 
     if (this.maybeKey && this.brackets[0] === '{') {
-      if (this.seek(noWs) === ',') {
-        this.flush()
-        this.output += ':' + ident
+      this.index += ident.length
+      this.flush()
+      
+      if (this.seek(noWs) !== ':') {
+        this.output += ':'
+        this.addPath( [ident] )
       }
     }
     else if (indexOf(keywords, ident) < 0) {
@@ -280,11 +282,7 @@ export default Base.create.call({
     // else to the while
     if (this.index === length) this.buffer()
 
-    // add expression dependency - the path - to argument list
-    var argIndex = findIndex(this.paths, qath => eqArray(path, qath))
-    if (argIndex < 0) argIndex = this.paths.push(path)-1
-
-    this.output += toIdent(argIndex)
+    this.addPath(path)
     this.flush()
   }
 
