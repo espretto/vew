@@ -1,0 +1,99 @@
+
+/* -----------------------------------------------------------------------------
+ * helpers
+ */
+const Util = {
+
+  qs: selector => document.querySelector(selector),
+  qsa: selector => document.querySelectorAll(selector),
+  now: Date.now,
+
+  _listeners: [],
+
+  on (element, event, handler) {
+    this._listeners.push({ element, event, handler, active: true })
+    element.addEventListener(event, handler, false)
+  },
+
+  off (element, event, handler) {
+    // remove all for one handler
+    if (handler) {
+      this._listeners
+        .filter(listener => listener.element === element && listener.handler === handler)
+        .forEach(listener => {
+          element.removeEventListener(event, handler, false)
+          listener.active = false
+        })
+    }
+    // remove all for one event
+    else {
+      this._listeners
+        .filter(listener => listener.element === element && listener.event === event)
+        .forEach(listener => {
+          element.removeEventListener(event, listener.handler, false)
+          listener.active = false
+        })
+    }
+    // delete listeners
+    this._listeners.forEach((listener, i, listeners) => {
+      if (!listener.active) listeners.splice(i, 1)
+    })
+  },
+
+  beautify (data) {
+    return JSON.stringify(data, null, 2)
+  },
+
+  debounce (func, minDelay) {
+    var ctx, args, tack, timer
+    
+    function bounce () {
+      var delay = Util.now() - tack
+
+      if (delay < minDelay) {
+        setTimeout(bounce, minDelay - delay)
+      } else {
+        timer = 0
+        func.apply(ctx, args)
+      }
+    }
+
+    return function(...args_) {
+      ctx = this
+      args = args_
+      tack = Util.now()
+      timer || (timer = setTimeout(bounce, minDelay))
+    }
+  },
+}
+
+/* -----------------------------------------------------------------------------
+ * hot module replacement testing
+ */
+
+import Expression from './expression'
+
+if (module.hot) {
+  module.hot.accept()
+
+  var dom = {
+    input: Util.qs('#input'),
+    output: Util.qs('#output')
+  } 
+
+  function update () {
+    console.log('updating...')
+    try {
+      var exp = Expression.parse(input.value)
+      dom.output.value = [Expression.evaluate(exp).toString(), Util.beautify(exp)]
+        .join('\n-----------------------------------\n')
+    }
+    catch (e) {
+      dom.output.value = e.stack
+    }
+  }
+
+  update()
+  Util.off(dom.input, 'keyup')
+  Util.on(dom.input, 'keyup', update)
+}

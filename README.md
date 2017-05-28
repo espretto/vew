@@ -47,6 +47,14 @@ npm test src/util/
 npm test src/util/array_test.js
 ```
 
+playground
+----------
+run from commandline
+```
+npm run start
+```
+then point your browser to http://localhost:8080 for live-testing the expression parser module.
+
 tools
 -----
 
