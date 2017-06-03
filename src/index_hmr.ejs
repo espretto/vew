@@ -4,10 +4,59 @@
   <meta name="charset" content="utf8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <link rel="stylesheet" href="https://unpkg.com/purecss@0.6.2/build/pure-min.css" integrity="sha384-UQiGfs9ICog+LwheBSRCt1o5cbyKIHbwjWscjemyBMT9YCUMZffs6UqUTd0hObXD" crossorigin="anonymous">
+  <style>
+    html, button, input, select, textarea, .pure-g [class *= "pure-u"] { font-family: "Liberation Sans"; color: #333; }
+    h1, h2, h3 { font-weight: normal; color: #000; letter-spacing: 0.16em; display: inline-block; }
+    article { width: 65em; margin: 1em auto; padding: 0 2em; text-align: left }
+    body { text-align: center; min-height: 80em }
+    header .pure-button { float: right; margin-top: 1.2em; background: inherit }
+    hr { color: #eee; }
+    * { -webkit-box-sizing: border-box; -moz-box-sizing: border-box; box-sizing: border-box; }
+    .input.pure-input-1-2,
+    .output.pure-input-1-2 { font-family: "Liberation Mono"; font-size: 0.8em; resize: vertical; margin: .5em 0 }
+    .output.pure-input-1-2 { float: right; }
+
+    @media screen and (min-width: 48em) {
+      article { width: 100%; }
+
+      .input.pure-input-1-2,
+      .output.pure-input-1-2 { display: block; float: left; clear: both;}
+    }
+
+  </style>
 </head>
 <body>
-  <textarea id="input" cols=80 rows=20></textarea>
-  <textarea id="output" cols=80 rows=20></textarea>
+  <article class="pure-g pure-form">
+    <header class="pure-u-1"><h2>Playground</h2><hr></header>
+
+    <section id=expression class="pure-u-1">
+      <header><h3>Expression</h3><button class="toggle pure-button">toggle</button></header>
+      <p>compile a javascript expression, mangling any identifiers and forbidden keywords (e.g. <em>this</em> and <em>undefined</em>) to key-paths which in turn can be resolved on a safe scope object</p>
+      <textarea class="input pure-input-1-2" rows=10 ></textarea>
+      <textarea class="output pure-input-1-2" rows=10 ></textarea>
+    </section>
+
+    <section id=template class="pure-u-1 pure-g">
+      <header><h3>Template</h3><button class="toggle pure-button">toggle</button></header>
+      <p>compile an html template to a component prototype</p>
+      <textarea class="input pure-input-1-2" rows=10 ></textarea>
+      <textarea class="output pure-input-1-2" rows=10 ></textarea>
+    </section>
+  </article>
+  
   <script>if (typeof DEBUG === 'undefined') var DEBUG = true</script>
+  <script>
+      Array.apply(null, document.getElementsByClassName('toggle')).forEach(function (elem) {
+        
+        function toggle() {
+          for (var node = this.parentNode.nextElementSibling; node; node = node.nextElementSibling) {
+            node.hidden = !node.hidden
+          }
+        }
+
+        elem.addEventListener('click', toggle)
+      })
+  </script>
 </body>
 </html>
