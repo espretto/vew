@@ -109,7 +109,11 @@ function deleteSafeValue (object, value) {
   const hasOwnLocal = hasOwn
   return (
     deleteOwnValue(object, value) ||
-    some(brokenKeys, key => hasOwnLocal.call(object, key) && object[key] === value && delete object[key])
+    some(brokenKeys, key =>
+      hasOwnLocal.call(object, key) &&
+      object[key] === value &&
+      delete object[key]
+    )
   )
 }
 
