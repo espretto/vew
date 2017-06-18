@@ -5,16 +5,16 @@ import { Array, isFinite } from './util/global'
 import { indexOf, findIndex, eqArray } from './util/array'
 
 /** used to match the first character of a javascript identifier or keyword */
-const passIdent = /[a-zA-Z\$_]/
+const passIdent = /[a-zA-Z_$]/
 
 /** used to match javascript identifiers and keywords */
-const matchIdent = /[a-zA-Z\$_][\w\$]*/g
+const matchIdent = /[a-zA-Z_$][\w$]*/g
 
 /** used mangle identifiers */
 const toIdent = index => chr(97 + index)
 
 /** used to skip unquoted object keys */
-const noIdent = /[^\w\$]/g
+const noIdent = /[^\w$]/g
 
 /** used to skip whitespace */
 const noWs = /\S/g
