@@ -92,3 +92,14 @@ expect(spyFunction).inOrder
     .subsequently.calledWithExactly(secondArg)
     .subsequently.calledWithExactly(thirdArg)
 ```
+
+roadmap
+-------
+
+1. make it work
+2. make it right
+3. make it fast
+3.1 game engine optimizations
+3.1.1 create and implement a `stash` interface (pushState, popState, clearState)
+      instead of creating a new instance of a *class* we would create singletons
+      that can stash their state - very much like `git stash` does.
