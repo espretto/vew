@@ -1,6 +1,8 @@
 
 import Base from './util/base'
 import { every } from './util/array'
+import { isEmpty } from './util/string'
+import { idNative } from './util/type'
 import { document } from './util/global'
 
 export const ELEMENT_NODE = 1
@@ -15,14 +17,16 @@ export const getNodeName = document.createElement('custom').nodeName !== 'CUSTOM
   ? node => node.nodeName.toUpperCase()
   : node => node.nodeName
 
-const noWs = /\S/
-
-function isEmptyTextNode (node) {
-  return node.nodeType === TEXT_NODE && !noWs.test(node.nodeValue)
+export function isEmptyTextNode (node) {
+  return node.nodeType === TEXT_NODE && isEmpty(node.nodeValue)
 }
 
 export function isEmptyElement (node) {
   return !node.children.length && every(node.childNodes, isEmptyTextNode)
+}
+
+export function isPlaceholder (node) {
+  return node.nodeType === COMMENT_NODE
 }
 
 /* -----------------------------------------------------------------------------
@@ -35,21 +39,23 @@ export function Fragment (node) {
 }
 
 export function Placeholder () {
-  return document.createComment('')
+  return document.createComment('vew')
 }
 
 /* -----------------------------------------------------------------------------
  * mutate
  */
-export function replaceNode (oldNode, newNode) {
-  return oldNode.parentNode.replaceChild(newNode, oldNode)
+export function replaceNode (prev, next) {
+  return prev.parentNode.replaceChild(next, prev)
 }
 
-export function setNodeValue (node, value) {
-  node.nodeValue = value
+export function removeNode (node) {
+  return node.parentNode.removeChild(node)
 }
 
-export function empty (node) {
+const RangeSingleton = idNative(document.createRange) && document.createRange()
+
+export function extractContents (node) {
   var firstChild = node.firstChild
     , childNodes
 
@@ -57,6 +63,12 @@ export function empty (node) {
 
     if (firstChild === node.lastChild) {
       childNodes = node.removeChild(firstChild)
+    }
+    // thx: https://stackoverflow.com/a/22966637
+    else if (RangeSingleton) {
+      RangeSingleton.selectNodeContents(node)
+      childNodes = RangeSingleton.extractContents()
+      RangeSingleton.detach() // JIT: free resources (legacy)
     }
     else {
       childNodes = Fragment()
@@ -70,76 +82,20 @@ export function empty (node) {
 }
 
 /* -----------------------------------------------------------------------------
- * traverse
+ * parse and stringify
  */
-export function resolveNode (node, path) {
-  var len = path.length
-    , i = -1
-    , nodeIndex
+export function stringify (node) {
+  var container = document.createElement('div')
 
-  if (node.nodeType !== DOCUMENT_FRAGMENT_NODE) {
-    i += 1 // skip first node index which is always zero for elements/text-nodes
+  switch (node.nodeType) {
+    case TEXT_NODE: return node.nodeValue
+    case ELEMENT_NODE: return node.outerHTML
+    case COMMENT_NODE: /* fall through */
+    case DOCUMENT_FRAGMENT_NODE: return (container.appendChild(node), container.innerHTML)
+    default: throw new Error(`cannot serialize node type ${node.nodeType}`)
   }
-
-  while (++i < len) {
-    node = node.firstChild
-    nodeIndex = path[i]
-
-    while (nodeIndex--) {
-      node = node.nextSibling
-    }
-  }
-
-  return node
 }
 
-export const TreeWalker = Base.derive({
-
-  constructor () {
-    this.node = null
-    this._path = []
-    this._index = 0
-  }
-
-, seed (node) {
-    if (node.nodeType === DOCUMENT_FRAGMENT_NODE) {
-      node = node.firstChild
-    }
-
-    return (this.node = node)
-  }
-
-, next () {
-    var node = this.node
-      , next
-
-    if (next = node.firstChild) {
-      this._path.push(this._index)
-      this._index = 0
-    }
-    else {
-      do {
-        if (next = node.nextSibling) {
-          this._index += 1
-          break
-        }
-        node = node.parentNode
-        this._index = this._path.pop()
-      }
-      while (node)
-    }
-
-    return (this.node = next)
-  }
-
-, getPath () {
-    return this._path.concat(this._index)
-  }
-})
-
-/* -----------------------------------------------------------------------------
- * parse
- */
 export const parse = (function (document) {
 
   /**
@@ -257,46 +213,4 @@ export const parse = (function (document) {
 /* -----------------------------------------------------------------------------
  * clone
  */
-export const clone = (function (document) {
-
-  function TextNode (text) {
-    return document.createTextNode(text)
-  }
-
-  /**
-   * cloneNode may rejoin once seperated text-nodes into one.
-   */
-  var text = TextNode('ab')
-    , frag = Fragment(text)
-    , rejoinsTextNodes
-
-  text.splitText(1)
-  rejoinsTextNodes = frag.childNodes.length !== clone(frag).childNodes.length
-
-  /**
-   * clone
-   */
-  function clone (orig) {
-    return orig.cloneNode(true)
-  }
-
-  /**
-   * clone shim
-   */
-  function shim (orig) {
-    var copy = clone(orig)
-      , tw = TreeWalker.create()
-      , node = tw.seed(orig)
-
-    for (; node; node = tw.next()) {
-      if (node.nodeType === TEXT_NODE && node.nextSibling) {
-        resolveNode(copy, tw.getPath()).splitText(node.nodeValue.length)
-      }
-    }
-
-    return copy
-  }
-
-  return rejoinsTextNodes ? shim : clone
-
-}(document))
+export function clone (node) { return node.cloneNode(true) }

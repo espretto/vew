@@ -36,6 +36,7 @@
     "mocha": "^3.2.0",
     "mocha-webpack": "^0.7.0",
     "nodemon": "^1.11.0",
+    "purecss": "^0.6.2",
     "rollup": "^0.36.3",
     "rollup-plugin-babel": "^2.6.1",
     "sinon": "^2.0.0-pre.5",

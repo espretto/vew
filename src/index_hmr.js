@@ -1,16 +1,16 @@
 
-import { findIndex } from './util/array'
+import 'purecss'
 
 /* -----------------------------------------------------------------------------
  * helpers
  */
 const global = (0, eval)('this')
 
-global.Util = global.Util || {
+global.State = global.State || {} 
+
+global.Util = {
 
   SEP: ['', '-'.repeat(40), ''].join('\n')
-
-, state: {}
   
   // selectors
 , qs: (selector, elem) => (elem || document).querySelector(selector)
@@ -25,6 +25,18 @@ global.Util = global.Util || {
       any === null      ? 'null' :
       Object.prototype.toString.call(any).slice(8, -1).toLowerCase()
     )
+  }
+
+, isPrimitive (any) {
+    switch (Util.type(any)) {
+      case 'null':
+      case 'undefined':
+      case 'string':
+      case 'number':
+        return true
+      default:
+        return false
+    }
   }
 
   // a is equal subset of b
@@ -52,7 +64,7 @@ global.Util = global.Util || {
   }
 
   // events
-, _listeners: []
+, _listeners: State.listeners || (State.listeners = [])
 
 , on (element, event, handler) {
     this._listeners.push({ element, event, handler })
@@ -76,7 +88,21 @@ global.Util = global.Util || {
 
   // json dump
 , beautify (data) {
-    return JSON.stringify(data, null, 2)
+    return JSON.stringify(data, this._beautify, 2)
+    // .replace(/\\n/g, '\n')
+  }
+
+, _beautify (key, data) {
+    switch (Util.type(data)) {
+      case 'function':
+        return data.toString()
+      case 'array':
+        return data.every(Util.isPrimitive)
+          ? '[' + data.join(', ') + ']'
+          : data
+      default:
+        return data
+    }
   }
 
   // timing
@@ -118,7 +144,7 @@ if (module.hot) {
   /* ---------------------------------------------------------------------------
    * hot module replacement testing - expressions
    */
-  const ExpressionGround = (function (Util, NS) {
+  const ExpressionGround = (function (Util, state) {
 
     const ROOT = Util.qs('#expression')
     const DOM = {
@@ -142,9 +168,8 @@ if (module.hot) {
 
     return {
       save () {
-        var ns = Util.state[NS] || (Util.state[NS] = {})
-        ns.input = DOM.input.value
-        ns.output = DOM.output.value
+        state.input = DOM.input.value
+        state.output = DOM.output.value
       }
 
     , teardown () {
@@ -154,18 +179,17 @@ if (module.hot) {
       }
 
     , setup () {
-        Util.on(DOM.input, 'keyup', update)
+        Util.on(DOM.input, 'keyup', Util.debounce(update, 200))
       }
 
     , load () {
-        var ns = Util.state[NS]
-        DOM.input.value = ns.input
-        DOM.output.value = ns.output
+        DOM.input.value = state.input
+        DOM.output.value = state.output
         update()
       }
     }
 
-  }(Util, 'expression'))
+  }(Util, (State.expression = {})))
 
   ExpressionGround.save()
   ExpressionGround.teardown()
@@ -175,7 +199,7 @@ if (module.hot) {
   /* ---------------------------------------------------------------------------
    * hot module replacement testing - template
    */
-  const TemplateGround = (function (Util, NS) {
+  const TemplateGround = (function (Util, state) {
 
     const ROOT = Util.qs('#template')
     const DOM = {
@@ -184,11 +208,12 @@ if (module.hot) {
     } 
 
     function update () {
-      var out
+      console.log('updating..')
+      var out, exprCache = {}
 
       try {
-        var componentProto = Template.compile(DOM.input.value)
-        out = [Util.beautify(componentProto)]
+        var componentProto = Template.create(DOM.input.value, exprCache)
+        out = [Util.beautify(exprCache), Util.beautify(componentProto)]
       }
       catch (e) {
         out = [e.message, e.stack]
@@ -199,30 +224,28 @@ if (module.hot) {
 
     return {
       save () {
-        var ns = Util.state[ns] || (Util.state[NS] = {})
-        ns.input = DOM.input.value
-        ns.output = DOM.output.value
+        state.input = DOM.input.value
+        state.output = DOM.output.value
       }
 
     , teardown () {
         DOM.input.value =
         DOM.output.value = ''
-        Util.off(DOM.input, 'keyup')
+        Util.off(DOM.input, 'input')
       }
 
     , setup () {
-        Util.on(DOM.input, 'keyup', update)
+        Util.on(DOM.input, 'input', Util.debounce(update, 200))
       }
 
     , load () {
-        var ns = Util.state[NS]
-        DOM.input.value = ns.input
-        DOM.output.value = ns.output
+        DOM.input.value = state.input
+        DOM.output.value = state.output
         update()
       }
     }
 
-  }(Util, 'template'))
+  }(Util, (State.template = {})))
 
   TemplateGround.save()
   TemplateGround.teardown()

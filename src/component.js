@@ -173,7 +173,7 @@ const Component = Base.derive({
       paths: expr.paths
     , effect: setNodeValue
     , compute: Expression.evaluate(expr)
-    , mountPath: tw.getPath()
+    , mountPath: tw.path()
     }));
 
     // split text-node where the expression ends
@@ -219,7 +219,7 @@ const Component = Base.derive({
     }
 
     this.Children.push(
-      Component.derive({ mountPath: tw.getPath() })
+      Component.derive({ mountPath: tw.path() })
                .finalize(node)
     )
   }
@@ -230,7 +230,7 @@ const Component = Base.derive({
     }
 
     var node = tw.node
-      , mountPath = tw.getPath()
+      , mountPath = tw.path()
       , template, Slot
 
     // the element itself is the slot's default template
