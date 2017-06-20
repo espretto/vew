@@ -158,15 +158,17 @@ export function map (array, func) {
   return mapped
 }
 
-export function mapTo (target, source, func) {
-  var len = target.length = source.length
+export function mapTo (trg, src, off, func) {
+  var len = src.length
     , i = -1
 
+  trg.length = off + len // alloc or free
+
   while (++i < len) {
-    target[i] = func(source[i], i)
+    trg[off++] = src[i]
   }
 
-  return target
+  return trg
 }
 
 export function filter (array, func) {

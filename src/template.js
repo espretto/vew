@@ -43,7 +43,7 @@ function setClassName (node, value) {
   }
 }
 
-// [FIXME] cannot set properties content" and "font-family" because their values contain quotes
+// [FIXME] cannot set properties "content" and "font-family" because their values contain quotes
 function setCssText (node, value) {
   var cssText = !isObject(value)
     ? this.initial + ';' + value
