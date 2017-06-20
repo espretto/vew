@@ -17,12 +17,12 @@ export const hasOwn = ObjectProto.hasOwnProperty
 const brokenKeys = 'constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf'.split(',')
 
 function ownKeys (object) {
-  var hasOwnLocal = hasOwn // JIT: lift to loop
+  var _hasOwn = hasOwn // JIT: lift to loop
     , keys = []
     , i = -1
 
   for (var key in object) {
-    if (hasOwnLocal.call(object, key)) {
+    if (_hasOwn.call(object, key)) {
       keys[++i] = key
     }
   }
@@ -40,8 +40,10 @@ export const keys = idNative(Object.keys) || (hasEnumBug ? safeKeys : ownKeys)
  * isEmptyObject
  */
 function isOwnEmptyObject (object) {
+  const _hasOwn = hasOwn
+
   for (var key in object) {
-    if (hasOwn.call(object, key)) {
+    if (_hasOwn.call(object, key)) {
       return false
     }
   }
@@ -93,29 +95,6 @@ export const create = idNative(Object.create) || function (proto) {
 /**
  * deleteValue
  */
-function deleteOwnValue (object, value) {
-  var hasOwnLocal = hasOwn
-
-  for (var key in object) {
-    if (hasOwnLocal.call(object, key) && object[key] === value) {
-      return delete object[key]  
-    }
-  }
-
-  return false
+export function deleteValue (object, value) {
+  return some(keys(object), key => object[key] === value && delete object[key])
 }
-
-function deleteSafeValue (object, value) {
-  const hasOwnLocal = hasOwn
-  return (
-    deleteOwnValue(object, value) ||
-    some(brokenKeys, key =>
-      hasOwnLocal.call(object, key) &&
-      object[key] === value &&
-      delete object[key]
-    )
-  )
-}
-
-export const deleteValue = hasEnumBug ? deleteSafeValue : deleteOwnValue
-
