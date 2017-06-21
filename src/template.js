@@ -134,6 +134,12 @@ const Template = Base.derive({
     // split text-node where the expression starts
     if (expression.begin > 0) {
       node.splitText(expression.begin)
+
+      if (isEmpty(node.nodeValue)) {
+        tw.prev()
+        removeNode(node)
+      }
+      
       node = tw.next()
     }
 
