@@ -1,7 +1,8 @@
- 
+
 import Base from './util/base'
-import Expression from './expression'
+import Registry from './registry'
 import TreeWalker from './dom/treewalker'
+import { Parser as ExpressionParser } from './expression'
 import { hasOwn } from './util/object'
 import { forEach, last, map } from './util/array'
 import { isEmpty, trim, startsWith, kebabCase } from './util/string'
@@ -67,12 +68,7 @@ const ATTR_PREFIX = '--'
 
 const Template = Base.derive({
 
-  // [FIXME] externalize
-  // - expression evaluation
-  // - template serialization/caching
-  // 
-  constructor (html, exprCache) {
-    this.exprCache = exprCache || {}
+  constructor (html) {
     this.mutators = []
     this.components = []
     this.treeWalker = TreeWalker.create()
@@ -91,13 +87,6 @@ const Template = Base.derive({
       mutators: this.mutators
     , template: stringify(this.template)
     , components: this.components
-    }
-  }
-
-  // [FIXME] externalize caching
-, addExpression (expr) {
-    if (!hasOwn.call(this.exprCache, expr.source)) {
-      this.exprCache[expr.source] = Expression.evaluate(expr)
     }
   }
 
@@ -123,7 +112,7 @@ const Template = Base.derive({
     var tw = this.treeWalker
       , node = tw.node
       , value = node.nodeValue
-      , expr
+      , expression
 
     // remove empty text-nodes
     if (isEmpty(value)) {
@@ -133,26 +122,26 @@ const Template = Base.derive({
     }
 
     // parse and cache expression
-    expr = Expression.parse(value, ['${', '}'])
-    if (!expr) return    
-    this.addExpression(expr)
+    expression = ExpressionParser.parse(value, ['${', '}'])
+    if (!expression) return
+    Registry.expressions.add(expression)
 
     // split text-node where the expression starts
-    if (expr.begin > 0) {
-      node.splitText(expr.begin)
+    if (expression.begin > 0) {
+      node.splitText(expression.begin)
       node = tw.next()
     }
 
     // register task
     this.mutators.push({
-      expr: expr
+      expression: expression
     , mutator: MUTATORS.SET_NODE_VALUE
     , target: tw.path()
     })
 
     // split text-node where the expression ends
-    if (expr.end < value.length) {
-      node.splitText(expr.end - expr.begin)
+    if (expression.end < value.length) {
+      node.splitText(expression.end - expression.begin)
       // leave the off-split to the next iteration
     }
   }
@@ -188,15 +177,15 @@ const Template = Base.derive({
       , node = tw.node
       , value = attr.nodeValue
       , name = attr.nodeName.substring(ATTR_PREFIX.length)
-      , expr
+      , expression
 
     switch (name) {
 
       case 'class':
-        expr = Expression.parse(value)
+        expression = ExpressionParser.parse(value)
         
         this.mutators.push({
-          expr
+          expression
         , initial: node.className
         , mutator: MUTATORS.SET_CLASS_NAME
         , target: tw.path()
@@ -206,10 +195,10 @@ const Template = Base.derive({
         break
 
       case 'style':
-        expr = Expression.parse(value)
+        expression = ExpressionParser.parse(value)
 
         this.mutators.push({
-          expr
+          expression
         , initial: node.style.cssText
         , mutator: MUTATORS.SET_CSS_TEXT
         , target: tw.path()
@@ -219,14 +208,14 @@ const Template = Base.derive({
         break
 
       case 'if':
-        expr = Expression.parse(value)
+        expression = ExpressionParser.parse(value)
 
         // [FIXME] this might be a component-tag
         node.removeAttribute(attr.nodeName)
         tw.node = this.replacehold(node)
 
         this.mutators.push({
-          exprs: [expr]
+          expressions: [expression]
         , mutator: MUTATORS.MOUNT_CONDITION
         , target: tw.path()
         , components: [Template.create(node, this.exprCache)]
@@ -234,7 +223,7 @@ const Template = Base.derive({
         break
 
       case 'else':
-        expr = Expression.parse('true')
+        expression = ExpressionParser.parse('true')
         /* fall through */
 
       case 'elif':
@@ -242,8 +231,8 @@ const Template = Base.derive({
           throw new Error('[else] and [elif] must be directly preceded by [if], [elif] or [repeat]')
         }
 
-        if (!expr) {
-          expr = Expression.parse(value)
+        if (!expression) {
+          expression = ExpressionParser.parse(value)
         }
 
         // clean and detach
@@ -253,28 +242,28 @@ const Template = Base.derive({
 
         // register sub-component with its expression
         var mutator = last(this.mutators)
-        mutator.exprs.push(expr)
+        mutator.expressions.push(expression)
         mutator.components.push(Template.create(node, this.exprCache))
         break
 
       case 'repeat':
-        var match = value.match(reMatchLoop)
+        var loop = value.match(reMatchLoop)
           , keyName, valName
 
-        if (!match) {
+        if (!loop) {
           throw new Error('malformed loop expression')
         }
 
-        valName = match[1] || match[3]
-        keyName = match[2] || ''
-        expr = Expression.parse(match[4])
+        valName = loop[1] || loop[3]
+        keyName = loop[2] || ''
+        expression = ExpressionParser.parse(loop[4])
 
         // [FIXME] this might be a component-tag
         node.removeAttribute(attr.nodeName)
         tw.node = this.replacehold(node)
 
         this.mutators.push({
-          exprs: [expr]
+          expressions: [expression]
         , keyName
         , valName
         , mutator: MUTATORS.MOUNT_LOOP
@@ -287,7 +276,7 @@ const Template = Base.derive({
         throw new Error('not yet implemented attribute handler for: ' + name)
     }
 
-    this.addExpression(expr)
+    Registry.expressions.add(expression)
   }
 
 , isPrecededByPlaceholder (node) {
@@ -301,7 +290,7 @@ const Template = Base.derive({
 
 , componentState (tw, tag, byAttr) {
     var node = tw.node
-      , Component = registry[tag]
+      , Component = Registry[tag]
 
     if (byAttr) {
       node.removeAttribute(ATTR_IS)
@@ -396,11 +385,11 @@ export default Template
     </li>
   </ul>
 
-  <p k-style="color: ${color}">cssText expr<p>
+  <p k-style="color: ${color}">cssText expression<p>
 
   <p k-style="{ color: color }">css property object<p>
 
-  <p k-class="static ${dynclass}">className expr<p>
+  <p k-class="static ${dynclass}">className expression<p>
 
   <p k-class="{ trueClass: trueExpression, falseClass: falseExpression }">className array<p>
 
@@ -439,7 +428,7 @@ export default Template
 </p>
 <p --else>GoodBye</p>
 <ul>
-  <li --for="item of collection">${item.property}</li>
+  <li --repeat="item of collection">${item.property}</li>
 </ul>
 
  */

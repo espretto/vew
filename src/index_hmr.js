@@ -135,8 +135,9 @@ global.Util = {
 /* -----------------------------------------------------------------------------
  * hot module replacement testing
  */
-import Expression from './expression'
+import { Parser as ExpressionParser } from './expression'
 import Template from './template'
+import Registry from './registry'
 
 if (module.hot) {
   module.hot.accept()
@@ -156,8 +157,8 @@ if (module.hot) {
       var out
 
       try {
-        var exp = Expression.parse(DOM.input.value)
-        out = [Expression.evaluate(exp).toString(), Util.beautify(exp)]
+        var exp = ExpressionParser.parse(DOM.input.value)
+        out = [exp.evaluate(exp).toString(), Util.beautify(exp)]
       }
       catch (e) {
         out = [e.message, e.stack]
@@ -209,11 +210,11 @@ if (module.hot) {
 
     function update () {
       console.log('updating..')
-      var out, exprCache = {}
+      var out
 
       try {
-        var componentProto = Template.create(DOM.input.value, exprCache)
-        out = [Util.beautify(exprCache), Util.beautify(componentProto)]
+        var componentProto = Template.create(DOM.input.value)
+        out = [Util.beautify(Registry), Util.beautify(componentProto)]
       }
       catch (e) {
         out = [e.message, e.stack]

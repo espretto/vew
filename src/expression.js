@@ -1,7 +1,7 @@
 
 import Base from './util/base'
 import { trim, chr } from './util/string'
-import { Array, isFinite } from './util/global'
+import { Array, Function, isFinite } from './util/global'
 import { indexOf, findIndex, eqArray } from './util/array'
 
 /** used to match the first character of a javascript identifier or keyword */
@@ -25,10 +25,44 @@ const noNum = /[^a-fox\d]/gi
 /** preserved keywords in expressions (operators and values only) */
 const keywords = 'false,in,instanceof,new,null,true,typeof,void'.split(',')
 
+export const Expression = Base.derive({
+
+  constructor (paths, source, begin, end) {
+    this.paths = paths
+    this.source = trim(source)
+    this.begin = begin
+    this.end = end
+  }
+
+, evaluate () {
+    var argc = this.paths.length
+      , signature = Array(argc)
+
+    while (argc--) {
+      signature[argc] = toIdent(argc)
+    }
+
+    signature.push('return ' + this.source)
+
+    return Function.apply(null, signature)
+  }
+
+  /** cacheable interface */
+, cacheKey () {
+    return this.source
+  }
+
+  /** cacheable interface */
+, cacheValue () {
+    return this.evaluate()
+  }
+
+})
+
 /* -----------------------------------------------------------------------------
  * expression parser/evaluator singleton
  */
-export default Base.create.call({
+export const Parser = Base.create.call({
 
   brackets: []
  
@@ -51,10 +85,10 @@ export default Base.create.call({
     /** indicates whether the current identifier could be an object key */
     this.maybeKey = false
 
-    /** array of key-chains being collected (result) */
+    /** result: array of key-chains being collected */
     this.paths = []
 
-    /** mangled output source (result) */
+    /** result: mangled output source */
     this.output = ''
   }
 
@@ -71,30 +105,16 @@ export default Base.create.call({
 
     this.dataState()
 
-    expression =
-    { paths: this.paths
-    , source: trim(this.output)
-    , begin: begin
-    , end: this.index + suffix.length
-    }
+    expression = Expression.create(
+      this.paths
+    , this.output
+    , begin
+    , this.index + suffix.length
+    )
 
     this.constructor() // reset
 
     return expression
-  }
-
-  /** @static */
-, evaluate (expression) {
-    var argc = expression.paths.length
-      , signature = Array(argc)
-
-    while (argc--) {
-      signature[argc] = toIdent(argc)
-    }
-
-    signature.push('return ' + expression.source)
-
-    return Function.apply(null, signature)
   }
 
   /* ---------------------------------------------------------------------------
