@@ -206,7 +206,9 @@ if (module.hot) {
     const DOM = {
       input: Util.qs('.input', ROOT)
     , output: Util.qs('.output', ROOT)
-    } 
+    }
+
+    Registry.components.add('DUMMY', {})
 
     function update () {
       console.log('updating..')

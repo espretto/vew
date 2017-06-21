@@ -65,6 +65,10 @@ const MUTATORS = {
 }
 
 const ATTR_PREFIX = '--'
+const ATTR_SLOT = '--slot'
+const ATTR_NAME = 'name'
+const SLOT_NODENAME = 'SLOT'
+const SLOT_DEFAULT_NAME = 'content'
 
 const Template = Base.derive({
 
@@ -149,10 +153,10 @@ const Template = Base.derive({
 
 , elementState () {
     var node = this.treeWalker.node
-      , name = getNodeName(node)
+      , nodeName = getNodeName(node)
 
-    if (Registry.components.has(name)) {
-      this.componentState(name)
+    if (Registry.components.has(nodeName)) {
+      this.componentState(nodeName)
     }
     else {
       forEach(node.attributes, attr => {
@@ -236,7 +240,7 @@ const Template = Base.derive({
           throw new Error('[else] and [elif] must be directly preceded by [if], [elif] or [repeat]')
         }
 
-        if (name !== 'elif') {
+        if (name === 'elif') {
           expression = Expression.parse(value)
         }
 
@@ -291,12 +295,47 @@ const Template = Base.derive({
     return false
   }
 
-, componentState (name) {
-    var tw = this.treewalker
-      , node = tw.node
-      , tmpl = extractContents(node)
+, componentState (componentTag) {
+    var tw = this.treeWalker
+      , componentNode = tw.node
+      , node = componentNode.firstChild
+      , slots = []
+      , content
 
-    this.components.push( Template.create(name, tmpl) )
+    for (; node; node = node.nextSibling) {
+      switch (node.nodeType) {
+
+        case TEXT_NODE:
+          if (isEmpty(node.nodeValue)) {
+            componentNode.removeChild(node)
+          }
+          break
+
+        case ELEMENT_NODE:
+          var slotName
+
+          if (getNodeName(node) === SLOT_NODENAME) {
+            slotName = node.getAttribute(ATTR_NAME)
+            slots.push(Template.create(slotName, extractContents(componentNode.removeChild(node))))
+          }
+          else if (slotName = node.getAttribute(ATTR_SLOT)) {
+            node.removeAttribute(ATTR_SLOT)
+            slots.push(Template.create(slotName, componentNode.removeChild(node)))
+          }
+
+          break
+      }
+    }
+
+    if (content = extractContents(componentNode)) {
+      slots.push(Template.create(SLOT_DEFAULT_NAME, content))
+    }
+
+    this.components.push({
+      tag: componentTag
+    , target: tw.path()
+    , slots
+    })
   }
 
 , slotState (tw, name, byAttr) {

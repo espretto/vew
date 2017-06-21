@@ -1,12 +1,9 @@
 
-import Cache from './util/cache'
 import { hasOwn } from './util/object'
 
 export default {
 
-  expressions: Cache.create()
-
-, components: {
+  components: {
     
     _store: {}
 
