@@ -1,5 +1,7 @@
 
 import Base from './util/base'
+import Registry from './registry'
+import { hasOwn } from './util/object'
 import { trim, chr } from './util/string'
 import { Array, Function, isFinite } from './util/global'
 import { indexOf, findIndex, eqArray } from './util/array'
@@ -25,44 +27,31 @@ const noNum = /[^a-fox\d]/gi
 /** preserved keywords in expressions (operators and values only) */
 const keywords = 'false,in,instanceof,new,null,true,typeof,void'.split(',')
 
-export const Expression = Base.derive({
+/* -----------------------------------------------------------------------------
+ * register expression cache
+ */
+Registry.expressions = {
+  
+  _store: {}
 
-  constructor (paths, source, begin, end) {
-    this.paths = paths
-    this.source = trim(source)
-    this.begin = begin
-    this.end = end
+, get (key) {
+    return this._store[key]
   }
 
-, evaluate () {
-    var argc = this.paths.length
-      , signature = Array(argc)
+, add (expression) {
+    var store = this._store
+      , key = expression.source
 
-    while (argc--) {
-      signature[argc] = toIdent(argc)
-    }
-
-    signature.push('return ' + this.source)
-
-    return Function.apply(null, signature)
+    hasOwn.call(store, key) || (store[key] = Expression.evaluate(expression))
+    
+    return key
   }
-
-  /** cacheable interface */
-, cacheKey () {
-    return this.source
-  }
-
-  /** cacheable interface */
-, cacheValue () {
-    return this.evaluate()
-  }
-
-})
+}
 
 /* -----------------------------------------------------------------------------
  * expression parser/evaluator singleton
  */
-export const Parser = Base.create.call({
+export default Base.create.call({
 
   brackets: []
  
@@ -105,16 +94,30 @@ export const Parser = Base.create.call({
 
     this.dataState()
 
-    expression = Expression.create(
-      this.paths
-    , this.output
+    expression = {
+      paths: this.paths
+    , source: this.output
     , begin
-    , this.index + suffix.length
-    )
+    , end: this.index + suffix.length
+    }
 
     this.constructor() // reset
 
     return expression
+  }
+
+  /** @static */
+, evaluate (expression) {
+    var argc = expression.paths.length
+      , signature = Array(argc)
+
+    while (argc--) {
+      signature[argc] = toIdent(argc)
+    }
+
+    signature.push('return ' + expression.source)
+
+    return Function.apply(null, signature)
   }
 
   /* ---------------------------------------------------------------------------

@@ -1,14 +1,14 @@
 
 import Base from './util/base'
 import Registry from './registry'
+import Expression from './expression'
 import TreeWalker from './dom/treewalker'
-import { Parser as ExpressionParser } from './expression'
 import { hasOwn } from './util/object'
 import { forEach, last, map } from './util/array'
 import { isEmpty, trim, startsWith, kebabCase } from './util/string'
 import { parse, Fragment, Placeholder, TEXT_NODE, ELEMENT_NODE, isPlaceholder,
          isEmptyTextNode, stringify, DOCUMENT_FRAGMENT_NODE,
-         removeNode } from './dom'
+         removeNode, extractContents, getNodeName } from './dom'
 
 /**
  * CONTINUE:
@@ -68,7 +68,8 @@ const ATTR_PREFIX = '--'
 
 const Template = Base.derive({
 
-  constructor (html) {
+  constructor (name, html) {
+    this.name = name
     this.mutators = []
     this.components = []
     this.treeWalker = TreeWalker.create()
@@ -84,7 +85,8 @@ const Template = Base.derive({
 
 , toJSON () {
     return {
-      mutators: this.mutators
+      name: this.name
+    , mutators: this.mutators
     , template: stringify(this.template)
     , components: this.components
     }
@@ -122,9 +124,8 @@ const Template = Base.derive({
     }
 
     // parse and cache expression
-    expression = ExpressionParser.parse(value, ['${', '}'])
+    expression = Expression.parse(value, ['${', '}'])
     if (!expression) return
-    Registry.expressions.add(expression)
 
     // split text-node where the expression starts
     if (expression.begin > 0) {
@@ -147,11 +148,22 @@ const Template = Base.derive({
   }
 
 , elementState () {
-    forEach(this.treeWalker.node.attributes, attr => {
-      if (startsWith(attr.nodeName, ATTR_PREFIX)) {
-        this.attributeState(attr)
-      }
-    })
+    var node = this.treeWalker.node
+      , name = getNodeName(node)
+
+    if (Registry.components.has(name)) {
+      this.componentState(name)
+    }
+    else {
+      forEach(node.attributes, attr => {
+        if (startsWith(attr.nodeName, ATTR_PREFIX)) {
+          this.attributeState(attr)
+          return false // you cannot mix flow control attributes
+          // TODO report error if multiple arguments are found
+        }
+      })
+    }
+
 
     /*
     var nodeName = getNodeName(node)
@@ -177,15 +189,12 @@ const Template = Base.derive({
       , node = tw.node
       , value = attr.nodeValue
       , name = attr.nodeName.substring(ATTR_PREFIX.length)
-      , expression
 
     switch (name) {
 
       case 'class':
-        expression = ExpressionParser.parse(value)
-        
         this.mutators.push({
-          expression
+          expression: Expression.parse(value)
         , initial: node.className
         , mutator: MUTATORS.SET_CLASS_NAME
         , target: tw.path()
@@ -195,10 +204,8 @@ const Template = Base.derive({
         break
 
       case 'style':
-        expression = ExpressionParser.parse(value)
-
         this.mutators.push({
-          expression
+          expression: Expression.parse(value)
         , initial: node.style.cssText
         , mutator: MUTATORS.SET_CSS_TEXT
         , target: tw.path()
@@ -208,22 +215,20 @@ const Template = Base.derive({
         break
 
       case 'if':
-        expression = ExpressionParser.parse(value)
-
         // [FIXME] this might be a component-tag
         node.removeAttribute(attr.nodeName)
         tw.node = this.replacehold(node)
 
         this.mutators.push({
-          expressions: [expression]
+          expressions: [Expression.parse(value)]
         , mutator: MUTATORS.MOUNT_CONDITION
         , target: tw.path()
-        , components: [Template.create(node, this.exprCache)]
+        , components: [Template.create(name, node)]
         })
         break
 
       case 'else':
-        expression = ExpressionParser.parse('true')
+        var expression = Expression.parse('true')
         /* fall through */
 
       case 'elif':
@@ -231,8 +236,8 @@ const Template = Base.derive({
           throw new Error('[else] and [elif] must be directly preceded by [if], [elif] or [repeat]')
         }
 
-        if (!expression) {
-          expression = ExpressionParser.parse(value)
+        if (name !== 'elif') {
+          expression = Expression.parse(value)
         }
 
         // clean and detach
@@ -243,12 +248,12 @@ const Template = Base.derive({
         // register sub-component with its expression
         var mutator = last(this.mutators)
         mutator.expressions.push(expression)
-        mutator.components.push(Template.create(node, this.exprCache))
+        mutator.components.push(Template.create(name, node))
         break
 
       case 'repeat':
         var loop = value.match(reMatchLoop)
-          , keyName, valName
+          , keyName, valName, expression
 
         if (!loop) {
           throw new Error('malformed loop expression')
@@ -256,7 +261,7 @@ const Template = Base.derive({
 
         valName = loop[1] || loop[3]
         keyName = loop[2] || ''
-        expression = ExpressionParser.parse(loop[4])
+        expression = Expression.parse(loop[4])
 
         // [FIXME] this might be a component-tag
         node.removeAttribute(attr.nodeName)
@@ -268,15 +273,13 @@ const Template = Base.derive({
         , valName
         , mutator: MUTATORS.MOUNT_LOOP
         , target: tw.path()
-        , components: [Template.create(node, this.exprCache)]
+        , components: [Template.create(name, node)]
         })
         break
 
       default:
         throw new Error('not yet implemented attribute handler for: ' + name)
     }
-
-    Registry.expressions.add(expression)
   }
 
 , isPrecededByPlaceholder (node) {
@@ -288,25 +291,12 @@ const Template = Base.derive({
     return false
   }
 
-, componentState (tw, tag, byAttr) {
-    var node = tw.node
-      , Component = Registry[tag]
+, componentState (name) {
+    var tw = this.treewalker
+      , node = tw.node
+      , tmpl = extractContents(node)
 
-    if (byAttr) {
-      node.removeAttribute(ATTR_IS)
-
-      if (Component.replace) {
-        if (DEBUG) throw new Error(
-          `cannot replace mount-node with attribute "${ATTR_IS}".
-           either reconfigure the component or use its custom element.`
-        )
-      }
-    }
-
-    this.Children.push(
-      Component.derive({ mountPath: tw.path() })
-               .finalize(node)
-    )
+    this.components.push( Template.create(name, tmpl) )
   }
 
 , slotState (tw, name, byAttr) {

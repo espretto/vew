@@ -135,7 +135,7 @@ global.Util = {
 /* -----------------------------------------------------------------------------
  * hot module replacement testing
  */
-import { Parser as ExpressionParser } from './expression'
+import Expression from './expression'
 import Template from './template'
 import Registry from './registry'
 
@@ -157,7 +157,7 @@ if (module.hot) {
       var out
 
       try {
-        var exp = ExpressionParser.parse(DOM.input.value)
+        var exp = Expression.parse(DOM.input.value)
         out = [exp.evaluate(exp).toString(), Util.beautify(exp)]
       }
       catch (e) {
@@ -213,7 +213,7 @@ if (module.hot) {
       var out
 
       try {
-        var componentProto = Template.create(DOM.input.value)
+        var componentProto = Template.create('test', DOM.input.value)
         out = [Util.beautify(Registry), Util.beautify(componentProto)]
       }
       catch (e) {
