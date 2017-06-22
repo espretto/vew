@@ -3,7 +3,7 @@ import { String, StringProto } from './global'
 import { idNative } from './type'
 import { uncurry } from './function'
 
-const reIsNotEmpty = /\S/
+const reIsNotEmpty = /\S|0xA0/
 
 const reTrimLeft = /^\s\s*/
 
