@@ -60,20 +60,21 @@ export default Base.derive({
         node = prev
       }
       
-      path.push(nodeIndex)
+      path.unshift(nodeIndex)
     }
   
-    path.pop()
+    path.shift()
   
     return path
   }
 
   /** @static */
 , resolve (node, path) {
-    var i = path.length
+    var len = path.length
+      , i = -1
       , nodeIndex
 
-    while (i--) {
+    while (++i < len) {
       node = node.firstChild
       nodeIndex = path[i]
 
