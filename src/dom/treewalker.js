@@ -9,7 +9,7 @@ const DOCUMENT_FRAGMENT_NODE = 11
  * - does not support filters
  * - does not halt when revisiting the root node
  * - can produce and resolve node-paths as integer-arrays
- * - throws on succeeding calls to next() once the furthest node was returned
+ * - throws on succeeding calls to next() once null was returned
  *
  * TODO
  * - fork native TreeWalker implementation
@@ -56,7 +56,7 @@ export default Base.derive({
      
     for (node = this.node; node; node = node.parentNode) {
       
-      for (nodeIndex = 0; prev = node.nextSibling; nodeIndex += 1) {
+      for (nodeIndex = 0; prev = node.previousSibling; nodeIndex += 1) {
         node = prev
       }
       
