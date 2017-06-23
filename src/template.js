@@ -198,9 +198,9 @@ const Template = Base.derive({
     var tw = this.treeWalker
       , node = tw.node
       , value = attr.nodeValue
-      , name = attr.nodeName.substring(ATTR_PREFIX.length)
+      , keyword = attr.nodeName.substring(ATTR_PREFIX.length)
 
-    switch (name) {
+    switch (keyword) {
 
       case 'class':
         this.mutators.push({
@@ -233,7 +233,7 @@ const Template = Base.derive({
           expressions: [Expression.parse(value)]
         , mutator: MUTATORS.MOUNT_CONDITION
         , target: tw.path()
-        , components: [Template.create(name, node)]
+        , slots: [Template.create(keyword, node)]
         })
         break
 
@@ -246,7 +246,7 @@ const Template = Base.derive({
           throw new Error('[else] and [elif] must be directly preceded by [if], [elif] or [repeat]')
         }
 
-        if (name === 'elif') {
+        if (keyword === 'elif') {
           expression = Expression.parse(value)
         }
 
@@ -258,7 +258,7 @@ const Template = Base.derive({
         // register sub-component with its expression
         var mutator = last(this.mutators)
         mutator.expressions.push(expression)
-        mutator.components.push(Template.create(name, node))
+        mutator.slots.push(Template.create(keyword, node))
         break
 
       case 'repeat':
@@ -283,12 +283,12 @@ const Template = Base.derive({
         , valName
         , mutator: MUTATORS.MOUNT_LOOP
         , target: tw.path()
-        , components: [Template.create(name, node)]
+        , slots: [Template.create(keyword, node)]
         })
         break
 
       default:
-        throw new Error('not yet implemented attribute handler for: ' + name)
+        throw new Error('not yet implemented attribute handler for: ' + keyword)
     }
   }
 
@@ -321,14 +321,13 @@ const Template = Base.derive({
           var slotName
 
           if (getNodeName(node) === SLOT_NODENAME) {
-            slotName = node.getAttribute(ATTR_NAME)
+            slotName = node.getAttribute(ATTR_NAME) || SLOT_DEFAULT_NAME
             slots.push(Template.create(slotName, extractContents(componentNode.removeChild(node))))
           }
           else if (slotName = node.getAttribute(ATTR_SLOT)) {
             node.removeAttribute(ATTR_SLOT)
             slots.push(Template.create(slotName, componentNode.removeChild(node)))
           }
-
           break
       }
     }
