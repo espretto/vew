@@ -8,7 +8,7 @@ import { document } from './util/global'
 export const ELEMENT_NODE = 1
 export const TEXT_NODE = 3
 export const COMMENT_NODE = 8
-export const DOCUMENT_FRAGMENT_NODE = 11
+export const FRAGMENT_NODE = 11
 
 /* -----------------------------------------------------------------------------
  * query
@@ -17,36 +17,29 @@ export const getNodeName = document.createElement('custom').nodeName !== 'CUSTOM
   ? node => node.nodeName.toUpperCase()
   : node => node.nodeName
 
-export function isEmptyTextNode (node) {
-  return node.nodeType === TEXT_NODE && isEmpty(node.nodeValue)
-}
-
-export function isEmptyElement (node) {
-  return !node.children.length && every(node.childNodes, isEmptyTextNode)
-}
-
-export function isPlaceholder (node) {
-  return node.nodeType === COMMENT_NODE
-}
-
 /* -----------------------------------------------------------------------------
  * create
  */
 export function Fragment (node) {
-  var frag = document.createDocumentFragment()
+  if (node && node.nodeType === FRAGMENT_NODE) return node
+  const frag = document.createDocumentFragment()
   if (node) frag.appendChild(node)
   return frag
 }
 
-export function Placeholder () {
-  return document.createComment('vew')
+export function MountNode (type) {
+  return document.createComment(type)
+}
+
+export function isMountNode (node, type) {
+  return node.nodeType === COMMENT_NODE && node.data === type
 }
 
 /* -----------------------------------------------------------------------------
  * mutate
  */
 export function replaceNode (prev, next) {
-  return prev.parentNode.replaceChild(next, prev)
+  return (prev.parentNode.replaceChild(next, prev), next)
 }
 
 export function removeNode (node) {
@@ -91,7 +84,7 @@ export function stringify (node) {
     case TEXT_NODE: return node.nodeValue
     case ELEMENT_NODE: return node.outerHTML
     case COMMENT_NODE: /* fall through */
-    case DOCUMENT_FRAGMENT_NODE: return (container.appendChild(node), container.innerHTML)
+    case FRAGMENT_NODE: return (container.appendChild(node), container.innerHTML)
     default: throw new Error(`cannot serialize node type ${node.nodeType}`)
   }
 }

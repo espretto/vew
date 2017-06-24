@@ -1,6 +1,5 @@
 
 import Base from './util/base'
-import Registry from './registry'
 import { hasOwn } from './util/object'
 import { trim, chr } from './util/string'
 import { Array, Function, isFinite } from './util/global'
@@ -26,27 +25,6 @@ const noNum = /[^a-fox\d]/gi
 
 /** preserved keywords in expressions (operators and values only) */
 const keywords = 'false,in,instanceof,new,null,true,typeof,void'.split(',')
-
-/* -----------------------------------------------------------------------------
- * register expression cache
- */
-Registry.expressions = {
-  
-  _store: {}
-
-, get (key) {
-    return this._store[key]
-  }
-
-, add (expression) {
-    var store = this._store
-      , key = expression.source
-
-    hasOwn.call(store, key) || (store[key] = Expression.evaluate(expression))
-    
-    return key
-  }
-}
 
 /* -----------------------------------------------------------------------------
  * expression parser/evaluator singleton

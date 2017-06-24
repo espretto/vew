@@ -93,7 +93,8 @@ global.Util = {
   }
 
 , _beautify (key, data) {
-    switch (Util.type(data)) {
+    if (data && data.nodeType) return stringify(data)
+    else switch (Util.type(data)) {
       case 'function':
         return data.toString()
       case 'array':
@@ -138,6 +139,7 @@ global.Util = {
 import Expression from './expression'
 import Template from './template'
 import Registry from './registry'
+import { stringify } from './dom'
 
 if (module.hot) {
   module.hot.accept()
@@ -158,7 +160,7 @@ if (module.hot) {
 
       try {
         var exp = Expression.parse(DOM.input.value)
-        out = [exp.evaluate(exp).toString(), Util.beautify(exp)]
+        out = [Expression.evaluate(exp).toString(), Util.beautify(exp)]
       }
       catch (e) {
         out = [e.message, e.stack]
@@ -215,7 +217,7 @@ if (module.hot) {
       var out
 
       try {
-        var componentProto = Template.create('test', DOM.input.value)
+        var componentProto = Template.create(DOM.input.value, true)
         out = [Util.beautify(Registry), Util.beautify(componentProto)]
       }
       catch (e) {

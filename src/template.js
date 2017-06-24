@@ -3,30 +3,20 @@ import Base from './util/base'
 import Registry from './registry'
 import Expression from './expression'
 import TreeWalker from './dom/treewalker'
-import { hasOwn } from './util/object'
-import { forEach, last, map } from './util/array'
+import { isObject } from './util/type'
+import { hasOwn, keys } from './util/object'
+import { forEach, fold, last, map } from './util/array'
 import { isEmpty, trim, startsWith, kebabCase } from './util/string'
-import { parse, Fragment, Placeholder, TEXT_NODE, ELEMENT_NODE, isPlaceholder,
-         isEmptyTextNode, stringify, DOCUMENT_FRAGMENT_NODE,
-         removeNode, extractContents, getNodeName } from './dom'
+import { FRAGMENT_NODE, TEXT_NODE, ELEMENT_NODE,
+         Fragment, MountNode, parse, stringify, isMountNode,
+         removeNode, replaceNode, extractContents, getNodeName } from './dom'
 
-/**
- * CONTINUE:
- * - it is far too early to think about game-engine optimizations
- * - for the moment stuff everything into the attribute handler
- * - keep it simple and mark potential perf issues as [PERF]
- * - consider not to accomodate the no-enum-bug
- */
 
 const reMatchLoop = /^\s*(?:([a-zA-Z_$][\w$]*)|\[\s*([a-zA-Z_$][\w$]*)\s*,\s*([a-zA-Z_$][\w$]*)\s*\])\s*of([\s\S]*)$/
 
 /* -----------------------------------------------------------------------------
  * mutators
  */
-import { keys } from './util/object'
-import { fold } from './util/array'
-import { isObject } from './util/type'
-
 function setNodeValue (node, value) {
   if (node.nodeValue !== value) {
     node.nodeValue = value
@@ -72,51 +62,39 @@ const SLOT_DEFAULT_NAME = 'content'
 
 const Template = Base.derive({
 
-  constructor (name, html) {
-    this.name = name
+  constructor (html, isComponent) {
     this.mutators = []
     this.components = []
-    this.treeWalker = TreeWalker.create()
-
-    var tmpl = parse(html)
-    if (tmpl.nodeType !== DOCUMENT_FRAGMENT_NODE) {
-      tmpl = Fragment(tmpl)
-    }
+    this.template = Fragment(parse(html))
+    this.slots = isComponent ? {} : null
     
-    this.template = tmpl
     this.templateState()
   }
 
-, toJSON () {
-    return {
-      name: this.name
-    , mutators: this.mutators
-    , template: stringify(this.template)
-    , components: this.components
-    }
-  }
-
-, replacehold (node) {
-    var placeholder = Placeholder()
-    node.parentNode.replaceChild(placeholder, node)
-    return placeholder
-  }
-
+  /**
+   * sequence diagram
+   * 
+   * - templateState
+   *   - textNodeState
+   *   - elementState
+   *     - componentState
+   *     - slotState
+   *     - attributeState
+   */
 , templateState () {
-    var tw = this.treeWalker
+    var tw = TreeWalker.create()
       , node = tw.seed(this.template)
 
     for (; node; node = tw.next()) {
       switch (node.nodeType) {
-        case TEXT_NODE: this.textNodeState(); break
-        case ELEMENT_NODE: this.elementState(); break
+        case TEXT_NODE: this.textNodeState(tw); break
+        case ELEMENT_NODE: this.elementState(tw); break
       }
     }
   }
 
-, textNodeState () {
-    var tw = this.treeWalker
-      , node = tw.node
+, textNodeState (tw) {
+    var node = tw.node
       , value = node.nodeValue
       , expression
 
@@ -157,46 +135,82 @@ const Template = Base.derive({
     }
   }
 
-, elementState () {
-    var node = this.treeWalker.node
+, elementState (tw) {
+    var node = tw.node
       , nodeName = getNodeName(node)
 
     if (Registry.components.has(nodeName)) {
-      this.componentState(nodeName)
+      this.componentState(tw, nodeName)
+    }
+    else if (nodeName === SLOT_NODENAME) {
+      this.slotState(tw)
     }
     else {
       forEach(node.attributes, attr => {
         if (startsWith(attr.nodeName, ATTR_PREFIX)) {
-          this.attributeState(attr)
+          this.attributeState(tw, attr)
           return false // you cannot mix flow control attributes
           // TODO report error if multiple arguments are found
         }
       })
     }
-
-
-    /*
-    var nodeName = getNodeName(node)
-      , attrValue
-
-    if (hasOwn.call(registry, nodeName)) {
-      this.componentState(tw, nodeName)
-    }
-    else if (attrValue = node.getAttribute(ATTR_IS)) {
-      this.componentState(tw, attrValue.toUpperCase(), true)
-    }
-    else if (nodeName === SLOT_NODENAME) {
-      this.slotState(tw, node.getAttribute(ATTR_NAME))
-    }
-    else if (attrValue = node.getAttribute(ATTR_SLOT)) {
-      this.slotState(tw, attrValue, true)
-    }
-    */
   }
 
-, attributeState (attr) {
-    var tw = this.treeWalker
-      , node = tw.node
+, componentState (tw, componentTag) {
+    var componentNode = tw.node
+      , node = componentNode.firstChild
+      , slots = {}
+      , contents
+
+    for (; node; node = node.nextSibling) {
+      switch (node.nodeType) {
+
+        case TEXT_NODE:
+          if (isEmpty(node.nodeValue)) {
+            componentNode.removeChild(node)
+          }
+          break
+
+        case ELEMENT_NODE:
+          var slotName
+
+          if (getNodeName(node) === SLOT_NODENAME) {
+            slotName = node.getAttribute(ATTR_NAME) || SLOT_DEFAULT_NAME
+            slots[slotName] = Template.create(extractContents(componentNode.removeChild(node)))
+          }
+          else if (slotName = node.getAttribute(ATTR_SLOT)) {
+            node.removeAttribute(ATTR_SLOT)
+            slots[slotName] = Template.create(componentNode.removeChild(node))
+          }
+          break
+      }
+    }
+
+    if (contents = extractContents(componentNode)) {
+      slots[SLOT_DEFAULT_NAME] = Template.create(contents)
+    }
+
+    this.components.push({
+      tag: componentTag
+    , target: tw.path()
+    , slots
+    })
+  }
+
+
+, slotState (tw) {
+    var node = tw.node
+      , slotName = node.getAttribute(ATTR_NAME) || SLOT_DEFAULT_NAME
+      , contents = extractContents(node)
+
+    this.slots[slotName] = {
+      target: tw.path()
+    , default: contents ? Template.create(contents) : undefined
+    }
+  }
+
+, attributeState (tw, attr) {
+    var node = tw.node
       , value = attr.nodeValue
       , keyword = attr.nodeName.substring(ATTR_PREFIX.length)
 
@@ -227,13 +241,13 @@ const Template = Base.derive({
       case 'if':
         // [FIXME] this might be a component-tag
         node.removeAttribute(attr.nodeName)
-        tw.node = this.replacehold(node)
+        tw.node = replaceNode(node, MountNode('if'))
 
         this.mutators.push({
           expressions: [Expression.parse(value)]
         , mutator: MUTATORS.MOUNT_CONDITION
         , target: tw.path()
-        , slots: [Template.create(keyword, node)]
+        , slots: [Template.create(node)]
         })
         break
 
@@ -242,8 +256,9 @@ const Template = Base.derive({
         /* fall through */
 
       case 'elif':
-        if (!this.isPrecededByPlaceholder(node)) {
-          throw new Error('[else] and [elif] must be directly preceded by [if], [elif] or [repeat]')
+        var prev = tw.prev()
+        if (!isMountNode(prev, 'if') && !isMountNode(prev, 'repeat')) {
+          throw new Error('elif and else require preceding if, elif or repeat')
         }
 
         if (keyword === 'elif') {
@@ -251,14 +266,13 @@ const Template = Base.derive({
         }
 
         // clean and detach
-        tw.prev()
         node.removeAttribute(attr.nodeName)
         removeNode(node)
 
         // register sub-component with its expression
         var mutator = last(this.mutators)
         mutator.expressions.push(expression)
-        mutator.slots.push(Template.create(keyword, node))
+        mutator.slots.push(Template.create(node))
         break
 
       case 'repeat':
@@ -275,7 +289,7 @@ const Template = Base.derive({
 
         // [FIXME] this might be a component-tag
         node.removeAttribute(attr.nodeName)
-        tw.node = this.replacehold(node)
+        tw.node = replaceNode(node, MountNode('repeat'))
 
         this.mutators.push({
           expressions: [expression]
@@ -283,7 +297,7 @@ const Template = Base.derive({
         , valName
         , mutator: MUTATORS.MOUNT_LOOP
         , target: tw.path()
-        , slots: [Template.create(keyword, node)]
+        , slots: [Template.create(node)]
         })
         break
 
@@ -291,168 +305,9 @@ const Template = Base.derive({
         throw new Error('not yet implemented attribute handler for: ' + keyword)
     }
   }
-
-, isPrecededByPlaceholder (node) {
-    while (node = node.previousSibling) {
-      if (!isEmptyTextNode(node)) {
-        return isPlaceholder(node)
-      }
-    }
-    return false
-  }
-
-, componentState (componentTag) {
-    var tw = this.treeWalker
-      , componentNode = tw.node
-      , node = componentNode.firstChild
-      , slots = []
-      , content
-
-    for (; node; node = node.nextSibling) {
-      switch (node.nodeType) {
-
-        case TEXT_NODE:
-          if (isEmpty(node.nodeValue)) {
-            componentNode.removeChild(node)
-          }
-          break
-
-        case ELEMENT_NODE:
-          var slotName
-
-          if (getNodeName(node) === SLOT_NODENAME) {
-            slotName = node.getAttribute(ATTR_NAME) || SLOT_DEFAULT_NAME
-            slots.push(Template.create(slotName, extractContents(componentNode.removeChild(node))))
-          }
-          else if (slotName = node.getAttribute(ATTR_SLOT)) {
-            node.removeAttribute(ATTR_SLOT)
-            slots.push(Template.create(slotName, componentNode.removeChild(node)))
-          }
-          break
-      }
-    }
-
-    if (content = extractContents(componentNode)) {
-      slots.push(Template.create(SLOT_DEFAULT_NAME, content))
-    }
-
-    this.components.push({
-      tag: componentTag
-    , target: tw.path()
-    , slots
-    })
-  }
-
-, slotState (tw, name, byAttr) {
-    if (!this.Slots) { // i.e. this.isSlot
-      if (DEBUG) throw new Error('slots are not nestable')
-    }
-
-    var node = tw.node
-      , mountPath = tw.path()
-      , template, Slot
-
-    // the element itself is the slot's default template
-    if (byAttr) {
-      template = node
-      template.removeAttribute(ATTR_SLOT)
-      this.replacehold(node)
-    }
-    // the element is the placeholder containing its default template
-    else {
-      template = gut(node)
-    }
-
-    // slots without a default template require one to be transcluded
-    if (!template) {
-      Slot = { mountPath }
-    }
-    else {
-      Slot = Component.derive({
-        isPartial: true
-      , template: template
-      , mountPath: mountPath
-      }).bootstrap(true)
-
-      this.Children.push(Slot)
-    }
-
-    this.Slots[name || SLOT_DEFAULT_NAME] = Slot
-  }
-
 })
 
 export default Template
-
-/*
-<main>
-  
-  <p>${text}</p>
-
-  <p>${text} suffix</p>
-
-  <p>prefix ${text}</p>
-
-  <p>prefix ${text} suffix</p>
-
-  <p k-if="condition" k-then="create">create if true</p>
-    
-  <p k-if="condition" k-then="show">show if true</p>
-
-  <p k-if="condition" k-then="attach">attach if true</p>
-
-  <p k-elif="condition" k-then="create">create elif true</p>
-    
-  <p k-elif="condition" k-then="show">show elif true</p>
-
-  <p k-elif="condition" k-then="attach">attach elif true</p>
-
-  <p k-else k-then="create">create else</p>
-
-  <p k-else k-then="show">show else</p>
-  
-  <p k-else k-then="attach">attach else</p>
-
-  <ul>
-    <li k-repeat="(key,val) of collection">
-      item at ${key} is ${val}
-    </li>
-  </ul>
-
-  <p k-style="color: ${color}">cssText expression<p>
-
-  <p k-style="{ color: color }">css property object<p>
-
-  <p k-class="static ${dynclass}">className expression<p>
-
-  <p k-class="{ trueClass: trueExpression, falseClass: falseExpression }">className array<p>
-
-  <a k-href="url">attribute binding</a>
-
-  <button k-onclick="handler"></button>
-
-</main>
-
-*/
-
-/**
- * rethink the whole architecture
- * - the merge function of the scope has to go through multiple stages
- *   1. resolve all values that steer conditional/repeated rendering to setup/teardown
- *      subscriptions that come/go with it. this needs be a recursive one, think nested conditions.
- *   2. based on the now updated subscriptions limit data-diffing/-cloning to what's been subscribed to.
- *      this may very well trigger multiple dom mutations which have to occur in a specific order:
- *      1. detach subtrees of the form `<div k-if="condition" k-then="detach">`
- *      2. create all components that will go online but do not mount them yet
- *      3. apply all changes that affect offline subtrees and components
- *      4. apply all changes that affect the online document:
- *         - mount components
- *         - re-attach detached subtrees
- *         - apply all other changes
- *
- * rethink the whole architecture
- * - 
- */
 
 /* test template
 

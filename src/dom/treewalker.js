@@ -1,7 +1,6 @@
 
 import Base from '../util/base'
-
-const DOCUMENT_FRAGMENT_NODE = 11
+import { FRAGMENT_NODE } from '../dom'
 
 /**
  * alternative TreeWalker implementation
@@ -22,7 +21,7 @@ export default Base.derive({
   }
 
 , seed (node) {
-    if (node.nodeType === DOCUMENT_FRAGMENT_NODE) {
+    if (node.nodeType === FRAGMENT_NODE) {
       node = node.firstChild
     }
     
