@@ -1,18 +1,20 @@
 
 
-import registry from './registry'
-import Component from './component'
 
-function Vew (proto) {
-  const Comp = Component.derive(proto)
+// import Component from './component'
 
-  if (Comp.tag) {
-    registry[ Comp.tag.toUpperCase() ] = Comp
-  }
+// function Vew (proto) {
+//   const Comp = Component.derive(proto)
 
-  return Comp.bootstrap()
-}
+//   if (Comp.tag) {
+//     registry[ Comp.tag.toUpperCase() ] = Comp
+//   }
 
-Vew.registry = registry
+//   return Comp.bootstrap()
+// }
 
-export default Vew
+import Registry from './registry'
+import Template from './template'
+import Scope from './scope'
+
+export default { Registry, Template, Scope }

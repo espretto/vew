@@ -98,6 +98,7 @@ roadmap
 
 1. make it work
 2. make it right
+2.1 introduce `super` constructor calls in the `util/base` module
 3. make it fast
 3.1 game engine optimizations
 3.1.1 create and implement a `stash` interface (pushState, popState, clearState)

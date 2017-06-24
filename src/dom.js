@@ -39,7 +39,8 @@ export function isMountNode (node, type) {
  * mutate
  */
 export function replaceNode (prev, next) {
-  return (prev.parentNode.replaceChild(next, prev), next)
+  prev.parentNode.replaceChild(next, prev)
+  return next
 }
 
 export function removeNode (node) {
