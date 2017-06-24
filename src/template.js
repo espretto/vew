@@ -8,8 +8,9 @@ import { hasOwn, keys } from './util/object'
 import { forEach, fold, last, map } from './util/array'
 import { isEmpty, trim, startsWith, kebabCase } from './util/string'
 import { FRAGMENT_NODE, TEXT_NODE, ELEMENT_NODE,
-         Fragment, MountNode, parse, stringify, isMountNode,
-         removeNode, replaceNode, extractContents, getNodeName } from './dom'
+         Fragment, MountNode, parse, isMountNode,
+         removeNode, replaceNode, extractContents,
+         getNodeName, removeAttr } from './dom'
 
 
 const reMatchLoop = /^\s*(?:([a-zA-Z_$][\w$]*)|\[\s*([a-zA-Z_$][\w$]*)\s*,\s*([a-zA-Z_$][\w$]*)\s*\])\s*of([\s\S]*)$/
@@ -179,7 +180,7 @@ const Template = Base.derive({
             slots[slotName] = Template.create(extractContents(componentNode.removeChild(node)))
           }
           else if (slotName = node.getAttribute(ATTR_SLOT)) {
-            node.removeAttribute(ATTR_SLOT)
+            removeAttr(node, ATTR_SLOT)
             slots[slotName] = Template.create(componentNode.removeChild(node))
           }
           break
@@ -211,8 +212,9 @@ const Template = Base.derive({
 
 , attributeState (tw, attr) {
     var node = tw.node
+      , name = attr.nodeName
       , value = attr.nodeValue
-      , keyword = attr.nodeName.substring(ATTR_PREFIX.length)
+      , keyword = name.substring(ATTR_PREFIX.length)
 
     switch (keyword) {
 
@@ -224,7 +226,7 @@ const Template = Base.derive({
         , target: tw.path()
         })
         
-        node.removeAttribute(attr.nodeName)
+        removeAttr(node, attr.nodeName)
         break
 
       case 'style':
@@ -235,12 +237,12 @@ const Template = Base.derive({
         , target: tw.path()
         })
 
-        node.removeAttribute(attr.nodeName)
+        removeAttr(node, attr.nodeName)
         break
 
       case 'if':
         // [FIXME] this might be a component-tag
-        node.removeAttribute(attr.nodeName)
+        removeAttr(node, attr.nodeName)
         tw.node = replaceNode(node, MountNode('if'))
 
         this.mutators.push({
@@ -266,7 +268,7 @@ const Template = Base.derive({
         }
 
         // clean and detach
-        node.removeAttribute(attr.nodeName)
+        removeAttr(node, attr.nodeName)
         removeNode(node)
 
         // register sub-component with its expression
@@ -288,7 +290,7 @@ const Template = Base.derive({
         expression = Expression.parse(loop[4])
 
         // [FIXME] this might be a component-tag
-        node.removeAttribute(attr.nodeName)
+        removeAttr(node, attr.nodeName)
         tw.node = replaceNode(node, MountNode('repeat'))
 
         this.mutators.push({

@@ -47,6 +47,10 @@ export function removeNode (node) {
   return node.parentNode.removeChild(node)
 }
 
+export function removeAttr (node, name) {
+  node.removeAttribute(name)
+}
+
 const RangeSingleton = idNative(document.createRange) && document.createRange()
 
 export function extractContents (node) {
