@@ -13,7 +13,7 @@ const wrapElem = document.createElement('div')
 const wrapMap = {}
 
 /** used to find the first html-tag (wont skip comments though) */
-const reMatchTag = /<(?:[a-zA-Z][^>\/\t\n\f]+)/
+const reMatchTag = /<(?:[a-zA-Z][^>\/\t\n\f]*)/
 
 /* -----------------------------------------------------------------------------
  * bug detection
