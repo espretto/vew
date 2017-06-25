@@ -101,7 +101,7 @@ export default {
     var tagMatch = html.match(reMatchTag)
       , tag, wrap, node, depth
 
-    if (!tagMatch) return document.createTextNode(html)
+    if (!tagMatch) return TextNode(html)
 
     tag = tagMatch[0].substring(1).toUpperCase()
     wrap = wrapMap[tag] || wrapMap.$DEFAULT
