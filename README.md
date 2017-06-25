@@ -98,7 +98,10 @@ roadmap
 
 1. make it work
 2. make it right
-2.1 introduce `super` constructor calls in the `util/base` module
+2.1. introduce `super` constructor calls in the `util/base` module
+2.2. expose text interpolation delimiters on a component basis
+2.3. work around automatic tbody insertion
+2.4. see if the html5shiv fixes clonging unknown elements
 3. make it fast
 3.1 game engine optimizations
 3.1.1 create and implement a `stash` interface (pushState, popState, clearState)

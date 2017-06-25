@@ -93,7 +93,7 @@ global.Util = {
   }
 
 , _beautify (key, data) {
-    if (data && data.nodeType) return stringify(data)
+    if (data && data.nodeType) return HTML.stringify(data)
     else switch (Util.type(data)) {
       case 'function':
         return data.toString()
@@ -139,7 +139,7 @@ global.Util = {
 import Expression from './expression'
 import Template from './template'
 import Registry from './registry'
-import { stringify } from './dom'
+import HTML from './dom/html'
 
 if (module.hot) {
   module.hot.accept()

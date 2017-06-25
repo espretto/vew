@@ -2,13 +2,14 @@
 import Base from './util/base'
 import Registry from './registry'
 import Expression from './expression'
+import HTML from './dom/html'
 import TreeWalker from './dom/treewalker'
 import { isObject } from './util/type'
 import { hasOwn, keys } from './util/object'
 import { forEach, fold, last, map } from './util/array'
 import { isEmpty, trim, startsWith, kebabCase } from './util/string'
 import { FRAGMENT_NODE, TEXT_NODE, ELEMENT_NODE,
-         Fragment, MountNode, parse, isMountNode,
+         Fragment, MountNode, isMountNode,
          removeNode, replaceNode, extractContents,
          getNodeName, removeAttr } from './dom'
 
@@ -66,7 +67,7 @@ const Template = Base.derive({
   constructor (html, isComponent) {
     this.mutators = []
     this.components = []
-    this.template = Fragment(parse(html))
+    this.template = Fragment(HTML.parse(html))
     this.slots = isComponent ? {} : null
     
     this.templateState()
