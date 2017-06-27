@@ -7,6 +7,9 @@ export const TEXT_NODE = 3
 export const COMMENT_NODE = 8
 export const FRAGMENT_NODE = 11
 
+/** used to detect empty html text nodes */
+const passNotEmpty = /[^ \t\n\f]/
+
 /** used to trim html */
 const reTrimLeft = /^[ \t\n\f]+/
 
@@ -19,6 +22,13 @@ const reTrimRight = /[ \t\n\f]+$/
 export function trim (html) {
   return html.replace(reTrimLeft, '')
              .replace(reTrimRight, '')
+}
+
+/**
+ * detect empty text-nodes
+ */
+export function isEmpty (textNode) {
+  return !passNotEmpty.test(textNode.nodeValue)
 }
 
 /* -----------------------------------------------------------------------------

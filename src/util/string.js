@@ -3,8 +3,6 @@ import { String, StringProto } from './global'
 import { idNative } from './type'
 import { uncurry } from './function'
 
-const reIsNotEmpty = /\S|0xA0/
-
 const reTrimLeft = /^\s\s*/
 
 const reTrimRight = /\s\s*$/;
@@ -35,13 +33,6 @@ export const trim = nativeTrim
   ? uncurry(nativeTrim, 0)
   : string => string.replace(reTrimLeft, '')
                     .replace(reTrimRight, '')
-
-/**
- * isEmpty
- */
-export function isEmpty (string) {
-  return !reIsNotEmpty.test(string)
-}
 
 /**
  * camelize - specialized version for kebab-case

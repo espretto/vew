@@ -7,11 +7,11 @@ import TreeWalker from './dom/treewalker'
 import { isObject } from './util/type'
 import { hasOwn, keys } from './util/object'
 import { some, fold, last, map } from './util/array'
-import { isEmpty, trim, startsWith, kebabCase } from './util/string'
+import { startsWith, kebabCase } from './util/string'
 import { FRAGMENT_NODE, TEXT_NODE, ELEMENT_NODE,
          Fragment, MountNode, isMountNode,
          removeNode, replaceNode, extractContents,
-         getNodeName, removeAttr } from './dom'
+         getNodeName, removeAttr, isEmpty } from './dom'
 
 
 const reMatchLoop = /^\s*(?:([a-zA-Z_$][\w$]*)|\[\s*([a-zA-Z_$][\w$]*)\s*,\s*([a-zA-Z_$][\w$]*)\s*\])\s*of([\s\S]*)$/
@@ -101,7 +101,7 @@ const Template = Base.derive({
       , expression
 
     // remove empty text-nodes
-    if (!node.nextSibling && isEmpty(value)) {
+    if (!node.nextSibling && isEmpty(node)) {
       tw.prev()
       removeNode(node)
       return
@@ -115,7 +115,7 @@ const Template = Base.derive({
     if (expression.begin > 0) {
       node.splitText(expression.begin)
 
-      if (!node.previousSibling && isEmpty(node.nodeValue)) {
+      if (!node.previousSibling && isEmpty(node)) {
         tw.prev()
         removeNode(node)
       }
@@ -174,9 +174,7 @@ const Template = Base.derive({
       switch (node.nodeType) {
 
         case TEXT_NODE:
-          if (isEmpty(node.nodeValue)) {
-            removeNode(node)
-          }
+          if (isEmpty(node)) removeNode(node)
           break
 
         case ELEMENT_NODE:
