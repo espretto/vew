@@ -6,7 +6,7 @@ import HTML from './dom/html'
 import TreeWalker from './dom/treewalker'
 import { isObject } from './util/type'
 import { hasOwn, keys } from './util/object'
-import { forEach, fold, last, map } from './util/array'
+import { some, fold, last, map } from './util/array'
 import { isEmpty, trim, startsWith, kebabCase } from './util/string'
 import { FRAGMENT_NODE, TEXT_NODE, ELEMENT_NODE,
          Fragment, MountNode, isMountNode,
@@ -140,28 +140,34 @@ const Template = Base.derive({
 , elementState (tw) {
     var node = tw.node
       , nodeName = getNodeName(node)
+      , component
+      , isControlled
 
-    if (Registry.components.has(nodeName)) {
-      this.componentState(tw, nodeName)
-    }
-    else if (nodeName === SLOT_NODENAME) {
+    if (nodeName === SLOT_NODENAME) {
       this.slotState(tw)
     }
     else {
-      forEach(node.attributes, attr => {
+      
+      if (Registry.components.has(nodeName)) {
+        component = this.componentState(tw, nodeName)
+      }
+
+      isControlled = some(node.attributes, attr => {
         if (startsWith(attr.nodeName, ATTR_PREFIX)) {
-          this.attributeState(tw, attr)
-          return false // you cannot mix flow control attributes
-          // TODO report error if multiple arguments are found
+          return this.attributeState(tw, attr, component)
         }
       })
+      
+      if (!isControlled) {
+        this.components.push(component)
+      }
     }
   }
 
-, componentState (tw, componentTag) {
-    var componentNode = tw.node
-      , node = componentNode.firstChild
+, componentState (tw, tag) {
+    var node = tw.node.firstChild
       , slots = {}
+      , swap
       , contents
 
     for (; node; node = node.nextSibling) {
@@ -169,7 +175,7 @@ const Template = Base.derive({
 
         case TEXT_NODE:
           if (isEmpty(node.nodeValue)) {
-            componentNode.removeChild(node)
+            removeNode(node)
           }
           break
 
@@ -178,25 +184,21 @@ const Template = Base.derive({
 
           if (getNodeName(node) === SLOT_NODENAME) {
             slotName = node.getAttribute(ATTR_NAME) || SLOT_DEFAULT_NAME
-            slots[slotName] = Template.create(extractContents(componentNode.removeChild(node)))
+            slots[slotName] = Template.create(extractContents(removeNode(node)))
           }
           else if (slotName = node.getAttribute(ATTR_SLOT)) {
             removeAttr(node, ATTR_SLOT)
-            slots[slotName] = Template.create(componentNode.removeChild(node))
+            slots[slotName] = Template.create(removeNode(node))
           }
           break
       }
     }
 
-    if (contents = extractContents(componentNode)) {
+    if (contents = extractContents(root)) {
       slots[SLOT_DEFAULT_NAME] = Template.create(contents)
     }
 
-    this.components.push({
-      tag: componentTag
-    , target: tw.path()
-    , slots
-    })
+    return { tag, slots, target: tw.path() }
   }
 
 
