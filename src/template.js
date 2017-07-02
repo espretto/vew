@@ -166,7 +166,8 @@ const Template = Base.derive({
   }
 
 , componentState (tw, tag) {
-    var node = tw.node.firstChild
+    var root = tw.node
+      , node = root.firstChild
       , slots = {}
       , swap
       , contents
