@@ -215,6 +215,7 @@ const Template = Base.derive({
 
 , attributeState (tw, attr) {
     var node = tw.node
+      , target = tw.path()
       , attrName = attr.nodeName
       , attrValue = attr.nodeValue
       , keyword = attrName.substring(ATTR_PREFIX.length)
@@ -225,19 +226,19 @@ const Template = Base.derive({
 
       case 'class':
         this.mutators.push({
-          expression: Expression.parse(attrValue)
+          target
         , initial: node.className
         , mutator: MUTATORS.SET_CLASS_NAME
-        , target: tw.path()
+        , expression: Expression.parse(attrValue)
         })
         break
 
       case 'style':
         this.mutators.push({
-          expression: Expression.parse(attrValue)
+          target
         , initial: node.style.cssText
         , mutator: MUTATORS.SET_CSS_TEXT
-        , target: tw.path()
+        , expression: Expression.parse(attrValue)
         })
         break
 
@@ -246,10 +247,10 @@ const Template = Base.derive({
         tw.node = replaceNode(node, MountNode('if'))
 
         this.mutators.push({
-          expressions: [Expression.parse(attrValue)]
-        , mutator: MUTATORS.MOUNT_CONDITION
-        , target: tw.path()
+          target
         , slots: [Template.create(node)]
+        , mutator: MUTATORS.MOUNT_CONDITION
+        , expressions: [Expression.parse(attrValue)]
         })
         break
 
@@ -292,12 +293,12 @@ const Template = Base.derive({
         tw.node = replaceNode(node, MountNode('repeat'))
 
         this.mutators.push({
-          expressions: [expression]
+          target
         , keyName
         , valName
-        , mutator: MUTATORS.MOUNT_LOOP
-        , target: tw.path()
         , slots: [Template.create(node)]
+        , mutator: MUTATORS.MOUNT_LOOP
+        , expressions: [expression]
         })
         break
 
