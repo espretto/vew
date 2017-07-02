@@ -215,9 +215,11 @@ const Template = Base.derive({
 
 , attributeState (tw, attr) {
     var node = tw.node
-      , name = attr.nodeName
+      , attrName = attr.nodeName
       , value = attr.nodeValue
-      , keyword = name.substring(ATTR_PREFIX.length)
+      , keyword = attrName.substring(ATTR_PREFIX.length)
+
+    removeAttr(node, attrName)
 
     switch (keyword) {
 
@@ -228,8 +230,6 @@ const Template = Base.derive({
         , mutator: MUTATORS.SET_CLASS_NAME
         , target: tw.path()
         })
-        
-        removeAttr(node, attr.nodeName)
         break
 
       case 'style':
@@ -239,13 +239,10 @@ const Template = Base.derive({
         , mutator: MUTATORS.SET_CSS_TEXT
         , target: tw.path()
         })
-
-        removeAttr(node, attr.nodeName)
         break
 
       case 'if':
         // [FIXME] this might be a component-tag
-        removeAttr(node, attr.nodeName)
         tw.node = replaceNode(node, MountNode('if'))
 
         this.mutators.push({
@@ -271,7 +268,6 @@ const Template = Base.derive({
         }
 
         // clean and detach
-        removeAttr(node, attr.nodeName)
         removeNode(node)
 
         // register sub-component with its expression
@@ -293,7 +289,6 @@ const Template = Base.derive({
         expression = Expression.parse(loop[4])
 
         // [FIXME] this might be a component-tag
-        removeAttr(node, attr.nodeName)
         tw.node = replaceNode(node, MountNode('repeat'))
 
         this.mutators.push({
