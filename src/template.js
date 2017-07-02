@@ -100,8 +100,8 @@ const Template = Base.derive({
       , value = node.nodeValue
       , expression
 
-    // remove empty text-nodes
-    if (!node.nextSibling && isEmpty(node)) {
+    // remove trailing empty text-nodes
+    if ((!node.nextSibling || node.nextSibling.nodeType !== TEXT_NODE) && isEmpty(node)) {
       tw.prev()
       removeNode(node)
       return
@@ -115,7 +115,8 @@ const Template = Base.derive({
     if (expression.begin > 0) {
       node.splitText(expression.begin)
 
-      if (!node.previousSibling && isEmpty(node)) {
+      // remove leading empty text-nodes
+      if ((!node.previousSibling || node.previousSibling.nodeType !== TEXT_NODE) && isEmpty(node)) {
         tw.prev()
         removeNode(node)
       }
