@@ -243,7 +243,6 @@ const Template = Base.derive({
         break
 
       case 'if':
-        // [FIXME] this might be a component-tag
         tw.node = replaceNode(node, MountNode('if'))
 
         this.mutators.push({
@@ -254,52 +253,37 @@ const Template = Base.derive({
         })
         break
 
-      case 'else':
-        var expression = Expression.parse('true')
-        /* fall through */
-
-      case 'elif':
-        var prev = tw.prev()
-        if (!isMountNode(prev, 'if') && !isMountNode(prev, 'repeat')) {
-          throw new Error('elif and else require preceding if, elif or repeat')
-        }
-
-        if (keyword === 'elif') {
-          expression = Expression.parse(attrValue)
-        }
-
-        // clean and detach
-        removeNode(node)
-
-        // register sub-component with its expression
-        var mutator = last(this.mutators)
-        mutator.expressions.push(expression)
-        mutator.slots.push(Template.create(node))
-        break
-
       case 'repeat':
-        var loop = attrValue.match(reMatchLoop)
-          , keyName, valName, expression
-
-        if (!loop) {
-          throw new Error('malformed loop expression')
-        }
-
-        valName = loop[1] || loop[3]
-        keyName = loop[2] || ''
-        expression = Expression.parse(loop[4])
-
-        // [FIXME] this might be a component-tag
         tw.node = replaceNode(node, MountNode('repeat'))
+
+        var loop = attrValue.match(reMatchLoop)
+        if (!loop) throw new Error('malformed loop expression')
 
         this.mutators.push({
           target
-        , keyName
-        , valName
         , slots: [Template.create(node)]
+        , valName: loop[1] || loop[3]
+        , keyName: loop[2] || ''
         , mutator: MUTATORS.MOUNT_LOOP
-        , expressions: [expression]
+        , expressions: [Expression.parse(loop[4])]
         })
+        break
+
+      case 'elif':
+      case 'else':
+        var prev = tw.prev()
+        removeNode(node)
+
+        if (!(isMountNode(prev, 'if') || isMountNode(prev, 'repeat'))) {
+          throw new Error('elif and else require preceding if, elif or repeat')
+          // note: we wont ever encounter a preceding elif because it must in
+          //       turn be preceded by an if or repeat and thus be removed and
+          //       added to it by the previous iteration
+        }
+
+        var mutator = last(this.mutators)
+        mutator.slots.push(Template.create(node))
+        mutator.expressions.push(Expression.parse(keyword === 'elif' ? attrValue : 'true'))
         break
 
       default:
