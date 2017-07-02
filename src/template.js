@@ -216,7 +216,7 @@ const Template = Base.derive({
 , attributeState (tw, attr) {
     var node = tw.node
       , attrName = attr.nodeName
-      , value = attr.nodeValue
+      , attrValue = attr.nodeValue
       , keyword = attrName.substring(ATTR_PREFIX.length)
 
     removeAttr(node, attrName)
@@ -225,7 +225,7 @@ const Template = Base.derive({
 
       case 'class':
         this.mutators.push({
-          expression: Expression.parse(value)
+          expression: Expression.parse(attrValue)
         , initial: node.className
         , mutator: MUTATORS.SET_CLASS_NAME
         , target: tw.path()
@@ -234,7 +234,7 @@ const Template = Base.derive({
 
       case 'style':
         this.mutators.push({
-          expression: Expression.parse(value)
+          expression: Expression.parse(attrValue)
         , initial: node.style.cssText
         , mutator: MUTATORS.SET_CSS_TEXT
         , target: tw.path()
@@ -246,7 +246,7 @@ const Template = Base.derive({
         tw.node = replaceNode(node, MountNode('if'))
 
         this.mutators.push({
-          expressions: [Expression.parse(value)]
+          expressions: [Expression.parse(attrValue)]
         , mutator: MUTATORS.MOUNT_CONDITION
         , target: tw.path()
         , slots: [Template.create(node)]
@@ -264,7 +264,7 @@ const Template = Base.derive({
         }
 
         if (keyword === 'elif') {
-          expression = Expression.parse(value)
+          expression = Expression.parse(attrValue)
         }
 
         // clean and detach
@@ -277,7 +277,7 @@ const Template = Base.derive({
         break
 
       case 'repeat':
-        var loop = value.match(reMatchLoop)
+        var loop = attrValue.match(reMatchLoop)
           , keyName, valName, expression
 
         if (!loop) {
