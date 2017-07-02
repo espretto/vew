@@ -10,8 +10,10 @@
   },
   "scripts": {
     "test": "mocha-webpack --recursive --glob '*_test.js'",
-    "gzip": "gzip -c dist/vew.min.js > dist/vew.min.js.gz && ls -la dist",
+    "gzip": "gzip -c dist/vew.min.js > dist/vew.min.js.gz",
+    "minify": "uglifyjs dist/vew.js -c -m -d DEBUG=false -o dist/vew.min.js",
     "bundle": "BABEL_ENV=production rollup -c",
+    "build": "npm run bundle && npm run minify && npm run gzip && ls -la dist",
     "start": "nodemon --watch webpack.config.js --exec \"webpack-dev-server --env development\"",
     "bundle-webpack": "webpack --env production"
   },
