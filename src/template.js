@@ -73,7 +73,7 @@ const Template = Base.derive({
     this.mutators = []
     this.components = []
     this.template = Fragment(HTML.parse(html))
-    this.slots = isComponent ? {} : null
+    this.slots = isComponent ? {} : undefined
     
     this.templateState()
   }
