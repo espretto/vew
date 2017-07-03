@@ -48,10 +48,15 @@ function setCssText (node, value) {
   }
 }
 
+function setBooleanProperty (node, value) {
+  node[this.initial] = !!value
+}
+
 const MUTATORS = {
   SET_NODE_VALUE: 'SET_NODE_VALUE'
 , SET_CLASS_NAME: 'SET_CLASS_NAME'
 , SET_CSS_TEXT: 'SET_CSS_TEXT'
+, SET_BOOLEAN_PROP: 'SET_BOOLEAN_PROPERTY'
 , MOUNT_CONDITION: 'MOUNT_CONDITION'
 , MOUNT_LOOP: 'MOUNT_LOOP'
 }
@@ -241,6 +246,14 @@ const Template = Base.derive({
         , expression: Expression.parse(attrValue)
         })
         break
+
+      case 'prop-checked':
+        this.mutators.push({
+          target
+        , initial: 'checked'
+        , mutator: MUTATORS.SET_BOOLEAN_PROPERTY
+        , expression: Expression.parse(attrValue)
+        })
 
       case 'if':
         tw.node = replaceNode(node, MountNode('if'))
