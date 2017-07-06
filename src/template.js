@@ -62,10 +62,12 @@ const MUTATORS = {
 }
 
 const ATTR_PREFIX = '--'
+const ATTR_IS = '--is'
 const ATTR_SLOT = '--slot'
 const ATTR_NAME = 'name'
 const SLOT_NODENAME = 'SLOT'
 const SLOT_DEFAULT_NAME = 'content'
+const COMPONENT_NODENAME = 'COMPONENT'
 
 const Template = Base.derive({
 
@@ -152,25 +154,27 @@ const Template = Base.derive({
     if (nodeName === SLOT_NODENAME) {
       this.slotState(tw)
     }
+    else if (nodeName === COMPONENT_NODENAME) {
+      this.componentState(tw, Expression.parse(node.getAttribute(ATTR_IS)))
+    }
     else {
       
       if (Registry.components.has(nodeName)) {
         component = this.componentState(tw, nodeName)
       }
 
-      isControlled = some(node.attributes, attr => {
-        if (startsWith(attr.nodeName, ATTR_PREFIX)) {
-          return this.attributeState(tw, attr, component)
-        }
-      })
+      isControlled = some(node.attributes, attr =>
+        startsWith(attr.nodeName, ATTR_PREFIX) &&
+        this.attributeState(tw, attr, component)
+      )
       
-      if (!isControlled) {
+      if (component && !isControlled) {
         this.components.push(component)
       }
     }
   }
 
-, componentState (tw, tag) {
+, componentState (tw, tag, inset) {
     var root = tw.node
       , node = root.firstChild
       , slots = {}
@@ -181,7 +185,10 @@ const Template = Base.derive({
       switch (node.nodeType) {
 
         case TEXT_NODE:
-          if (isEmpty(node)) removeNode(node)
+          if ((!node.nextSibling || node.nextSibling.nodeType !== TEXT_NODE) ||
+              (!node.previousSibling || node.previousSibling.nodeType !== TEXT_NODE) && isEmpty(node)) {
+            removeNode(node)
+          }
           break
 
         case ELEMENT_NODE:
@@ -203,7 +210,7 @@ const Template = Base.derive({
       slots[SLOT_DEFAULT_NAME] = Template.create(contents)
     }
 
-    return { tag, slots, target: tw.path() }
+    return { tag, slots, inset: !!inset, target: tw.path() }
   }
 
 
@@ -218,7 +225,7 @@ const Template = Base.derive({
     }
   }
 
-, attributeState (tw, attr) {
+, attributeState (tw, attr, component) {
     var node = tw.node
       , target = tw.path()
       , attrName = attr.nodeName
@@ -250,17 +257,22 @@ const Template = Base.derive({
       case 'prop-checked':
         this.mutators.push({
           target
-        , initial: 'checked'
+        , property: 'checked'
         , mutator: MUTATORS.SET_BOOLEAN_PROPERTY
         , expression: Expression.parse(attrValue)
         })
+        break
+
+      case 'is':
+        this.components.push( this.componentState(tw, Expression.parse(attrValue), true) )
+        break
 
       case 'if':
         tw.node = replaceNode(node, MountNode('if'))
 
         this.mutators.push({
           target
-        , slots: [Template.create(node)]
+        , slots: [component || Template.create(node)]
         , mutator: MUTATORS.MOUNT_CONDITION
         , expressions: [Expression.parse(attrValue)]
         })
@@ -274,7 +286,7 @@ const Template = Base.derive({
 
         this.mutators.push({
           target
-        , slots: [Template.create(node)]
+        , slots: [component || Template.create(node)]
         , valName: loop[1] || loop[3]
         , keyName: loop[2] || ''
         , mutator: MUTATORS.MOUNT_LOOP
@@ -289,25 +301,38 @@ const Template = Base.derive({
 
         if (!(isMountNode(prev, 'if') || isMountNode(prev, 'repeat'))) {
           throw new Error('elif and else require preceding if, elif or repeat')
-          // note: we wont ever encounter a preceding elif because it must in
-          //       turn be preceded by an if or repeat and thus be removed and
-          //       added to it by the previous iteration
+          // note: preceding elif-tags will have been removed by now
         }
 
         var mutator = last(this.mutators)
-        mutator.slots.push(Template.create(node))
+        mutator.slots.push(component || Template.create(node))
         mutator.expressions.push(Expression.parse(keyword === 'elif' ? attrValue : 'true'))
         break
 
       default:
         throw new Error('not yet implemented attribute handler for: ' + keyword)
     }
+
+    // whether or not the component is subject to control-flow
+    return component && !node.parentNode
   }
 })
 
 export default Template
 
 /* test template
+
+<component --is="'dummy'">
+  <p>Hello ${name}</p>
+</component>
+
+<dummy>
+  <p>Hello ${name}</p>
+</dummy>
+
+<div --is="dummy">
+  <p>Hello ${name}</p>
+</div>
 
 <p --if="condition">Hello</p>
 <p --elif="another">
