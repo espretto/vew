@@ -8,10 +8,10 @@ import { isObject } from './util/type'
 import { hasOwn, keys } from './util/object'
 import { some, fold, last, map } from './util/array'
 import { startsWith, kebabCase } from './util/string'
-import { FRAGMENT_NODE, TEXT_NODE, ELEMENT_NODE,
+import { TEXT_NODE, ELEMENT_NODE, isTextBoundary,
          Fragment, MountNode, isMountNode,
          removeNode, replaceNode, extractContents,
-         getNodeName, removeAttr, isEmpty } from './dom'
+         getNodeName, removeAttr, isEmptyText } from './dom'
 
 
 const reMatchLoop = /^\s*(?:([a-zA-Z_$][\w$]*)|\[\s*([a-zA-Z_$][\w$]*)\s*,\s*([a-zA-Z_$][\w$]*)\s*\])\s*of([\s\S]*)$/
@@ -108,7 +108,7 @@ const Template = Base.derive({
       , expression
 
     // remove trailing empty text-nodes
-    if ((!node.nextSibling || node.nextSibling.nodeType !== TEXT_NODE) && isEmpty(node)) {
+    if (isTextBoundary(node.nextSibling) && isEmptyText(node)) {
       tw.prev()
       removeNode(node)
       return
@@ -123,7 +123,7 @@ const Template = Base.derive({
       node.splitText(expression.begin)
 
       // remove leading empty text-nodes
-      if ((!node.previousSibling || node.previousSibling.nodeType !== TEXT_NODE) && isEmpty(node)) {
+      if (isTextBoundary(node.previousSibling) && isEmptyText(node)) {
         tw.prev()
         removeNode(node)
       }
@@ -178,16 +178,14 @@ const Template = Base.derive({
     var root = tw.node
       , node = root.firstChild
       , slots = {}
-      , swap
       , contents
 
     for (; node; node = node.nextSibling) {
       switch (node.nodeType) {
 
         case TEXT_NODE:
-          if ((!node.nextSibling || node.nextSibling.nodeType !== TEXT_NODE) ||
-              (!node.previousSibling || node.previousSibling.nodeType !== TEXT_NODE) && isEmpty(node)) {
-            removeNode(node)
+          if (isTextBoundary(node.nextSibling) && isEmptyText(node)) {
+            root.removeChild(node)
           }
           break
 
@@ -196,11 +194,11 @@ const Template = Base.derive({
 
           if (getNodeName(node) === SLOT_NODENAME) {
             slotName = node.getAttribute(ATTR_NAME) || SLOT_DEFAULT_NAME
-            slots[slotName] = Template.create(extractContents(removeNode(node)))
+            slots[slotName] = Template.create(extractContents(root.removeChild(node)))
           }
           else if (slotName = node.getAttribute(ATTR_SLOT)) {
             removeAttr(node, ATTR_SLOT)
-            slots[slotName] = Template.create(removeNode(node))
+            slots[slotName] = Template.create(root.removeChild(node))
           }
           break
       }

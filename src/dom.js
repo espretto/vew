@@ -27,8 +27,12 @@ export function trim (html) {
 /**
  * detect empty text-nodes
  */
-export function isEmpty (textNode) {
+export function isEmptyText (textNode) {
   return !passNotEmpty.test(textNode.nodeValue)
+}
+
+export function isTextBoundary (node) {
+  return !node || node.nodeType !== TEXT_NODE
 }
 
 /* -----------------------------------------------------------------------------
