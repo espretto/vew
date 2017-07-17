@@ -178,15 +178,18 @@ const Template = Base.derive({
     var root = tw.node
       , node = root.firstChild
       , slots = {}
-      , contents
 
     for (; node; node = node.nextSibling) {
       switch (node.nodeType) {
 
         case TEXT_NODE:
-          if (isTextBoundary(node.nextSibling) && isEmptyText(node)) {
+          var prev = node.previousSibling
+
+          if (isTextBoundary(prev) && isEmptyText(node)) {
             root.removeChild(node)
+            node = prev
           }
+
           break
 
         case ELEMENT_NODE:
@@ -200,10 +203,12 @@ const Template = Base.derive({
             removeAttr(node, ATTR_SLOT)
             slots[slotName] = Template.create(root.removeChild(node))
           }
+
           break
       }
     }
 
+    var contents
     if (contents = extractContents(root)) {
       slots[SLOT_DEFAULT_NAME] = Template.create(contents)
     }
