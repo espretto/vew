@@ -13,7 +13,7 @@ const wrapElem = document.createElement('div')
 const wrapMap = {}
 
 /** used to find the first html-tag (wont skip comments though) */
-const reMatchTag = /<(?:[a-zA-Z][^>\/\t\n\f]*)/
+const reMatchTag = /<([a-zA-Z][^>\/\t\n\f]*)/
 
 /* -----------------------------------------------------------------------------
  * bug detection
@@ -103,7 +103,7 @@ export default {
 
     if (!tagMatch) return TextNode(html)
 
-    tag = tagMatch[0].substring(1).toUpperCase()
+    tag = tagMatch[1].toUpperCase()
     wrap = wrapMap[tag] || wrapMap.$DEFAULT
     depth = wrap[0]
     node = wrapElem
