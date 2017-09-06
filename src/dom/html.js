@@ -55,7 +55,9 @@ removeNode(wrapElem)
 /* -----------------------------------------------------------------------------
  * wrapper specs
  */
-wrapMap.$DEFAULT = support.innerHTML ? [1, 'X<div>', '</div>'] : [0, '', '']
+wrapMapDefault = support.innerHTML
+  ? [1, 'X<div>', '</div>']
+  : [0, '', '']
 
 // html 
 wrapMap.AREA     = [1, '<map>', '</map>']
@@ -104,7 +106,7 @@ export default {
     if (!tagMatch) return TextNode(html)
 
     tag = tagMatch[1].toUpperCase()
-    wrap = wrapMap[tag] || wrapMap.$DEFAULT
+    wrap = wrapMap[tag] || wrapMapDefault
     depth = wrap[0]
     node = wrapElem
     node.innerHTML = wrap[1] + trim(html) + wrap[2]
