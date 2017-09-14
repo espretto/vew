@@ -300,19 +300,6 @@ export function append (trg, src) {
   return trg
 }
 
-/**
- * flat array equals
- * @param  {array} array
- * @param  {array} brray
- * @return {bool}
- */
-export function eqArray (array, brray) {
-  return (
-    array.length === brray.length &&
-    every(array, (value, i) => value === brray[i])
-  )
-}
-
 export function range (begin, step, end) {
   var result = []
     , i = -1

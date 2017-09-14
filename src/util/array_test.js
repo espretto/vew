@@ -440,19 +440,6 @@ describe('Array Utils', function() {
     })
   })
 
-  describe('#eqArray', () => {
-    it('should exist', () => {
-      expect(eqArray).to.be.a('function')
-    })
-    it('should positively compare equal arrays', () => {
-      expect(eqArray([1, 2], [1, 2])).to.be.true
-    })
-    it('should negatively compare unequal arrays', () => {
-      expect(eqArray([1, 2], [1, 3])).to.be.false
-      expect(eqArray([1, 2], [1, 2, 3])).to.be.false
-    })
-  })
-
   describe('#range', () => {
     it('should exist', () => {
       expect(range).to.be.a('function')

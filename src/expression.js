@@ -3,7 +3,7 @@ import Base from './util/base'
 import { hasOwn } from './util/object'
 import { trim, chr } from './util/string'
 import { Array, Function, isFinite } from './util/global'
-import { indexOf, findIndex, eqArray } from './util/array'
+import { indexOf, findIndex } from './util/array'
 
 /** used to match the first character of a javascript identifier or keyword */
 const passIdent = /[a-zA-Z_$]/
@@ -158,7 +158,7 @@ export default Base.create.call({
   }
 
 , addPath (path) {
-    var index = findIndex(this.paths, other => eqArray(other, path))
+    var index = findIndex(this.paths, other => other.join() === path.join())
     if (index < 0) index = this.paths.push(path) - 1
     this.output += toIdent(index)
   }
