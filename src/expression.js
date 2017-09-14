@@ -368,7 +368,7 @@ const beginOperator = '=+-*/|&^<!>'
 const matchOperator = /[\+\-]{2}|[\+\-\*\/\^\&\|<%>]=|=>|={1,3}|!==?|<<=?|>>>?=?/g
 
 /** used to look up forbidden operators */
-const assignOperators = ['=', '++', '--', '+=', '-=', '*=', '/=', '|=', '&=', '^=', '<<=', '>>=', '>>>=']
+const assignOperators = ['=', '++', '--', '+=', '-=', '*=', '/=', '|=', '&=', '^=', '%=', '<<=', '>>=', '>>>=']
 
 function debugState (chr) {
   if (chr === ';') {
