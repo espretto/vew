@@ -1,4 +1,8 @@
 
+/**
+ * produce fat-free javascript by tree-shaking and minification
+ */
+
 var babel = require('rollup-plugin-babel')
 var babelrc = require('babelrc-rollup').default
 
