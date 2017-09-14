@@ -127,26 +127,33 @@ export default Base.create.call({
     }
   }
 
-, seekUesc (chr, skip) {
-    var index
+, seekEndOfString (quote) {
 
-    if (skip) this.index += 1
-
-    do {
-      index = this.input.indexOf(chr, this.index)
-      this.index = index+1
+    // empty string literal
+    if (this.input.charAt(this.index + 1) === quote) {
+      this.index += 2
     }
-    while (this.input.charAt(index-1) === '\\')
-    // input.indexOf(-2) === '\\' always yields false
+    // non-empty string literal
+    else {
+      do {
+        this.index = this.input.indexOf(quote, ++this.index)
+      }
+      while (this.input.charAt(this.index - 1) === '\\')
+
+      // unterminated string literal
+      if (this.index < 0) {
+        throw new Error('unterminated string literal')
+      }
+
+      this.index += 1
+    }
   }
 
 , hasReachedSuffix () {
-    var suffix = this.suffix
-
     return (
-      suffix &&
-      this.brackets.length == 0 &&
-      this.input.substr(this.index, suffix.length) === suffix
+      this.suffix &&
+      this.brackets.length === 0 &&
+      this.input.lastIndexOf(this.suffix, this.index) === this.index
     )
   }
 
@@ -189,8 +196,7 @@ export default Base.create.call({
         this.slashState()
       }
       else if (chr === '"' || chr === "'") {
-        this.seekUesc(chr, true)
-        if (!this.index) if (DEBUG) throw new Error('unterminated string literal')
+        this.seekEndOfString(chr)
       }
       else if (chr === '(' || chr === '[' || chr === '{') {
         this.brackets.unshift(chr)
@@ -314,10 +320,7 @@ export default Base.create.call({
 
     if (chr === '"' || chr === "'") {
       begin = this.index
-      this.seekUesc(chr, true)
-
-      if (!this.index) if (DEBUG) throw new Error('unterminated string literal')
-      
+      this.seekEndOfString(chr)
       ident = this.input.substring(begin+1, this.index-1) // trim quotes
       path.push(ident) 
       
