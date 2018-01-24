@@ -16,42 +16,6 @@ import { TEXT_NODE, ELEMENT_NODE, isTextBoundary,
 
 const reMatchLoop = /^\s*(?:([a-zA-Z_$][\w$]*)|\[\s*([a-zA-Z_$][\w$]*)\s*,\s*([a-zA-Z_$][\w$]*)\s*\])\s*of([\s\S]*)$/
 
-/* -----------------------------------------------------------------------------
- * mutators
- */
-function setNodeValue (node, value) {
-  if (node.nodeValue !== value) {
-    node.nodeValue = value
-  }
-}
-
-function setClassName (node, value) {
-  var className = !isObject(value)
-    ? this.initial + ' ' + value
-    : fold(keys(value), this.initial, (className, klass) =>
-        value[klass] ? className + ' ' + klass : className)
-
-  if (node.className !== className) {
-    node.className = className
-  }
-}
-
-// [FIXME] cannot set properties "content" and "font-family" because their values contain quotes
-function setCssText (node, value) {
-  var cssText = !isObject(value)
-    ? this.initial + ';' + value
-    : fold(keys(value), this.initial, (cssText, prop) =>
-        cssText + ';' + kebabCase(prop) + ':' + value[prop])
-
-  if (node.style.cssText !== cssText) {
-    node.style.cssText = cssText
-  }
-}
-
-function setBooleanProperty (node, value) {
-  node[this.initial] = !!value
-}
-
 const MUTATORS = {
   SET_NODE_VALUE: 'SET_NODE_VALUE'
 , SET_CLASS_NAME: 'SET_CLASS_NAME'
