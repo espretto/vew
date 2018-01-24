@@ -55,7 +55,7 @@ removeNode(wrapElem)
 /* -----------------------------------------------------------------------------
  * wrapper specs
  */
-wrapMapDefault = support.innerHTML
+const wrapMapDefault = support.innerHTML
   ? [1, 'X<div>', '</div>']
   : [0, '', '']
 
