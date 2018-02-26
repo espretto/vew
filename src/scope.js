@@ -1,6 +1,6 @@
 
 import Base from './util/base'
-import Sett from './util/sett'
+import Set from './util/set'
 import { toPath, has } from './util/path'
 import { forEach, remove, fold } from './util/array'
 import { isObject, isUndefined, protof } from './util/type'
@@ -11,8 +11,8 @@ export default Base.derive({
 
   constructor (data) {
     this._root = SubscriptionTreeNode.create(null)
-    this._tasks = Sett('id')
-    this._dirty = Sett('id')
+    this._tasks = new Set()
+    this._dirty = new Set()
 
     // varies inner class
     this.data = data
@@ -196,6 +196,10 @@ const SubscriptionTreeNode = Base.derive({
     this.parent = parent
     this.tasks = []
     this.children = {}
+  }
+
+, getComparableId () {
+    return this.id
   }
 
 , isEmpty () {

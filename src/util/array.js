@@ -81,20 +81,19 @@ export function lastIndexOf (array, item, i) {
 }
 
 /**
- * @return {number} the index at which to insert `item` into `array`
- *   sorted by its items common property `prop`. the value of `prop`
- *   must implement the < operator.
+ * @return {number} the lowest index in `array` at which to insert `item`
+ *                  ranked by the `key` function
  */
-export function sortedIndexFor (array, item, prop) {
+export function sortedIndexBy (array, item, key) {
   var lo = 0
     , hi = array.length
-    , mid
-    , val = item[prop]
+    , search = key(item)
 
   while (lo < hi) {
-    mid = (lo + hi) >> 1 // Math.floor( (hi+lo) / 2 )
+    var mid = (lo + hi) >> 1 // Math.floor( (hi+lo) / 2 )
+      , value = key(array[mid])
     
-    if (array[mid][prop] < val) {
+    if (search < value) {
       lo = mid + 1
     }
     else {
@@ -102,7 +101,7 @@ export function sortedIndexFor (array, item, prop) {
     }
   }
 
-  return hi
+  return search === value ? hi : ~hi
 }
 
 export function includes (array, item) {
