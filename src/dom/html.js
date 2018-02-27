@@ -1,9 +1,10 @@
 
+import { getOwn } from '../util/object'
 import { document } from '../util/global'
 import { TEXT_NODE, ELEMENT_NODE, COMMENT_NODE, FRAGMENT_NODE,
          Fragment, TextNode, extractContents, removeNode, trim } from '../dom'
 
-/** used instead of globals */
+/** bug list */
 const support = {}
 
 /** used to parse/stringify html */
@@ -13,7 +14,7 @@ const wrapElem = document.createElement('div')
 const wrapMap = {}
 
 /** used to find the first html-tag (wont skip comments though) */
-const reMatchTag = /<([a-zA-Z][^>\/\t\n\f]*)/
+const reTagName = /<([a-zA-Z][^>\/\t\n\f ]*)/
 
 /* -----------------------------------------------------------------------------
  * bug detection
@@ -56,24 +57,24 @@ removeNode(wrapElem)
  * wrapper specs
  */
 const wrapMapDefault = support.innerHTML
-  ? [1, 'X<div>', '</div>']
-  : [0, '', '']
+  ? [1, ['X<div>', '</div>']]
+  : [0, ['', '']]
 
 // html 
-wrapMap.AREA     = [1, '<map>', '</map>']
-wrapMap.COL      = [2, '<table><tbody></tbody><colgroup>', '</colgroup></table>']
-wrapMap.LEGEND   = [1, '<fieldset>', '</fieldset>']
+wrapMap.AREA     = [1, ['<map>', '</map>']]
+wrapMap.COL      = [2, ['<table><tbody></tbody><colgroup>', '</colgroup></table>']]
+wrapMap.LEGEND   = [1, ['<fieldset>', '</fieldset>']]
 wrapMap.OPTION   =
-wrapMap.OPTGROUP = [1, '<select multiple="multiple">', '</select>']
-wrapMap.PARAM    = [1, '<object>', '</object>']
+wrapMap.OPTGROUP = [1, ['<select multiple="multiple">', '</select>']]
+wrapMap.PARAM    = [1, ['<object>', '</object>']]
 wrapMap.TD       =
-wrapMap.TH       = [3, '<table><tbody><tr>', '</tr></tbody></table>']
-wrapMap.TR       = [2, '<table><tbody>', '</tbody></table>']
+wrapMap.TH       = [3, ['<table><tbody><tr>', '</tr></tbody></table>']]
+wrapMap.TR       = [2, ['<table><tbody>', '</tbody></table>']]
 wrapMap.TBODY    =
 wrapMap.THEAD    =
 wrapMap.TFOOT    =
 wrapMap.CAPTION  =
-wrapMap.COLGROUP = [1, '<table>', '</table>']
+wrapMap.COLGROUP = [1, ['<table>', '</table>']]
 
 
 // svg
@@ -85,55 +86,42 @@ wrapMap.PATH     =
 wrapMap.POLYGON  =
 wrapMap.POLYLINE =
 wrapMap.RECT     =
-wrapMap.TEXT     = [1, '<svg xmlns="http://www.w3.org/2000/svg" version="1.1">','</svg>']
+wrapMap.TEXT     = [1, ['<svg xmlns="http://www.w3.org/2000/svg" version="1.1">','</svg>']]
 
 // TODO mathml
+
+function dive (node, depth) {
+  return depth ? dive(node.lastChild, depth-1) : node
+}
 
 /* -----------------------------------------------------------------------------
  * main
  */
 export default {
 
+  /** bug list */
   support
   
   /** @static */
 , parse (html) {
     if (html.nodeType) return html
-
-    var tagMatch = html.match(reMatchTag)
-      , tag, wrap, node, depth
-
+    var tagMatch = html.match(reTagName)
     if (!tagMatch) return TextNode(html)
-
-    tag = tagMatch[1].toUpperCase()
-    wrap = wrapMap[tag] || wrapMapDefault
-    depth = wrap[0]
-    node = wrapElem
-    node.innerHTML = wrap[1] + trim(html) + wrap[2]
-
-    while (depth--) node = node.lastChild
-
-    return extractContents(node)
+    var [depth, ixes] = getOwn(wrapMap, tagMatch[1].toUpperCase(), wrapMapDefault)
+    wrapElem.innerHTML = ixes.join(trim(html))
+    return extractContents(dive(wrapElem, depth))
   }
 
   /** @static */
 , stringify (node) {
     switch (node.nodeType) {
-
-      case TEXT_NODE:
-        return node.nodeValue
-
-      case ELEMENT_NODE:
-        return node.outerHTML
-
-      case COMMENT_NODE:
-        /* fall through */
-
-      case FRAGMENT_NODE:
+      case TEXT_NODE: return node.nodeValue
+      case ELEMENT_NODE: return node.outerHTML
+      case COMMENT_NODE: /* fall through */
+      case DOCUMENT_FRAGMENT_NODE:
         wrapElem.innerHTML = ''
         wrapElem.appendChild(node)
         return wrapElem.innerHTML
-
       default:
         throw new Error(`cannot serialize node type ${node.nodeType}`)
     }
