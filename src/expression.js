@@ -128,25 +128,22 @@ export default Base.create.call({
   }
 
 , seekEndOfString (quote) {
+    this.index += 1
 
-    // empty string literal
-    if (this.input.charAt(this.index + 1) === quote) {
-      this.index += 2
-    }
-    // non-empty string literal
-    else {
-      do {
-        this.index = this.input.indexOf(quote, ++this.index)
-      }
-      while (this.input.charAt(this.index - 1) === '\\')
+    // skip empty string literal
+    if (this.input.charAt(this.index) !== quote) {
+      
+      // seek unescaped quote
+      do this.index = this.input.indexOf(quote, this.index)
+      while (this.input.charAt(this.index - 1) === '\\' && ++this.index)
 
       // unterminated string literal
       if (this.index < 0) {
         throw new Error('unterminated string literal')
       }
-
-      this.index += 1
     }
+
+    this.index += 1
   }
 
 , hasReachedSuffix () {
