@@ -21,3 +21,6 @@ output
 playground
 _*.js
 .tmp/
+
+# editor
+.vscode
