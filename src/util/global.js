@@ -1,3 +1,4 @@
+/* @flow */
 
 const global = (1, eval)('this')
 

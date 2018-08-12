@@ -1,12 +1,15 @@
+/* @flow */
 
 import { hasOwn } from './object'
-import { isObject, isArray } from './type'
+import { isObject, isString } from './type'
+
+export type Path = string[]
 
 /**
  * has
  */
-export function has (object, key) {
-  return isObject(object) && (isArray(object)
+export function has (object: any, key: string): boolean {
+  return isObject(object) && (Array.isArray(object)
     ? key < object.length
     : hasOwn.call(object, key)
   )
@@ -17,27 +20,29 @@ export function has (object, key) {
  */
 const reUnescapeQuotes = /\\('|")/g
 
-const rePickKeys = /\[('|")((?:\\\1|[^\1])*)\1\]|\[(\d+)|(?:^|\.)([^\.\[]*)/g
+const reCaptureKeys = /\[('|")((?:\\\1|[^\1])*)\1\]|\[(\d+)|(?:^|\.)([^\.\[]*)/g
 
-export function toPath (str) {
-    
-  if (isArray(str)) {
-    return str
+export function toPath (path: string|Path): Path {
+  
+  if (!isString(path)) {
+    return path
   }
-  else if (!str) {
+  if (!path) {
     return []
   }
-  else if (str.indexOf('[') < 0) {
-    return str.split('.')
+  else if (path.indexOf('[') < 0) {
+    return path.split('.')
   }
   
   var keys = []
 
-  str.replace(rePickKeys, function (match, quote, string, index, key) {
+  path.replace(reCaptureKeys, function (match, quote: string, quoted: string, index: string, key: string) {
     keys.push(
-      quote ? string.replace(reUnescapeQuotes, '$1') :
-      index ? +index : key
+      quote ? quoted.replace(reUnescapeQuotes, '$1') :
+      index ? index : key
     )
+
+    return ''
   })
 
   return keys

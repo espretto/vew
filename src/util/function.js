@@ -1,16 +1,18 @@
+/* @flow */
 
-export function id (any) {
+export function id <T> (any: T): T {
   return any
 }
 
 /**
  * custom *Function#bind*
  */
-export function thisify (func, that, arity) {
-  switch (+arity === arity ? arity : func.length) {
+export function thisify (func: Function, that: mixed, arity: number)  {
+  switch (arity) {
     case 0: return () => func.call(that)
-    case 1: return (a) => func.call(that, a)
-    case 2: return (a, b) => func.call(that, a, b)
+    case 1: return (a: any) => func.call(that, a)
+    case 2: return (a: any, b: any) => func.call(that, a, b)
+    // flowignore: arguments
     default: return function () { return func.apply(that, arguments) }
   }
 }
@@ -18,11 +20,12 @@ export function thisify (func, that, arity) {
 /**
  * uncurry instance methods to receive `this` as first argument
  */
-export function uncurry (func, arity) {
-  switch (+arity === arity ? arity : func.length) {
-    case 0: return (that) => func.call(that)
-    case 1: return (that, a) => func.call(that, a)
-    case 2: return (that, a, b) => func.call(that, a, b)
+export function uncurry (func: Function, arity: number) {
+  switch (arity) {
+    case 0: return (that: any) => func.call(that)
+    case 1: return (that: any, a: any) => func.call(that, a)
+    case 2: return (that: any, a: any, b: any) => func.call(that, a, b)
+    // flowignore: arguments 
     default: return function () { return func.call.apply(func, arguments) }
   }
 }

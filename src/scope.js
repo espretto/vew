@@ -1,29 +1,35 @@
+/* @flow */
 
-import Base from './util/base'
-import Set from './util/set'
+import type { Path } from './util/path'
+
 import { toPath, has } from './util/path'
-import { forEach, remove, fold } from './util/array'
-import { isObject, isUndefined, protof } from './util/type'
+import { forEach, every, remove, fold } from './util/array'
+import { isString, isObject, isUndefined, protof } from './util/type'
 import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue } from './util/object'
-import { Object, ObjectProto, Array, ArrayProto, Date, DateProto, Error } from './util/global'
 
-export default Base.derive({
+class Scope {
 
-  constructor (data) {
-    this._root = SubscriptionTreeNode.create(null)
-    this._tasks = new Set()
-    this._dirty = new Set()
+  data: any
 
-    // varies inner class
+  root: SubscriptionNode
+
+  tasks: Set<Function>
+
+  dirty: Set<SubscriptionNode>
+
+  constructor (data: any) {
     this.data = data
+    this.root = new SubscriptionNode()
+    this.tasks = new Set()
+    this.dirty = new Set()
   }
-
-, subscribe (path, task) {
-    this._root.resolveOrCreate(toPath(path)).tasks.push(task)
+  
+  subscribe (path: string, task: Function) {
+    this.root.resolveOrCreate(toPath(path)).tasks.push(task)
   }
-
-, unsubscribe (path, task) {
-    var sub = this._root.resolve(toPath(path))
+  
+  unsubscribe (path: string, task: Function) {
+    var sub = this.root.resolve(toPath(path))
 
     remove(sub.tasks, task)
 
@@ -33,42 +39,40 @@ export default Base.derive({
       }
     }
   }
-
-, resolve (path) {
-    return fold(toPath(path), this.data, (obj, key) => obj[key])
+  
+  resolve (path: string|Path) {
+    if (isString(path)) path = toPath(path)
+    
+    return fold(path, this.data, (obj, key) => obj[key])
   }
-
-, _notify (sub) {
+  
+  notify (sub: ?SubscriptionNode) {
     for (; sub; sub = sub.parent) {
       if (sub.tasks.length) {
-        this._dirty.add(sub)
+        this.dirty.add(sub)
       }
     }
   }
-
-, update () {
-    const scope = this
-        , tasks = scope._tasks
-        , dirty = scope._dirty
-
-    dirty.forEach(sub => {
+  
+  update () {
+    this.dirty.forEach(sub => {
       forEach(sub.tasks, task => {
-        tasks.add(task)
+        this.tasks.add(task)
       })
     })
 
     // begin requestAnimationFrame
-    tasks.forEach(task => { task.call(scope) })
+    this.tasks.forEach(task => { task.call(this) })
     // end requestAnimationFrame
 
-    tasks.clear()
-    dirty.clear()
+    this.tasks.clear()
+    this.dirty.clear()
   }
-
-, merge (/*[path,] src*/) {
+  
+  merge (/*[path,] src*/) {
     
     if (arguments.length < 2) {
-      var sub = this._root
+      var sub = this.root
         , trg = this.data
         , src = arguments[0]
 
@@ -78,14 +82,14 @@ export default Base.derive({
     }
     else {
       var path = toPath(arguments[0])
-        , sub = this._root.resolve(path)
+        , sub = this.root.resolve(path)
         , tail = path.pop() // [1]
         , trg = this.resolve(path)
         , src = arguments[1]
 
       path.push(tail) // [1]
 
-      if (DEBUG && !isObject(trg)) {
+      if (!isObject(trg)) {
         throw new Error('cannot set property onto primitive value')
       }
 
@@ -94,39 +98,39 @@ export default Base.derive({
         : this._cloneDeep(src, sub)
     }
   }
-
-, _mergeDeep (trg, src, sub) {
+  
+  _mergeDeep (trg, src, sub) {
 
     // merge mutables
     if (isObject(trg) && isObject(src)) {
       const trgProto = protof(trg)
           , srcProto = protof(src)
 
-      if (trgProto === ArrayProto || trgProto === ObjectProto) {
-        if (srcProto === ArrayProto) {
+      if (trgProto === Array.prototype || trgProto === Object.prototype) {
+        if (srcProto === Array.prototype) {
           return this._mergeArray(trg, src, sub, false)
         }
-        else if (srcProto === ObjectProto) {
+        else if (srcProto === Object.prototype) {
           return this._mergeObject(trg, src, sub, false)
         }
       }
-      else if (trgProto === DateProto && srcProto === DateProto && +trg !== +src) {
+      else if (trgProto === Date.prototype && srcProto === Date.prototype && +trg !== +src) {
         trg.setTime(src)
-        this._notify(sub)
+        this.notify(sub)
         return trg
       }
     }
 
     // fall through to same-value-zero comparison
     if (trg === trg ? trg !== src : src === src) {
-      this._notify(sub)
+      this.notify(sub)
     }
 
     return src
   }
-
-, _cloneDeep (src, sub) {
-    this._notify(sub)
+  
+  _cloneDeep (src, sub) {
+    this.notify(sub)
 
     if (isObject(src)) {
       switch (protof(src)) {
@@ -143,8 +147,8 @@ export default Base.derive({
 
     return src
   }
-
-, _mergeObject (trg, src, sub, clone) {
+  
+  _mergeObject (trg, src, sub, clone) {
     var children = sub.children
     
     forOwn(src, (value, key) => {
@@ -157,8 +161,8 @@ export default Base.derive({
 
     return trg
   }
-
-, _mergeArray (trg, src, sub, clone) {
+  
+  _mergeArray (trg, src, sub, clone) {
     var children = sub.children
       , length = trg.length
 
@@ -171,7 +175,7 @@ export default Base.derive({
     })
 
     if (length !== trg.length) {
-      this._notify(getOwn(children, 'length', sub))
+      this.notify(getOwn(children, 'length', sub))
     }
 
     return trg
@@ -180,49 +184,56 @@ export default Base.derive({
   /**
    * skip deep comparison completely and simply set the new value.
    * then deeply invalidate all Subscriptions associated to the affected paths.
-   */
-, replace () {
+   */  
+  replace () {
     throw new Error('not yet implemented')
   }
-})
+}
 
-const SubscriptionTreeNode = Base.derive({
+class SubscriptionNode {
 
-  /** class variable */
-  id: 0
+  tasks: Function[]
+  parent: ?SubscriptionNode
+  children: { [key: string]: SubscriptionNode }
 
-, constructor (parent) {
-    this.id = SubscriptionTreeNode.id++
+  constructor (parent: ?SubscriptionNode) {
     this.parent = parent
     this.tasks = []
     this.children = {}
   }
-
-, getComparableId () {
-    return this.id
-  }
-
-, isEmpty () {
+  
+  isEmpty () {
     return !this.tasks.length && isEmptyObject(this.children)
   }
-
-, remove () {
-    const parent = this.parent
-    if (parent) deleteValue(parent.children, this)
+  
+  remove () {
+    if (this.parent) deleteValue(this.parent.children, this)
   }
+  
+  resolve (path: Path) {
+    var node = this
 
-, resolve (path) {
-    var sub = this
-    forEach(path, key => !!(sub = getOwn(sub.children, key, null)))
-    return sub
+    every(path, key => {
+      var hasChild = hasOwn.call(node.children, key)
+      if (hasChild) node = node.children[key]
+      return hasChild
+    })
+
+    return node
   }
+  
+  resolveOrCreate (path: Path) {
+    return fold(path, this, (node, key) => {
+      const children = node.children
 
-, resolveOrCreate (path) {
-    return fold(path, this, (sub, key) => {
-      var children = sub.children
-      return hasOwn.call(children, key)
-        ? children[key]
-        : (children[key] = SubscriptionTreeNode.create(sub))
+      if (hasOwn.call(children, key)) {
+        return children[key]
+      }
+      else {
+        return children[key] = new SubscriptionNode(node)
+      }
     })
   }
-})
+}
+
+export default Scope

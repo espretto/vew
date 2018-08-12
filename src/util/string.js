@@ -1,15 +1,7 @@
+/* @flow */
 
-import { String, StringProto } from './global'
-import { idNative } from './type'
+import { isNative } from './type'
 import { uncurry } from './function'
-
-const reTrimLeft = /^\s\s*/
-
-const reTrimRight = /\s\s*$/;
-
-const nativeTrim = idNative(StringProto.trim)
-
-const nativeStartsWith = idNative(StringProto.startsWith)
 
 /**
  * chr
@@ -19,9 +11,15 @@ export const chr = String.fromCharCode
 /**
  * startsWith
  */
-export const startsWith = nativeStartsWith
+const nativeStartsWith = String.prototype.startsWith
+
+function customStartsWith (str: string, prefix: string) {
+  return str.lastIndexOf(prefix, prefix.length) === 0
+}
+
+export const startsWith = isNative(nativeStartsWith)
   ? uncurry(nativeStartsWith, 1)
-  : (string, prefix) => string.lastIndexOf(prefix, prefix.length) === 0
+  : customStartsWith
 
 /**
  * trim
@@ -29,18 +27,25 @@ export const startsWith = nativeStartsWith
  * credits:
  * 	 http://blog.stevenlevithan.com/archives/faster-trim-javascript
  */
-export const trim = nativeTrim
+const reTrimLeft = /^\s\s*/
+const reTrimRight = /\s\s*$/;
+const nativeTrim = String.prototype.trim
+
+function customTrim (str: string) {
+  return str.replace(reTrimLeft, '').replace(reTrimRight, '')
+}
+
+export const trim = isNative(nativeTrim)
   ? uncurry(nativeTrim, 0)
-  : string => string.replace(reTrimLeft, '')
-                    .replace(reTrimRight, '')
+  : customTrim
 
 /**
  * camelize - specialized version for kebab-case
  */
 const reCamelCase = /-([a-z])/g
 
-export function camelCase (string) {
-  return string.replace(reCamelCase, (_, chr) => chr.toUpperCase())
+export function camelCase (str: string) {
+  return str.replace(reCamelCase, (_, chr) => chr.toUpperCase())
 }
 
 /**
@@ -48,6 +53,6 @@ export function camelCase (string) {
  */
 const reKebabCase = /[a-z](?=[A-Z])/g
 
-export function kebabCase (string) {
-  return string.replace(reKebabCase, '$&-').toLowerCase()
+export function kebabCase (str: string) {
+  return str.replace(reKebabCase, '$&-').toLowerCase()
 }

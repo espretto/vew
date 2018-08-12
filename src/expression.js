@@ -1,9 +1,17 @@
+/* @flow */
 
-import Base from './util/base'
+import type { Path } from './util/path'
+
+export type Expression = {|
+  paths: Path[],
+  source: string,
+  begin: number,
+  end: number
+|}
+
 import { hasOwn } from './util/object'
 import { trim, chr } from './util/string'
-import { Array, Function, isFinite } from './util/global'
-import { indexOf, findIndex } from './util/array'
+import { indexOf, findIndex, map, range } from './util/array'
 
 /** used to match the first character of a javascript identifier or keyword */
 const passIdent = /[a-zA-Z_$]/
@@ -14,9 +22,6 @@ const matchIdent = /[a-zA-Z_$][\w$]*/g
 /** used mangle identifiers */
 const toIdent = index => chr(97 + index)
 
-/** used to skip unquoted object keys */
-const noIdent = /[^\w$]/g
-
 /** used to skip whitespace */
 const noWs = /\S/g
 
@@ -26,93 +31,71 @@ const noNum = /[^a-fox\d]/gi
 /** preserved keywords in expressions (operators and values only) */
 const keywords = 'false,in,instanceof,new,null,true,typeof,void'.split(',')
 
+/** used match the first character of a possibly forbidden operator */
+const beginOperator = '=+-*/|&^<!>'
+
+/** used to match javascript operators (debug) */
+const matchOperator = /[\+\-]{2}|[\+\-\*\/\^\&\|<%>]=|=>|={1,3}|!==?|<<=?|>>>?=?/g
+
+/** used to look up forbidden operators */
+const assignOperators = ['=', '++', '--', '+=', '-=', '*=', '/=', '|=', '&=', '^=', '%=', '<<=', '>>=', '>>>=']
+
 /* -----------------------------------------------------------------------------
- * expression parser/evaluator singleton
+ * expression scanner - 
  */
-export default Base.create.call({
+class Scanner {
 
-  brackets: []
- 
-, constructor () {
-    /** parser index */
+  /** parser index */
+  index: number
+
+  /** input source code */
+  input: string
+
+  /** input delimiter */
+  suffix: string
+
+  /** pending index used for buffering, copying parts from input to output */
+  anchor: number
+
+  /** used to keep track of brackets/braces/parentheses */
+  brackets: string[]
+
+  /** indicates whether the current identifier could be an object key */
+  maybeKey: boolean
+
+  /** result: array of key-chains being collected */
+  match: Expression
+
+  constructor () {
     this.index = 0
-
-    /** input source code */
     this.input = ''
-
-    /** input delimiter */
     this.suffix = ''
-
-    /** pending index used for buffering, copying parts from input to output */
     this.anchor = 0
-
-    /** used to keep track of brackets/braces/parentheses */
     this.brackets.length = 0
-
-    /** indicates whether the current identifier could be an object key */
     this.maybeKey = false
-
-    /** result: array of key-chains being collected */
-    this.paths = []
-
-    /** result: mangled output source */
-    this.output = ''
-  }
-
-, parse (input, delimiters) {
-    var [prefix, suffix] = delimiters || ['', '']
-      , begin = input.indexOf(prefix)
-      , expression
-    
-    if (begin < 0) return
-    
-    this.index = begin + prefix.length
-    this.input = input
-    this.suffix = suffix
-
-    this.dataState()
-
-    expression = {
-      paths: this.paths
-    , source: this.output
-    , begin
-    , end: this.index + suffix.length
+    this.match = {
+      paths: [],
+      source: '',
+      begin: 0,
+      end: 0
     }
-
-    this.constructor() // reset
-
-    return expression
-  }
-
-  /** @static */
-, evaluate (expression) {
-    var argc = expression.paths.length
-      , signature = Array(argc)
-
-    while (argc--) {
-      signature[argc] = toIdent(argc)
-    }
-
-    signature.push('return ' + expression.source)
-
-    return Function.apply(null, signature)
   }
 
   /* ---------------------------------------------------------------------------
    * parser utilities
    */
-, buffer () {
+  buffer () {
     this.anchor = this.index
   }
 
-, flush () {
+  flush () {
     if (this.anchor < this.index) {
-      this.output += this.input.substring(this.anchor, this.index)
+      this.match.source += this.input.substring(this.anchor, this.index)
       this.anchor = this.index
     }
   }
 
-, seek (regex, skip) {
+  seek (regex: RegExp, skip: boolean = false) {
     if (skip) this.index += 1
     regex.lastIndex = this.index
     const match = regex.exec(this.input)
@@ -127,7 +110,7 @@ export default Base.create.call({
     }
   }
 
-, seekEndOfString (quote) {
+  seekEndOfString (quote: string) {
     this.index += 1
 
     // skip empty string literal
@@ -146,7 +129,7 @@ export default Base.create.call({
     this.index += 1
   }
 
-, hasReachedSuffix () {
+  hasReachedSuffix () {
     return (
       this.suffix &&
       this.brackets.length === 0 &&
@@ -154,10 +137,10 @@ export default Base.create.call({
     )
   }
 
-, addPath (path) {
-    var index = findIndex(this.paths, other => other.join() === path.join())
-    if (index < 0) index = this.paths.push(path) - 1
-    this.output += toIdent(index)
+  addPath (path: Path) {
+    var index = findIndex(this.match.paths, other => other.join() === path.join())
+    if (index < 0) index = this.match.paths.push(path) - 1
+    this.match.source += toIdent(index)
   }
 
   /* ---------------------------------------------------------------------------
@@ -173,7 +156,7 @@ export default Base.create.call({
    * - dotState
    * - [debugState]
    */
-, dataState () {
+  dataState () {
     var length = this.input.length
       , index, chr
 
@@ -214,9 +197,8 @@ export default Base.create.call({
       else if (chr === '.') {
         this.dotState()
       }
-      else if (DEBUG) {
-        // not on prototype for dead-code removal
-        debugState.call(this, chr)
+      else {
+        this.checkState(chr)
       }
 
       // ensure increment
@@ -226,18 +208,21 @@ export default Base.create.call({
     this.flush()
   }
 
-, slashState () {
+  slashState () {
     var chr = this.input.charAt(++this.index)
 
     if (chr === '/' || chr === '*') {
-      if (DEBUG) throw new Error('comments not allowed')
+      throw new Error('comments not allowed')
     }
     else if (chr === '=') {
-      if (DEBUG) throw new Error('assignments not allowed')  
+      throw new Error('assignments not allowed')  
+    }
+    else {
+      throw new Error('divisions cannot be distinguished from ')
     }
   }
 
-, identState () {
+  identState () {
     const ident = this.seek(matchIdent)
 
     if (this.maybeKey && this.brackets[0] === '{') {
@@ -245,7 +230,7 @@ export default Base.create.call({
       this.flush()
       
       if (this.seek(noWs) !== ':') {
-        this.output += ':'
+        this.match.source += ':'
         this.addPath( [ident] )
       }
     }
@@ -260,7 +245,7 @@ export default Base.create.call({
     }
   }
 
-, pathState (path) {
+  pathState (path: Path) {
     var length = this.input.length
       , chr
 
@@ -293,7 +278,7 @@ export default Base.create.call({
     this.flush()
   }
 
-, dotState (path) {
+  dotState (path?: Path) {
     var chr = this.seek(noWs, true)
       , ident
 
@@ -303,7 +288,7 @@ export default Base.create.call({
       if (path) path.push(ident)
     }
     else if (!isFinite(chr)) { // never whitespace
-      if (DEBUG) throw new Error('missing name after dot operator')
+      throw new Error('missing name after dot operator')
     }
   }
 
@@ -311,7 +296,7 @@ export default Base.create.call({
    * returns true if the enclosed expression is dynamic
    * i.e. cannot be statically resolved
    */
-, bracketOpenState (path) {
+  bracketOpenState (path: Path) {
     var chr = this.seek(noWs, true)
       , begin, ident
 
@@ -328,12 +313,12 @@ export default Base.create.call({
       this.seek(noNum, true)
       
       ident = this.input.substring(begin, this.index)
-      path.push(+ident) // coarse number
+      path.push(ident)
       
       return this.bracketCloseState(path)
     }
     else if (!chr) {
-      if (DEBUG) throw new Error('expected expression, got end of script')
+      throw new Error('expected expression, got end of script')
     }
     // do not support keyword values as accessors (true, false, null, etc.)
 
@@ -344,11 +329,11 @@ export default Base.create.call({
    * returns true if the enclosed expression is dynamic
    * i.e. cannot be statically resolved
    */
-, bracketCloseState (path) {
+  bracketCloseState (path: Path) {
     var chr = this.seek(noWs)
 
     if (!chr) {
-      if (DEBUG) throw new Error('expected expression, got end of script')
+      throw new Error('expected expression, got end of script')
     }
     else if (chr === ']') {
       this.index += 1
@@ -359,38 +344,56 @@ export default Base.create.call({
       return true
     }
   }
-})
 
-/** used match the first character of a possibly forbidden operator */
-const beginOperator = '=+-*/|&^<!>'
+  checkState (chr: string) {
+    if (chr === ';') {
+      throw new Error('statements are not allowed')
+    }
+    else if (beginOperator.indexOf(chr) > -1) {
+      matchOperator.lastIndex = this.index
+      var match = matchOperator.exec(this.input)
 
-/** used to match javascript operators (debug) */
-const matchOperator = /[\+\-]{2}|[\+\-\*\/\^\&\|<%>]=|=>|={1,3}|!==?|<<=?|>>>?=?/g
+      if (match && match.index === this.index) {
+        var operator = match[0]
 
-/** used to look up forbidden operators */
-const assignOperators = ['=', '++', '--', '+=', '-=', '*=', '/=', '|=', '&=', '^=', '%=', '<<=', '>>=', '>>>=']
-
-function debugState (chr) {
-  if (chr === ';') {
-    throw new Error('statements are not allowed')
-  }
-  else if (beginOperator.indexOf(chr) > -1) {
-    matchOperator.lastIndex = this.index
-    var match = matchOperator.exec(this.input)
-
-    if (match && match.index === this.index) {
-      var operator = match[0]
-
-      if (operator === '=>') {
-        throw new Error('arrow operator not supported')
-      }
-      else if (indexOf(assignOperators, operator) > -1) {
-        throw new Error('assignments are not allowed')
-      }
-      else {
-        // case: <<, >>, >>>, <=, >=, ==, !=, ===, !==
-        this.index += operator.length
+        if (operator === '=>') {
+          throw new Error('arrow operator not supported')
+        }
+        else if (indexOf(assignOperators, operator) > -1) {
+          throw new Error('assignments are not allowed')
+        }
+        else {
+          // case: <<, >>, >>>, <=, >=, ==, !=, ===, !==
+          this.index += operator.length
+        }
       }
     }
   }
+}
+
+export function evaluate (match: Expression): Function {
+  const signature = map(range(match.paths.length), toIdent)
+  signature.push('return ' + match.source)
+  // flowignore: await constructor type definition
+  return Function.apply(null, signature)
+}
+
+export function scan (input: string, delimiters?: [string, string]): ?Expression {
+  const [prefix, suffix] = delimiters || ['', '']
+  const begin = input.indexOf(prefix)
+  
+  if (begin < 0) return null
+
+  const scanner = new Scanner()
+  
+  scanner.index = begin + prefix.length
+  scanner.input = input
+  scanner.suffix = suffix
+
+  scanner.dataState()
+
+  scanner.match.begin = begin
+  scanner.match.end = scanner.index + suffix.length
+
+  return scanner.match
 }

@@ -1,3 +1,4 @@
+/* @flow */
 
 import { extend, create } from './object'
 

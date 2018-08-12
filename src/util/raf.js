@@ -9,7 +9,7 @@ const scheduleFlush = MutationObserver
   ? useMutationObserver(flush)
   : useSetTimeout(flush)
 
-export default function asap (func, payload) {
+export default function asap (func: function, payload: any) {
   const length = queue.push( { func, payload } )
   
   if (length === 1) {
@@ -40,6 +40,6 @@ function useMutationObserver (flush) {
   observer.observe(node, { characterData: true })
 
   return function () {
-    node.data = (swap = -swap)
+    node.data = String(swap = -swap)
   }
 }

@@ -1,5 +1,6 @@
+/* @flow */
 
-import { idNative } from './util/type'
+import { isNative } from './util/type'
 import { document } from './util/global'
 
 export const ELEMENT_NODE = 1
@@ -19,96 +20,93 @@ const reTrimRight = /[ \t\n\f]+$/
 /**
  * trim html - does not consider &nbsp; as whitespace
  */
-export function trim (html) {
-  return html.replace(reTrimLeft, '')
-             .replace(reTrimRight, '')
+export function trim (html: string) {
+  return html.replace(reTrimLeft, '').replace(reTrimRight, '')
 }
 
 /**
  * detect empty text-nodes
  */
-export function isEmptyText (textNode) {
+export function isEmptyText (textNode: Text) {
   return !passNotEmpty.test(textNode.nodeValue)
 }
 
-export function isTextBoundary (node) {
+export function isTextBoundary (node?: Node) {
   return !node || node.nodeType !== TEXT_NODE
 }
 
 /* -----------------------------------------------------------------------------
  * query
  */
-export const getNodeName = document.createElement('custom').nodeName !== 'CUSTOM'
+export const getNodeName: Element => string = document.createElement('custom').nodeName !== 'CUSTOM'
   ? node => node.nodeName.toUpperCase()
   : node => node.nodeName
 
 /* -----------------------------------------------------------------------------
  * create
  */
-export function TextNode (text) {
+export function TextNode (text: string): Text {
   return document.createTextNode(text)
 }
 
-export function Fragment (node) {
-  if (node && node.nodeType === FRAGMENT_NODE) return node
+export function Fragment (node?: Node): DocumentFragment {
   const frag = document.createDocumentFragment()
   if (node) frag.appendChild(node)
   return frag
 }
 
-export function MountNode (type) {
+export function MountNode (type: string): Comment {
   return document.createComment(type)
 }
 
-export function isMountNode (node, type) {
+export function isMountNode (node: Node & { data?: string }, type: string) {
   return node.nodeType === COMMENT_NODE && node.data === type
 }
 
 /* -----------------------------------------------------------------------------
  * mutate
  */
-export function replaceNode (prev, next) {
+export function replaceNode (prev: Node, next: Node) {
+  console.assert(prev.parentNode, 'cannot remove root node')
+  // flowignore: wait for assertion refinements
   prev.parentNode.replaceChild(next, prev)
   return next
 }
 
-export function removeNode (node) {
+export function removeNode (node: Node) {
+  console.assert(node.parentNode, 'cannot remove root node')
+  // flowignore: wait for assertion refinements
   return node.parentNode.removeChild(node)
 }
 
-export function removeAttr (node, name) {
+export function removeAttr (node: Element, name: string) {
   node.removeAttribute(name)
 }
 
-const RangeSingleton = idNative(document.createRange) && document.createRange()
-
-export function extractContents (node) {
-  var firstChild = node.firstChild
-    , childNodes
-
-  if (firstChild) {
-
-    if (firstChild === node.lastChild) {
-      childNodes = node.removeChild(firstChild)
-    }
-    // thx: https://stackoverflow.com/a/22966637
-    else if (RangeSingleton) {
-      RangeSingleton.selectNodeContents(node)
-      childNodes = RangeSingleton.extractContents()
-      RangeSingleton.detach() // JIT: free resources (legacy)
-    }
-    else {
-      childNodes = Fragment()
-
-      do childNodes.appendChild( node.removeChild(firstChild) )
-      while ( firstChild = node.firstChild );
-    }
-  }
-
-  return childNodes
+/** see: https://stackoverflow.com/a/22966637 */
+function nativeExtractContents (node: Node): DocumentFragment {
+  const range = document.createRange()
+  range.selectNodeContents(node)
+  const frag = range.extractContents()
+  range.detach() // JIT: legacy cleanup
+  return frag
 }
+
+function customExtractContents (node: Node): DocumentFragment {
+  const frag = Fragment()
+  while (node.firstChild) {
+    frag.appendChild(node.removeChild(node.firstChild))
+  }
+  return frag
+}
+
+export const extractContents = isNative(document.createRange)
+  ? nativeExtractContents
+  : customExtractContents
 
 /* -----------------------------------------------------------------------------
  * clone
  */
-export function clone (node) { return node.cloneNode(true) }
+export function clone (node: Node) {
+  return node.cloneNode(true)
+}

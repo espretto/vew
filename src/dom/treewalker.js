@@ -1,5 +1,5 @@
+/* @flow */
 
-import Base from '../util/base'
 import { FRAGMENT_NODE } from '../dom'
 
 /**
@@ -14,44 +14,43 @@ import { FRAGMENT_NODE } from '../dom'
  * - fork native TreeWalker implementation
  * - make it a singleton i.e. implement the stash interface
  */
-export default Base.derive({
 
-  constructor () {
-    this.node = null
-  }
+class Walker {
 
-, seed (node) {
+  node: Node
+
+  constructor (node: Node) {
     if (node.nodeType === FRAGMENT_NODE) {
-      node = node.firstChild
+      if (node.firstChild) this.node = node.firstChild
+      else throw new Error('cannot walk an empty fragment')
     }
-    
-    return (this.node = node)
-  }
-
-, next () {
-    var node = this.node
-      , next = node.firstChild
-
-    if (!next) {
-      while (
-        (next = node.nextSibling) === null &&
-        (node = node.parentNode)
-      );
+    else {
+      this.node = node
     }
-  
-    return (this.node = next)
   }
 
-, prev () {
-    var node = this.node
-      , prev = node.previousSibling || node.parentNode
+  next () {
+    let node = this.node
+    let next = node.firstChild
     
-    return (this.node = prev)
+    if (next) return next
+
+    do next = node.nextSibling
+    while (!next && (node = node.parentNode));
+    
+    if (next) this.node = next
+  
+    return next
+  }
+
+  prev () {
+    const prev = this.node.previousSibling || this.node.parentNode
+    if (prev) this.node = prev
+    return prev
   }
   
-, path () {
-    var path = [] // note: path is reversed
-      , prev, node, nodeIndex
+  path (): number[] {
+    var path = [], prev, node, nodeIndex
      
     for (node = this.node; node; node = node.parentNode) {
       
@@ -67,22 +66,24 @@ export default Base.derive({
     return path
   }
 
-  /** @static */
-, resolve (node, path) {
+  static resolve (node: Node, path: number[]) {
     var len = path.length
       , i = -1
       , nodeIndex
 
     while (++i < len) {
+      // flowignore
       node = node.firstChild
       nodeIndex = path[i]
 
       while (nodeIndex--) {
+        // flowignore
         node = node.nextSibling
       }
     }
 
     return node
   }
-})
+}
 
+export default Walker

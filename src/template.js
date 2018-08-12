@@ -1,7 +1,9 @@
+/* @flow */
 
-import Base from './util/base'
+import type { Expression } from './expression'
+
 import Registry from './registry'
-import Expression from './expression'
+import { scan } from './expression'
 import HTML from './dom/html'
 import TreeWalker from './dom/treewalker'
 import { isObject } from './util/type'
@@ -33,7 +35,7 @@ const SLOT_NODENAME = 'SLOT'
 const SLOT_DEFAULT_NAME = 'content'
 const COMPONENT_NODENAME = 'COMPONENT'
 
-const Template = Base.derive({
+class Template {
 
   constructor (html, isComponent) {
     this.mutators = []
@@ -54,7 +56,7 @@ const Template = Base.derive({
    *     - slotState
    *     - attributeState
    */
-, templateState () {
+  templateState () {
     var tw = TreeWalker.create()
       , node = tw.seed(this.template)
 
@@ -65,8 +67,7 @@ const Template = Base.derive({
       }
     }
   }
-
-, textNodeState (tw) {
+  textNodeState (tw) {
     var node = tw.node
       , value = node.nodeValue
       , expression
@@ -108,8 +109,7 @@ const Template = Base.derive({
       // leave the off-split to the next iteration
     }
   }
-
-, elementState (tw) {
+  elementState (tw) {
     var node = tw.node
       , nodeName = getNodeName(node)
       , component
@@ -137,8 +137,7 @@ const Template = Base.derive({
       }
     }
   }
-
-, componentState (tw, tag, inset) {
+  componentState (tw, tag, inset) {
     var root = tw.node
       , node = root.firstChild
       , slots = {}
@@ -180,8 +179,7 @@ const Template = Base.derive({
     return { tag, slots, inset: !!inset, target: tw.path() }
   }
 
-
-, slotState (tw) {
+  slotState (tw) {
     var node = tw.node
       , slotName = node.getAttribute(ATTR_NAME) || SLOT_DEFAULT_NAME
       , contents = extractContents(node)
@@ -191,8 +189,7 @@ const Template = Base.derive({
     , default: contents ? Template.create(contents) : undefined
     }
   }
-
-, attributeState (tw, attr, component) {
+  attributeState (tw, attr, component) {
     var node = tw.node
       , target = tw.path()
       , attrName = attr.nodeName
@@ -283,7 +280,7 @@ const Template = Base.derive({
     // whether or not the component is subject to control-flow
     return component && !node.parentNode
   }
-})
+}
 
 export default Template
 

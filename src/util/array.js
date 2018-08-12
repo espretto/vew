@@ -1,6 +1,6 @@
+/* @flow */
 
-import { idNative } from './type'
-import { Error, Array } from './global'
+import { isNative, isUndefined } from './type'
 
 /* -----------------------------------------------------------------------------
  * array extras
@@ -14,28 +14,33 @@ import { Error, Array } from './global'
  * - do support offsets for find and findIndex
  */
 
-export const toArray = idNative(Array.from) || function (countable) {
-  var i = countable.length
-    , array = Array(i)
+const nativeFrom = Array.from
 
-  while (i--) {
+function customFrom <T> (countable: { length: number }): Array<T> {
+  var len = countable.length
+    , i = -1
+    , array = new Array<T>(len)
+
+  while (++i < len) {
     array[i] = countable[i]
   }
 
   return array
-}
+} 
 
-export function last (array) {
+export const toArray = isNative(nativeFrom) ? nativeFrom : customFrom
+
+export function last <T> (array: T[]): T {
   return array[array.length-1]
 }
 
-export function remove (array, item) {
+export function remove <T> (array: T[], item: T): number {
   var i = indexOf(array, item)
   if (i > -1) removeAt(array, i)
   return i
 }
 
-export function removeAt (array, i) {
+export function removeAt (array: any[], i: number): void {
   var len = array.length - 1
 
   while (i < len) {
@@ -45,7 +50,7 @@ export function removeAt (array, i) {
   array.length = len
 }
 
-export function insertAt (array, i, item) {
+export function insertAt <T> (array: T[], i: number, item: T): void {
   var len = array.length++
 
   while (i < len) {
@@ -55,9 +60,9 @@ export function insertAt (array, i, item) {
   array[i] = item
 }
 
-export function indexOf (array, item, off) {
+export function indexOf <T> (array: T[], item: T, offset: number = 0): number {
   var len = array.length
-    , i = +off || 0
+    , i = offset
 
   for (; i < len; ++i) {
     if (array[i] === item) {
@@ -68,10 +73,8 @@ export function indexOf (array, item, off) {
   return -1
 }
 
-export function lastIndexOf (array, item, i) {
-  i = (i = +i) === i ? ++i : array.length
-
-  while (i-- > 0) {
+export function lastIndexOf <T> (array: T[], item: T, i: number = array.length-1): number {
+  for (;i >= 0; i--) {
     if (array[i] === item) {
       break
     }
@@ -84,7 +87,7 @@ export function lastIndexOf (array, item, i) {
  * @return {number} the lowest index in `array` at which to insert `item`
  *                  ranked by the `key` function
  */
-export function sortedIndexBy (array, item, key) {
+export function sortedIndexBy <T, U> (array: T[], item: T, key: Function): number {
   var lo = 0
     , hi = array.length
     , search = key(item)
@@ -104,11 +107,11 @@ export function sortedIndexBy (array, item, key) {
   return search === value ? hi : ~hi
 }
 
-export function includes (array, item) {
+export function includes <T> (array: T[], item: T): boolean {
   return indexOf(array, item) !== -1
 }
 
-export function forEach (array, func) {
+export function forEach <T> (array: T[], func: (T, number) => ?boolean): void {
   var len = array.length
     , i = -1
 
@@ -119,7 +122,7 @@ export function forEach (array, func) {
   }
 }
 
-export function some (array, func) {
+export function some <T> (array: T[], func: (T, number) => boolean): boolean {
   var len = array.length
     , i = -1
 
@@ -132,7 +135,7 @@ export function some (array, func) {
   return false
 }
 
-export function every (array, func) {
+export function every <T> (array: T[], func: (T, number) => boolean): boolean {
   var len = array.length
     , i = -1
 
@@ -145,7 +148,7 @@ export function every (array, func) {
   return true
 }
 
-export function map (array, func) {
+export function map <T, U> (array: T[], func: (T, number) => U): U[] {
   var len = array.length
     , i = -1
     , mapped = Array(len)
@@ -157,20 +160,7 @@ export function map (array, func) {
   return mapped
 }
 
-export function mapTo (trg, src, off, func) {
-  var len = src.length
-    , i = -1
-
-  trg.length = off + len // alloc or free
-
-  while (++i < len) {
-    trg[off++] = src[i]
-  }
-
-  return trg
-}
-
-export function filter (array, func) {
+export function filter <T> (array: T[], func: (T, number) => boolean): T[] {
   var len = array.length
     , i = -1
     , item
@@ -188,12 +178,12 @@ export function filter (array, func) {
   return filtered
 }
 
-export function reduce (array, func) {
+export function reduce <T> (array: T[], func: (T, T, number) => T): T {
   var len = array.length
     , i = 0
     , aggr = array[i]
 
-  if (DEBUG && array.length < 2) {
+  if (array.length < 2) {
     throw new Error('reduce of empty array with no initial value')
   }
 
@@ -204,7 +194,7 @@ export function reduce (array, func) {
   return aggr
 }
 
-export function fold (array, aggr, func) {
+export function fold <T, U> (array: T[], aggr: U, func: (U, T, number) => U): U {
   var len = array.length
     , i = -1
 
@@ -215,11 +205,11 @@ export function fold (array, aggr, func) {
   return aggr
 }
 
-export function reduceRight (array, func) {
+export function reduceRight <T> (array: T[], func: (T, T, number) => T): T {
   var i = array.length
     , aggr = array[--i]
 
-  if (DEBUG && array.length < 2) {
+  if (array.length < 2) {
     throw new Error('reduce of empty array with no initial value')
   }
 
@@ -230,7 +220,7 @@ export function reduceRight (array, func) {
   return aggr
 }
 
-export function foldRight (array, aggr, func) {
+export function foldRight <T, U> (array: T[], aggr: U, func: (T, U, number) => U): U {
   var i = array.length
 
   while (i--) {
@@ -240,20 +230,22 @@ export function foldRight (array, aggr, func) {
   return aggr
 }
 
-export function find (array, func, off) {
+export function find <T> (array: T[], func: (T, number) => boolean, offset: number = 0): T|null {
   var len = array.length
-    , i = +off || 0
+    , i = offset
 
   for (; i < len; ++i) {
     if (func(array[i], i)) {
       return array[i]
     }
   }
+
+  return null
 }
 
-export function findIndex (array, func, off) {
+export function findIndex <T> (array: T[], func: (T, number) => boolean, offset: number = 0): number {
   var len = array.length
-    , i = +off || 0
+    , i = offset
 
   for (; i < len; ++i) {
     if (func(array[i], i)) {
@@ -267,11 +259,11 @@ export function findIndex (array, func, off) {
 /**
  * zip-style forEach
  */
-export function forBoth (array, brray, func) {
+export function forBoth <T, U> (array: T[], brray: U[], func: (T, U, number) => ?boolean) {
   var len = array.length
     , i = -1
 
-  if (DEBUG && len !== brray.length) {
+  if (len !== brray.length) {
     throw new Error('arrays must be of equal size')
   }
 
@@ -285,7 +277,7 @@ export function forBoth (array, brray, func) {
 /**
  * mutating version of native Array#concat
  */
-export function append (trg, src) {
+export function append <T> (trg: T[], src: T[]): T[] {
   var off = trg.length
     , len = src.length
     , i = -1
@@ -299,16 +291,16 @@ export function append (trg, src) {
   return trg
 }
 
-export function range (begin, step, end) {
+export function range (begin: number, step?: number, end?: number) {
   var result = []
     , i = -1
 
-  if (step === undefined) {
+  if (isUndefined(step)) {
     end = begin
     step = 1
     begin = 0
   }
-  else if (end === undefined) {
+  else if (isUndefined(end)) {
     end = step
     step = 1
   }

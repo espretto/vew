@@ -1,5 +1,7 @@
 {
   "plugins": [
+    "transform-flow-strip-types",
+    
     ["transform-es2015-template-literals", { "loose": false, "spec": false }],
     "transform-es2015-literals",
     "transform-es2015-function-name",
@@ -11,29 +13,31 @@
     ["transform-es2015-spread", { "loose": false }],
     "transform-es2015-parameters",
     ["transform-es2015-destructuring", { "loose": true }],
-    "transform-es2015-block-scoping"
+    "transform-es2015-block-scoping",
+    
+    "transform-class"
   ],
   
   "env": {
     "development": {},
     "production": {}
   },
-
+  
   "comments": {
     "env": {
-    	"development": {
-	      "plugins": [
-	        ["transform-es2015-modules-commonjs", { "loose": false }]
+      "development": {
+        "plugins": [
+          ["transform-es2015-modules-commonjs", { "loose": false }]
 	      ]
     	}
     },
     "plugins": [
+      ["transform-es2015-classes", { "loose": false }],
     	"transform-es2015-sticky-regex",
     	"transform-hoist-nested-functions",
     	"transform-es2015-unicode-regex",
     	["transform-es2015-computed-properties", { "loose": false }],
       ["transform-es2015-for-of", { "loose": false }],
-      ["transform-es2015-classes", { "loose": false }],
       "transform-es2015-object-super",
       "transform-es2015-typeof-symbol",
       ["transform-es2015-modules-systemjs", { "loose": false }],

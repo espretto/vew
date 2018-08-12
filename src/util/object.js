@@ -1,28 +1,30 @@
+/* @flow */
 
-import { Object, ObjectProto } from './global'
 import { thisify } from './function'
-import { idNative } from './type'
+import { isNative } from './type'
 import { append, filter, forEach, some } from './array'
 
-const hasEnumBug = !({ valueOf: null }).propertyIsEnumerable('valueOf')
+const hasEnumBug = !({ VueOf: null }).propertyIsEnumerable('VueOf')
 
 /**
  * hasOwn
  */
-export const hasOwn = ObjectProto.hasOwnProperty
+export const hasOwn = Object.prototype.hasOwnProperty
 
 /**
  * keys
  */
+const nativeKeys = Object.keys
+
 const brokenKeys = 'constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf'.split(',')
 
-function ownKeys (object) {
+function ownKeys (obj: Object) {
   var _hasOwn = hasOwn // JIT: lift to loop
     , keys = []
     , i = -1
 
-  for (var key in object) {
-    if (_hasOwn.call(object, key)) {
+  for (var key in obj) {
+    if (_hasOwn.call(obj, key)) {
       keys[++i] = key
     }
   }
@@ -30,20 +32,23 @@ function ownKeys (object) {
   return keys
 }
 
-function safeKeys (object) {
-  return append(ownKeys(object), filter(brokenKeys, thisify(hasOwn, object, 1)))
+function safeKeys (obj: Object) {
+  return append(ownKeys(obj), filter(brokenKeys, thisify(hasOwn, obj, 1)))
 }
 
-export const keys = idNative(Object.keys) || (hasEnumBug ? safeKeys : ownKeys)
+export const keys: Object => string[] =
+  isNative(nativeKeys) ? nativeKeys :
+  hasEnumBug           ? safeKeys   :
+                         ownKeys
 
 /**
  * isEmptyObject
  */
-function isOwnEmptyObject (object) {
+function isOwnEmptyObject (obj: Object) {
   const _hasOwn = hasOwn
 
-  for (var key in object) {
-    if (_hasOwn.call(object, key)) {
+  for (var key in obj) {
+    if (_hasOwn.call(obj, key)) {
       return false
     }
   }
@@ -51,50 +56,64 @@ function isOwnEmptyObject (object) {
   return true
 }
 
-function isSafeEmptyObject (object) {
-  return isOwnEmptyObject(object) && !some(brokenKeys, thisify(hasOwn, object, 1))
+function isSafeEmptyObject (obj: Object) {
+  return isOwnEmptyObject(obj) && !some(brokenKeys, thisify(hasOwn, obj, 1))
 }
 
 export const isEmptyObject = hasEnumBug ? isSafeEmptyObject : isOwnEmptyObject
 
 /**
+ * get
+ */
+export function get (obj: any, key: string|number) {
+  return obj[key]
+}
+
+/**
  * getOwn
  */
-export function getOwn (object, key, alt) {
-  return hasOwn.call(object, key) ? object[key] : alt
+export function getOwn <T, U: {[key: string]: T}> (obj: U, key: string, alt: T): T {
+  return hasOwn.call(obj, key) ? obj[key] : alt
 }
 
 /**
  * forOwn
  */
-export function forOwn (object, func) {
-  forEach(keys(object), key => func(object[key], key))
+export function forOwn <T, U: {[key: string]: T}> (obj: U, func: (T, string) => ?boolean) {
+  forEach(keys(obj), key => func(obj[key], key))
 }
 
 /**
  * extend
  */
-export const extend = idNative(Object.assign) || function (trg, src) {
-  if (src != null) forEach(keys(src), key => { trg[key] = src[key] })
+const nativeAssign = Object.assign
+
+function customExtend (trg: Object, src: Object) {
+  forOwn(src, (val, key) => { trg[key] = val })
   return trg
 }
+
+export const extend = isNative(nativeAssign) ? nativeAssign : customExtend
 
 /**
  * create
  */
+const nativeCreate = Object.create
+
 function Null () {}
 
-export const create = idNative(Object.create) || function (proto) {
+function customCreate (proto: Object|null) {
   Null.prototype = proto
   const instance = new Null()
   Null.prototype = null
-  
   return instance
 }
 
+export const create = isNative(nativeCreate) ? nativeCreate : customCreate
+
 /**
- * deleteValue
+ * deleteVue
  */
-export function deleteValue (object, value) {
-  return some(keys(object), key => object[key] === value && delete object[key])
+export function deleteValue <T, U: {[key: string]: T}> (obj: U, val: T) {
+  return some(keys(obj), key => obj[key] === val && delete obj[key])
 }
