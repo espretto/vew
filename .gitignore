@@ -24,3 +24,6 @@ _*.js
 
 # editor
 .vscode
+
+# flow type definition files
+flow-typed
