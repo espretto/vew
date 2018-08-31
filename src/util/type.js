@@ -1,8 +1,20 @@
 /* @flow */
 
+export const objectProto = Object.prototype
+export const stringProto = String.prototype
+// flowignore
+export const arrayProto = Array.prototype
+export const dateProto = Date.prototype
+
+type Prototype = 
+    typeof objectProto
+  | typeof stringProto
+  | typeof arrayProto
+  | typeof dateProto
+
 const objectTypes: { [type: string]: boolean } = { 'object': true, 'function': true }
 
-const getTag = Object.prototype.toString
+const getTag = objectProto.toString
 
 const arrayTag = '[object Array]'
 
@@ -34,11 +46,11 @@ export function isUndefined (any: mixed): %checks {
 /**
  * isFunction
  */
-function nativeIsFunction (any: mixed): %checks {
+function nativeIsFunction (any: mixed): boolean %checks {
   return typeof any === 'function'
 }
 
-function customIsFunction (any: mixed): %checks {
+function customIsFunction (any: mixed): boolean %checks {
   return nativeIsFunction(any) && getTag.call(any) === funcTag
 }
 
@@ -47,9 +59,9 @@ export const isFunction = nativeIsFunction(/re/) ? customIsFunction : nativeIsFu
 /**
  * idNative
  */
-export function isNative (func: Function): %checks {
-  // flowignore: in-operator only alllowed on object|array
-  return isFunction(func) && !('prototype' in func)
+export function isNative (func: Function): boolean %checks {
+  // cast to allow in-operator
+  return isFunction(func) && !('prototype' in (func: Object))
 }
 
 /**
@@ -57,20 +69,16 @@ export function isNative (func: Function): %checks {
  */
 const nativeIsArray = Array.isArray
 
-function customIsArray (obj: any): boolean %checks {
+function customIsArray (obj: mixed): boolean %checks {
   return isObject(obj) && getTag.call(obj) === arrayTag
 }
 
-export const isArray = nativeIsArray
-// isNative(nativeIsArray)
-//   ? nativeIsArray
-//   // flowignore: hide customIsArray type
-//   : customIsArray
+export const isArray = isNative(nativeIsArray) ? nativeIsArray : customIsArray
 
 /**
  * isDate
  */
-export function isDate (any: mixed): %checks {
+export function isDate (any: mixed): boolean %checks {
   return isObject(any) && getTag.call(any) === dateTag
 }
 
@@ -78,17 +86,16 @@ export function isDate (any: mixed): %checks {
  * protof
  */
 const nativePrototypeOf = Object.getPrototypeOf
-const customPrototypeOf: Object => {} = '__proto__' in objectTypes
-  ? instance => instance.__proto__
-  : instance => instance.constructor.prototype
+const customPrototypeOf = '__proto__' in objectTypes
+  ? instance => (instance: any).__proto__
+  : instance => (instance: any).constructor.prototype
 
-export const protof = isNative(nativePrototypeOf) ? nativePrototypeOf : customPrototypeOf
+export const protof: mixed => Prototype = isNative(nativePrototypeOf) ? nativePrototypeOf : customPrototypeOf
+
 
 /**
  * isPlainObject
  */
-const objectProto = protof({})
-
 export function isPlainObject (any: any): boolean %checks {
   return isObject(any) && protof(any) === objectProto
 }

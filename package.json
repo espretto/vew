@@ -10,6 +10,7 @@
   },
   "scripts": {
     "flow": "flow",
+    "flow-typed": "flow-typed",
     "test": "mocha-webpack --recursive --glob '*_test.js'",
     "gzip": "gzip -c dist/vew.min.js > dist/vew.min.js.gz",
     "minify": "uglifyjs dist/vew.js -c -m -d DEBUG=false -o dist/vew.min.js",
@@ -37,6 +38,7 @@
     "eslint": "^3.10.2",
     "file-loader": "^0.10.1",
     "flow-bin": "^0.78.0",
+    "flow-typed": "^2.5.1",
     "google-closure-compiler": "^20161024.3.0",
     "html-webpack-plugin": "^2.28.0",
     "mocha": "^3.2.0",

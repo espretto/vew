@@ -63,16 +63,9 @@ function isSafeEmptyObject (obj: Object) {
 export const isEmptyObject = hasEnumBug ? isSafeEmptyObject : isOwnEmptyObject
 
 /**
- * get
- */
-export function get (obj: any, key: string|number) {
-  return obj[key]
-}
-
-/**
  * getOwn
  */
-export function getOwn <T, U: {[key: string]: T}> (obj: U, key: string, alt: T): T {
+export function getOwn <T, U, V: { [key: U]: T }> (obj: V, key: U, alt: T): T {
   return hasOwn.call(obj, key) ? obj[key] : alt
 }
 
@@ -114,6 +107,11 @@ export const create = isNative(nativeCreate) ? nativeCreate : customCreate
 /**
  * deleteVue
  */
-export function deleteValue <T, U: {[key: string]: T}> (obj: U, val: T) {
-  return some(keys(obj), key => obj[key] === val && delete obj[key])
+export function deleteValue <T, U: { [key: string|number]: T }> (obj: U, val: T) {
+  for (let key in obj) {
+    if (obj[key] === val) {
+      return delete obj[key]
+    }
+  }
+  return false
 }

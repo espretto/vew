@@ -5,6 +5,7 @@ import type { Path } from './util/path'
 import { toPath, has } from './util/path'
 import { forEach, every, remove, fold } from './util/array'
 import { isString, isObject, isUndefined, protof } from './util/type'
+import { objectProto, stringProto, arrayProto, dateProto } from './util/type'
 import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue } from './util/object'
 
 class Scope {
@@ -28,28 +29,30 @@ class Scope {
     this.root.resolveOrCreate(toPath(path)).tasks.push(task)
   }
   
-  unsubscribe (path: string, task: Function) {
-    var sub = this.root.resolve(toPath(path))
+  unsubscribe (path: string|Path, task: Function) {
+    if (isString(path)) path = toPath(path)
+
+    var sub = this.root.resolve(path)
 
     remove(sub.tasks, task)
 
-    for (; sub; sub = sub.parent) {
-      if (sub.isEmpty()) {
-        sub.remove()
-      }
+    for (; sub && sub.isEmpty(); sub = sub.parentNode) {
+      sub.remove()
     }
   }
   
   resolve (path: string|Path) {
     if (isString(path)) path = toPath(path)
-    
+    // flowignore: await expression getters refactor !
     return fold(path, this.data, (obj, key) => obj[key])
   }
   
-  notify (sub: ?SubscriptionNode) {
-    for (; sub; sub = sub.parent) {
-      if (sub.tasks.length) {
-        this.dirty.add(sub)
+  notify (sub: SubscriptionNode) {
+    if (!this.dirty.has(sub)) {
+      this.dirty.add(sub)
+
+      if (sub.parentNode) {
+        this.notify(sub.parentNode)
       }
     }
   }
@@ -69,55 +72,35 @@ class Scope {
     this.dirty.clear()
   }
   
-  merge (/*[path,] src*/) {
-    
-    if (arguments.length < 2) {
-      var sub = this.root
-        , trg = this.data
-        , src = arguments[0]
-
-      this.data = isUndefined(trg)
-        ? this._mergeDeep(trg, src, sub)
-        : this._cloneDeep(src, sub)
-    }
-    else {
-      var path = toPath(arguments[0])
-        , sub = this.root.resolve(path)
-        , tail = path.pop() // [1]
-        , trg = this.resolve(path)
-        , src = arguments[1]
-
-      path.push(tail) // [1]
-
-      if (!isObject(trg)) {
-        throw new Error('cannot set property onto primitive value')
-      }
-
-      trg[tail] = has(trg, tail)
-        ? this._mergeDeep(trg[tail], src, sub)
-        : this._cloneDeep(src, sub)
-    }
+  merge (src: any) {
+    this.data = isUndefined(this.data)
+      ? this.cloneDeep(src, this.root)
+      : this.mergeDeep(this.data, src, this.root)
   }
   
-  _mergeDeep (trg, src, sub) {
+  mergeDeep (trg: any, src: any, sub: SubscriptionNode) {
 
     // merge mutables
-    if (isObject(trg) && isObject(src)) {
-      const trgProto = protof(trg)
-          , srcProto = protof(src)
-
-      if (trgProto === Array.prototype || trgProto === Object.prototype) {
-        if (srcProto === Array.prototype) {
-          return this._mergeArray(trg, src, sub, false)
-        }
-        else if (srcProto === Object.prototype) {
-          return this._mergeObject(trg, src, sub, false)
-        }
-      }
-      else if (trgProto === Date.prototype && srcProto === Date.prototype && +trg !== +src) {
-        trg.setTime(src)
-        this.notify(sub)
-        return trg
+    if (isObject(src)) {
+      const srcProto = protof(src)
+      console.assert(srcProto === protof(trg), 'type mismatch while merging')
+      
+      switch (srcProto) {
+        case arrayProto:
+          return this.mergeArray(trg, src, sub, false)
+        case objectProto:
+          return this.mergeObject(trg, src, sub, false)
+        case dateProto:
+          if (+src === +trg) {
+            return src
+          }
+          else {
+            trg.setTime(src)
+            this.notify(sub)
+            return trg
+          }
+        default:
+          console.assert(false, 'cannot merge type of', src)
       }
     }
 
@@ -129,53 +112,53 @@ class Scope {
     return src
   }
   
-  _cloneDeep (src, sub) {
+  cloneDeep (src: any, sub: SubscriptionNode) {
     this.notify(sub)
 
     if (isObject(src)) {
       switch (protof(src)) {
-        case ArrayProto:
-          return this._mergeArray(Array(src.length), src, sub, true)
-        case ObjectProto:
-          return this._mergeObject({}, src, sub, true)
-        case DateProto:
+        case arrayProto:
+          return this.mergeArray(new Array(src.length), src, sub, true)
+        case objectProto:
+          return this.mergeObject({}, src, sub, true)
+        case dateProto:
           return new Date(src)
         default:
-          throw new Error('cannot clone unknown, non-primitive value format\n\n' + JSON.stringify(src))  
+          console.assert(false, 'cannot clone type of', src)
       }
     }
 
     return src
   }
   
-  _mergeObject (trg, src, sub, clone) {
-    var children = sub.children
+  mergeObject (trg: any, src: any, sub: SubscriptionNode, clone: boolean) {
+    var childNodes = sub.childNodes
     
-    forOwn(src, (value, key) => {
-      var closest = getOwn(children, key, sub)
+    forOwn(src, (srcValue, srcKey) => {
+      var closest = getOwn(childNodes, srcKey, sub)
 
-      trg[key] = !clone && hasOwn.call(trg, key)
-        ? this._mergeDeep(trg[key], value, closest)
-        : this._cloneDeep(value, closest)
+      trg[srcKey] = !clone && hasOwn.call(trg, srcKey)
+        ? this.mergeDeep(trg[srcKey], srcValue, closest)
+        : this.cloneDeep(srcValue, closest)
     })
 
     return trg
   }
   
-  _mergeArray (trg, src, sub, clone) {
-    var children = sub.children
-      , length = trg.length
+  mergeArray (trg: Array<any>, src: Array<any>, sub: SubscriptionNode, clone: boolean) {
+    var childNodes = sub.childNodes
+      , trgLength = trg.length
 
-    forEach(src, (value, i) => {
-      var closest = getOwn(children, i, sub)
+    forEach(src, (srcValue, srcIndex) => {
+      var closest = getOwn(childNodes, srcIndex, sub)
 
-      trg[i] = !clone && i < length
-        ? this._mergeDeep(trg[i], value, closest)
-        : this._cloneDeep(value, closest)
+      trg[srcIndex] = !clone && srcIndex < trgLength
+        ? this.mergeDeep(trg[srcIndex], srcValue, closest)
+        : this.cloneDeep(srcValue, closest)
     })
 
-    if (length !== trg.length) {
-      this.notify(getOwn(children, 'length', sub))
+    if (trgLength !== trg.length) {
+      this.notify(getOwn(childNodes, 'length', sub))
     }
 
     return trg
@@ -193,29 +176,29 @@ class Scope {
 class SubscriptionNode {
 
   tasks: Function[]
-  parent: ?SubscriptionNode
-  children: { [key: string]: SubscriptionNode }
+  parentNode: ?SubscriptionNode
+  childNodes: { [pathSegment: string|number]: SubscriptionNode }
 
-  constructor (parent: ?SubscriptionNode) {
-    this.parent = parent
+  constructor (parentNode: ?SubscriptionNode) {
     this.tasks = []
-    this.children = {}
+    this.childNodes = {}
+    this.parentNode = parentNode
   }
   
   isEmpty () {
-    return !this.tasks.length && isEmptyObject(this.children)
+    return !this.tasks.length && isEmptyObject(this.childNodes)
   }
   
   remove () {
-    if (this.parent) deleteValue(this.parent.children, this)
+    if (this.parentNode) deleteValue(this.parentNode.childNodes, this)
   }
   
   resolve (path: Path) {
     var node = this
 
     every(path, key => {
-      var hasChild = hasOwn.call(node.children, key)
-      if (hasChild) node = node.children[key]
+      var hasChild = hasOwn.call(node.childNodes, key)
+      if (hasChild) node = node.childNodes[key]
       return hasChild
     })
 
@@ -224,13 +207,13 @@ class SubscriptionNode {
   
   resolveOrCreate (path: Path) {
     return fold(path, this, (node, key) => {
-      const children = node.children
+      const childNodes = node.childNodes
 
-      if (hasOwn.call(children, key)) {
-        return children[key]
+      if (hasOwn.call(childNodes, key)) {
+        return childNodes[key]
       }
       else {
-        return children[key] = new SubscriptionNode(node)
+        return childNodes[key] = new SubscriptionNode(node)
       }
     })
   }
