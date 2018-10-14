@@ -26,7 +26,7 @@ function customFrom <T> (countable: { length: number }): Array<T> {
   }
 
   return array
-} 
+}
 
 export const toArray = isNative(nativeFrom) ? nativeFrom : customFrom
 
@@ -87,7 +87,9 @@ export function lastIndexOf <T> (array: T[], item: T, i: number = array.length-1
  * @return {number} the lowest index in `array` at which to insert `item`
  *                  ranked by the `key` function
  */
-export function sortedIndexBy <T, U> (array: T[], item: T, key: Function): number {
+type Comparable = string|number
+
+export function sortedIndexBy <T> (array: T[], item: T, key: T => Comparable): number {
   var lo = 0
     , hi = array.length
     , search = key(item)
@@ -95,7 +97,8 @@ export function sortedIndexBy <T, U> (array: T[], item: T, key: Function): numbe
   while (lo < hi) {
     var mid = (lo + hi) >> 1 // Math.floor( (hi+lo) / 2 )
       , value = key(array[mid])
-    
+
+    // flowignore: search and value are both either string or number
     if (search < value) {
       lo = mid + 1
     }
