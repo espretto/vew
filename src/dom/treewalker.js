@@ -4,7 +4,7 @@ import { FRAGMENT_NODE } from '../dom'
 
 /**
  * alternative TreeWalker implementation
- * 
+ *
  * - does not support filters
  * - does not halt when revisiting the root node
  * - can produce and resolve node-paths as integer-arrays
@@ -32,14 +32,14 @@ class Walker {
   next () {
     let node = this.node
     let next = node.firstChild
-    
+
     if (next) return next
 
     do next = node.nextSibling
     while (!next && (node = node.parentNode));
-    
+
     if (next) this.node = next
-  
+
     return next
   }
 
@@ -48,37 +48,30 @@ class Walker {
     if (prev) this.node = prev
     return prev
   }
-  
+
   path (): number[] {
     var path = [], prev, node, nodeIndex
-     
+
     for (node = this.node; node; node = node.parentNode) {
-      
+
       for (nodeIndex = 0; prev = node.previousSibling; nodeIndex += 1) {
         node = prev
       }
-      
-      path.unshift(nodeIndex)
+
+      path.push(nodeIndex)
     }
-  
-    path.shift()
-  
+
+    path.pop()
+
     return path
   }
 
   static resolve (node: Node, path: number[]) {
-    var len = path.length
-      , i = -1
-      , nodeIndex
+    for (var depth = path.length; depth--;) {
+      node = ((node.firstChild: any): Node)
 
-    while (++i < len) {
-      // flowignore
-      node = node.firstChild
-      nodeIndex = path[i]
-
-      while (nodeIndex--) {
-        // flowignore
-        node = node.nextSibling
+      for (var width = path[depth]; width--;) {
+        node = ((node.nextSibling: any): Node)
       }
     }
 

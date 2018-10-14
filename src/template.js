@@ -42,13 +42,13 @@ class Template {
     this.components = []
     this.template = Fragment(HTML.parse(html))
     this.slots = isComponent ? {} : undefined
-    
+
     this.templateState()
   }
 
   /**
    * sequence diagram
-   * 
+   *
    * - templateState
    *   - textNodeState
    *   - elementState
@@ -92,7 +92,7 @@ class Template {
         tw.prev()
         removeNode(node)
       }
-      
+
       node = tw.next()
     }
 
@@ -122,7 +122,7 @@ class Template {
       this.componentState(tw, Expression.parse(node.getAttribute(ATTR_IS)))
     }
     else {
-      
+
       if (Registry.components.has(nodeName)) {
         component = this.componentState(tw, nodeName)
       }
@@ -131,7 +131,7 @@ class Template {
         startsWith(attr.nodeName, ATTR_PREFIX) &&
         this.attributeState(tw, attr, component)
       )
-      
+
       if (component && !isControlled) {
         this.components.push(component)
       }

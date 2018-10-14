@@ -23,20 +23,13 @@ const reUnescapeQuotes = /\\('|")/g
 const reCaptureKeys = /\[('|")((?:\\\1|[^\1])*)\1\]|\[(\d+)|(?:^|\.)([^\.\[]*)/g
 
 export function toPath (path: string|Path): Path {
-  
-  if (!isString(path)) {
-    return path
-  }
-  if (!path) {
-    return []
-  }
-  else if (path.indexOf('[') < 0) {
-    return path.split('.')
-  }
-  
-  var keys = []
+  if (!isString(path)) return path
+  if (!path) return []
+  if (path.indexOf('[') < 0) return path.split('.')
 
-  path.replace(reCaptureKeys, function (match, quote: string, quoted: string, index: string, key: string) {
+  const keys = []
+
+  path.replace(reCaptureKeys, function (match, quote, quoted, index, key) {
     keys.push(
       quote ? quoted.replace(reUnescapeQuotes, '$1') :
       index ? index : key

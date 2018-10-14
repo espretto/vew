@@ -38,10 +38,10 @@ const beginOperator = '=+-*/|&^<!>'
 const matchOperator = /[\+\-]{2}|[\+\-\*\/\^\&\|<%>]=|=>|={1,3}|!==?|<<=?|>>>?=?/g
 
 /** used to look up forbidden operators */
-const assignOperators = ['=', '++', '--', '+=', '-=', '*=', '/=', '|=', '&=', '^=', '%=', '<<=', '>>=', '>>>=']
+const assignOperators = '=,++,--,+=,-=,*=,/=,|=,&=,^=,%=,<<=,>>=,>>>='.split(',')
 
 /* -----------------------------------------------------------------------------
- * expression scanner - 
+ * expression scanner
  */
 class Scanner {
 
@@ -115,7 +115,7 @@ class Scanner {
 
     // skip empty string literal
     if (this.input.charAt(this.index) !== quote) {
-      
+
       // seek unescaped quote
       do this.index = this.input.indexOf(quote, this.index)
       while (this.input.charAt(this.index - 1) === '\\' && ++this.index)
@@ -215,7 +215,7 @@ class Scanner {
       throw new Error('comments not allowed')
     }
     else if (chr === '=') {
-      throw new Error('assignments not allowed')  
+      throw new Error('assignments not allowed')
     }
     else {
       throw new Error('divisions cannot be distinguished from ')
@@ -228,7 +228,7 @@ class Scanner {
     if (this.maybeKey && this.brackets[0] === '{') {
       this.index += ident.length
       this.flush()
-      
+
       if (this.seek(noWs) !== ':') {
         this.match.source += ':'
         this.addPath( [ident] )
@@ -304,17 +304,17 @@ class Scanner {
       begin = this.index
       this.seekEndOfString(chr)
       ident = this.input.substring(begin+1, this.index-1) // trim quotes
-      path.push(ident) 
-      
+      path.push(ident)
+
       return this.bracketCloseState(path)
     }
     else if (isFinite(chr)) { // never whitespace
       begin = this.index
       this.seek(noNum, true)
-      
+
       ident = this.input.substring(begin, this.index)
       path.push(ident)
-      
+
       return this.bracketCloseState(path)
     }
     else if (!chr) {
@@ -381,11 +381,11 @@ export function evaluate (match: Expression): Function {
 export function scan (input: string, delimiters?: [string, string]): ?Expression {
   const [prefix, suffix] = delimiters || ['', '']
   const begin = input.indexOf(prefix)
-  
+
   if (begin < 0) return null
 
   const scanner = new Scanner()
-  
+
   scanner.index = begin + prefix.length
   scanner.input = input
   scanner.suffix = suffix
