@@ -87,7 +87,9 @@ export function lastIndexOf <T> (array: T[], item: T, i: number = array.length-1
  * @return {number} the lowest index in `array` at which to insert `item`
  *                  ranked by the `key` function
  */
-export function sortedIndexBy <T> (array: T[], item: T, key: T => string|number): number {
+type Comparable = string|number
+
+export function sortedIndexBy <T> (array: T[], item: T, key: T => Comparable): number {
   var lo = 0
     , hi = array.length
     , search = key(item)
