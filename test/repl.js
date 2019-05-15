@@ -1,10 +1,11 @@
 
+// flowignore
 import 'purecss'
 
 /* -----------------------------------------------------------------------------
  * helpers
  */
-const global = (0, eval)('this')
+const global = typeof self !== 'undefined' ? self : this
 
 global.State = global.State || {} 
 
@@ -93,16 +94,20 @@ global.Util = {
   }
 
 , _beautify (key, data) {
-    if (data && data.nodeType) return HTML.stringify(data)
-    else switch (Util.type(data)) {
-      case 'function':
-        return data.toString()
-      case 'array':
-        return data.every(Util.isPrimitive)
-          ? '[' + data.join(', ') + ']'
-          : data
-      default:
-        return data
+    if (data && data.nodeType) {
+      return stringify(data)
+    }
+    else {
+      switch (Util.type(data)) {
+        case 'function':
+          return data.toString()
+        case 'array':
+          return data.every(Util.isPrimitive)
+            ? '[' + data.join(', ') + ']'
+            : data
+        default:
+          return data
+      }
     }
   }
 
@@ -136,10 +141,10 @@ global.Util = {
 /* -----------------------------------------------------------------------------
  * hot module replacement testing
  */
-import Expression from './expression'
-import Template from './template'
-import Registry from './registry'
-import HTML from './dom/html'
+import { scan, evaluate } from '../src/expression'
+import Template from '../src/template'
+import Registry from '../src/registry'
+import { parse, stringify } from '../src/dom/html'
 
 if (module.hot) {
   module.hot.accept()
@@ -159,8 +164,8 @@ if (module.hot) {
       var out
 
       try {
-        var exp = Expression.parse(DOM.input.value)
-        out = [Expression.evaluate(exp).toString(), Util.beautify(exp)]
+        var exp = scan(DOM.input.value)
+        out = [evaluate(exp).toString(), Util.beautify(exp)]
       }
       catch (e) {
         out = [e.message, e.stack]
@@ -210,14 +215,15 @@ if (module.hot) {
     , output: Util.qs('.output', ROOT)
     }
 
-    Registry.components.add('DUMMY', {})
-
     function update () {
       console.log('updating..')
       var out
 
+      Registry.components.DUMMY = {}
+
       try {
-        var componentProto = Template.create(DOM.input.value, true)
+        var frag = parse(DOM.input.value)
+        var componentProto = new Template(frag.removeChild(frag.firstChild))
         out = [Util.beautify(Registry), Util.beautify(componentProto)]
       }
       catch (e) {

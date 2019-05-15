@@ -1,7 +1,7 @@
 
 var webpack = require('webpack')
 
-exports.devServer = function ({ host, port, base }) {
+exports.devServer = function ({ host, port }) {
   return {
     devServer: {
       host,
@@ -9,7 +9,7 @@ exports.devServer = function ({ host, port, base }) {
       stats: 'errors-only',
       inline: true, // trigger full refresh when HMR fails
       hotOnly: true,
-      contentBase: base,
+      compress: true, // gzip compression
       historyApiFallback: true,
     },
     plugins: [
@@ -17,23 +17,6 @@ exports.devServer = function ({ host, port, base }) {
     ]
   }
 }
-
-
-exports.babelLoader = function ({ include, exclude, options }) {
-  return {
-    module: {
-      rules: [
-        {
-          test: /\.js$/,
-          loader: 'babel-loader?' + JSON.stringify(options),
-          include,
-          exclude
-        },
-      ],
-    },
-  }
-}
-
 
 exports.cssLoader = function () {
   return {
@@ -48,19 +31,7 @@ exports.cssLoader = function () {
   }
 }
 
-exports.uglify = function () {
-  return {
-    plugins: [
-      new webpack.optimize.UglifyJsPlugin({
-        compress: {
-          warnings: false
-        },
-        sourceMap: true
-      }),
-    ],
-  }
-}
-
+/*
 exports.imgLoader = function () {
   return {
     module: {
@@ -93,3 +64,4 @@ exports.fontLoader = function () {
   }
 }
        
+*/

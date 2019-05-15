@@ -1,72 +1,88 @@
 
 Vew
----
+-------------------------
 Vew provides a view layer for javascript applications. It is currently in development and in no shape for production use. It is neither feature-complete nor is it clear which features are going to be included or not. For now think of it as an exercise, one that should read well though.
 
-property access performance bottleneck
---------------------------------------
-accessing properties by resolving key chains is incredibly slow
--> make a slight change to the Scanner
-  -> only record accessed keychains for the subscriptions
-  -> do not mangle keychains, rather prepend `this.` and later call performant getters in the context of the scope instance !
-  -> this will remove the possibility to memoize expression evaluation but produce faster getters, at build-time anyways
-
-v-for has precedence over v-if (filter the elements)
-
-challenging virtual dom
------------------------
+Motivation
+-------------------------
 When writing apps with one of the virtual-dom libraries (react, virtual-dom, mithril) we no longer care about how the current DOM needs to change but only what the next one needs to look like. The former, at times most complicated task, is done by the dom-diffing algorithm. With state-change-management out of the way, the complexity thereof is reduced to a one-way road, never looking back. With human interactions the road bends to a traffic circle: user events feed the vdom-factory, diff-patching the real DOM, presented to the user so he might go into the next round. Of course, we can integrate all kinds of sinks and sources into this cycle. Event-stream libraries let us hook into it to transform our data, cache results or do both to `reduce` the past(s) and the present to the future. Sounds awesome.
 
-But the vdom-deal trades the simplicity in design for the redundant task of creating and diffing the entire document. Although this comes at a surprisingly low cost in speed (though not in cpu-cycles/battery-life) it still is a bruteforce approach. With a component architecture in place one can sure limit the scope of the task to individual sections of the document and implementing hooks like `shouldComponentUpdate` may short circuit the process but the question remains:
+but the vdom-deal trades the simplicity in design for the redundant task of creating and diffing the entire document. Although this comes at a surprisingly low cost in speed (though not in cpu-cycles/battery-life) it still is a bruteforce approach. With a component architecture in place one can sure limit the scope of the task to individual sections of the document and implementing hooks like `shouldComponentUpdate` may short circuit the process but the question remains:
 
 Is it not the template that should, by definition, already know which changes it responds to? And further down the road: shouldn't our dom-/data-diffing algorithms benefit from that knowledge i.e. compare only what's been subscribed to?
 
-getting started
----------------
-```sh
+On seperation of concerns
+-------------------------
+We have learned the hard way, that it's bad practice to embed application logic in our templates. But a completely logic-less template, is a static file. Rendering a template sure must not have any side-effects. Functional or this-less transforms are layed out to fullfill that promise. Since javascript supports multiple paradigms we invent domain specific languages or subsets of javascript itself to impose the *right* constraints. But what is or *feels* right?
+
+Take CSS3's `nth-child` as an example of presentational logic. Without native support we would have to reside to put the logic somewhere else, be that the template language or the vdom-factory. A template that allows `e-`xpressions might look like this:
+
+```html
+<table e-for="animal of zoo">
+  <tr e-class="$index % 2 ? 'odd' : 'even'">
+    <td>...
+</table>
+```
+compared to the a vdom-factory
+```js
+vdom = table(
+  zoo.map((animal, index) => {
+    tr({ 'class': index % 2 ? "odd" : "even" }, [td(), ...])
+  })
+)
+```
+Now, which feels right: the ternary expression in the template or the class names in the vdom-factory?
+
+Roadmap
+-------------------------
+[ ] 28/07/2016: offline reflow/repaint sections by setting `display:none` or `visiblity:hidden` before applying any changes
+[x] template content extraction: http://stackoverflow.com/a/33138997
+[x] jquery extract to domify: https://github.com/component/domify/blob/master/index.js
+[ ] memory leaks: read [about memory leaks][1] and implement `dispose` and/or `teardown`
+[ ] example: implement example session timeout visualization as an svg clock
+[ ] distinguish static from dynamic dom [sub]sections
+[ ] referential transparency
+[ ] stateful and stateless widgets ? do we need the differentiation ?
+[ ] event delegation
+[ ] inter-component communication
+[ ] provide lifecycle hooks with callback or promise api
+[ ] dom updates: fine grained control on dom updates:
+  [ ] `once` to bypass tracking mecanisms/householding
+  [ ] `always` to bypass dom-diffing, i.e. indicate that values always change
+
+Resources and insights [to be] gained from them
+-------------------------
+- terminology: observables are sources. subscriptions are sinks. computed properties sit inbetween
+- to `class` or to `Object.create`: [javascript-objects-deconstruction](http://davidwalsh.name/javascript-objects-deconstruction)
+- performance: [closure-vs-object-performance](http://marijnhaverbeke.nl/blog/closure-vs-object-performance.html)
+- memory leaks: [memory-leaks][1]
+- testing: [mocha and webpack](http://randycoulman.com/blog/2016/04/05/more-on-testing-with-mocha-and-webpack/)
+- testing: [jasmine and webpack](https://github.com/zyml/es6-karma-jasmine-webpack-boilerplate)
+- build: [survive webpack](https://leanpub.com/survivejs-webpack)
+
+WIP
+-------------------------
+
+### alter class babel transform
+do `npm install babel-plugin-tranform-class`, modify `node_modules/babel-plugin-transform-class/lib/index.js` to use custom `extend` and `create` AST-nodes of `t.identifier` instead of global `Object.assign` and `Object.create`.
+
+### property access performance
+accessing properties by resolving key chains cannot be optimized to efficient reads using byte-offset. make slight changes to the `src/expression.js`:
+- only record accessed keychains for the subscriptions
+- do not mangle keychains, rather prepend `this.` and later call performant getters in the context of the scope instance !
+- this will remove the possibility to memoize expression evaluation but produce faster getters. this happens at build-time anyways.
+
+[1]: http://javascript.info/tutorial/memory-leaks
+
+Testing
+-------------------------
+
+### playground
+```
 npm install
-npm run bundle
-python -m SimpleHTTPServer
-# python3 -m http.server
-```
-The above commands will serve the playground `index.html`. To execute an example simply modify the inline script's type attribute.
-
-example
--------
-```
-var Cowsay = Vew({
-  replace: false,
-  template: '${name} says Moo!'
-})
-
-var cowsay = Cowsay.create().mount(document.body)
-
-cowsay.set({ name: 'Bob' })
-cowsay.set('name', 'Alice')
-```
-
-tests
------
-
-tests live in files ending in `_test.js`. to run tests specify directory or
-single file:
-
-```sh
-npm test src/
-npm test src/util/
-npm test src/util/array_test.js
-```
-
-playground
-----------
-run from commandline
-```
 npm run start
+# open http://localhost:8080
 ```
-then point your browser to http://localhost:8080 for live-testing the expression parser module.
-
-tools
------
 
 ### test runner: mocha-webpack
 runs mocha tests in node js environemnt. and uses webpack for something.
@@ -102,18 +118,3 @@ expect(spyFunction).inOrder
     .subsequently.calledWithExactly(secondArg)
     .subsequently.calledWithExactly(thirdArg)
 ```
-
-roadmap
--------
-
-1. make it work
-2. make it right
-2.1. introduce `super` constructor calls in the `util/base` module
-2.2. expose text interpolation delimiters on a component basis
-2.3. work around automatic tbody insertion
-2.4. see if the html5shiv fixes clonging unknown elements
-3. make it fast
-3.1 game engine optimizations
-3.1.1 create and implement a `stash` interface (pushState, popState, clearState)
-      instead of creating a new instance of a *class* we would create singletons
-      that can stash their state - very much like `git stash` does.

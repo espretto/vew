@@ -1,8 +1,8 @@
 /* @flow */
 
-import type { Path } from './util/path'
+import type { KeyPath } from './util/path'
 
-import { toPath, has } from './util/path'
+import { toKeyPath, has } from './util/path'
 import { forEach, every, remove, fold } from './util/array'
 import { isString, isObject, isUndefined, protof } from './util/type'
 import { objectProto, stringProto, arrayProto, dateProto } from './util/type'
@@ -24,13 +24,14 @@ class Scope {
     this.tasks = new Set()
     this.dirty = new Set()
   }
-  
-  subscribe (path: string, task: Function) {
-    this.root.resolveOrCreate(toPath(path)).tasks.push(task)
+
+  subscribe (path: string|KeyPath, task: Function) {
+    if (isString(path)) path = toKeyPath(path)
+    this.root.resolveOrCreate(path).tasks.push(task)
   }
-  
-  unsubscribe (path: string|Path, task: Function) {
-    if (isString(path)) path = toPath(path)
+
+  unsubscribe (path: string|KeyPath, task: Function) {
+    if (isString(path)) path = toKeyPath(path)
 
     var sub = this.root.resolve(path)
 
@@ -40,13 +41,12 @@ class Scope {
       sub.remove()
     }
   }
-  
-  resolve (path: string|Path) {
-    if (isString(path)) path = toPath(path)
-    // flowignore: await expression getters refactor !
+
+  resolve (path: string|KeyPath) {
+    if (isString(path)) path = toKeyPath(path)
     return fold(path, this.data, (obj, key) => obj[key])
   }
-  
+
   notify (sub: SubscriptionNode) {
     if (!this.dirty.has(sub)) {
       this.dirty.add(sub)
@@ -56,7 +56,7 @@ class Scope {
       }
     }
   }
-  
+
   update () {
     this.dirty.forEach(sub => {
       forEach(sub.tasks, task => {
@@ -71,20 +71,20 @@ class Scope {
     this.tasks.clear()
     this.dirty.clear()
   }
-  
+
   merge (src: any) {
     this.data = isUndefined(this.data)
       ? this.cloneDeep(src, this.root)
       : this.mergeDeep(this.data, src, this.root)
   }
-  
+
   mergeDeep (trg: any, src: any, sub: SubscriptionNode) {
 
     // merge mutables
     if (isObject(src)) {
       const srcProto = protof(src)
       console.assert(srcProto === protof(trg), 'type mismatch while merging')
-      
+
       switch (srcProto) {
         case arrayProto:
           return this.mergeArray(trg, src, sub, false)
@@ -111,7 +111,7 @@ class Scope {
 
     return src
   }
-  
+
   cloneDeep (src: any, sub: SubscriptionNode) {
     this.notify(sub)
 
@@ -130,10 +130,10 @@ class Scope {
 
     return src
   }
-  
+
   mergeObject (trg: any, src: any, sub: SubscriptionNode, clone: boolean) {
     var childNodes = sub.childNodes
-    
+
     forOwn(src, (srcValue, srcKey) => {
       var closest = getOwn(childNodes, srcKey, sub)
 
@@ -144,7 +144,7 @@ class Scope {
 
     return trg
   }
-  
+
   mergeArray (trg: Array<any>, src: Array<any>, sub: SubscriptionNode, clone: boolean) {
     var childNodes = sub.childNodes
       , trgLength = trg.length
@@ -167,7 +167,7 @@ class Scope {
   /**
    * skip deep comparison completely and simply set the new value.
    * then deeply invalidate all Subscriptions associated to the affected paths.
-   */  
+   */
   replace () {
     throw new Error('not yet implemented')
   }
@@ -184,28 +184,20 @@ class SubscriptionNode {
     this.childNodes = {}
     this.parentNode = parentNode
   }
-  
+
   isEmpty () {
     return !this.tasks.length && isEmptyObject(this.childNodes)
   }
-  
+
   remove () {
     if (this.parentNode) deleteValue(this.parentNode.childNodes, this)
   }
-  
-  resolve (path: Path) {
-    var node = this
 
-    every(path, key => {
-      var hasChild = hasOwn.call(node.childNodes, key)
-      if (hasChild) node = node.childNodes[key]
-      return hasChild
-    })
-
-    return node
+  resolve (path: KeyPath) {
+    return fold(path, this, (node, key) => node.childNodes[key])
   }
-  
-  resolveOrCreate (path: Path) {
+
+  resolveOrCreate (path: KeyPath) {
     return fold(path, this, (node, key) => {
       const childNodes = node.childNodes
 

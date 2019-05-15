@@ -1,310 +1,427 @@
 /* @flow */
 
 import type { Expression } from './expression'
+import type { NodePath } from './dom/treewalker'
 
 import Registry from './registry'
-import { scan } from './expression'
-import HTML from './dom/html'
 import TreeWalker from './dom/treewalker'
-import { isObject } from './util/type'
-import { hasOwn, keys } from './util/object'
-import { some, fold, last, map } from './util/array'
+import { scan } from './expression'
+import { thisify } from './util/function'
+import { isString } from './util/type'
+import { hasOwn, keys, forOwn } from './util/object'
 import { startsWith, kebabCase } from './util/string'
-import { TEXT_NODE, ELEMENT_NODE, isTextBoundary,
-         Fragment, MountNode, isMountNode,
-         removeNode, replaceNode, extractContents,
-         getNodeName, removeAttr, isEmptyText } from './dom'
+import { some, last, map, filter, forEach } from './util/array'
+import { TEXT_NODE, ELEMENT_NODE, getNodeName, isEmptyText, isBlankElement,
+         isMountNode, isTextBoundary, createMountNode, replaceNode, getAttributes } from './dom'
 
+const reMatchLoop = /^\s*(?:([a-z_$][\w$]*)|\[\s*([a-z_$][\w$]*)\s*,\s*([a-z_$][\w$]*)\s*\])\s*of([\s\S]*)$/i
 
-const reMatchLoop = /^\s*(?:([a-zA-Z_$][\w$]*)|\[\s*([a-zA-Z_$][\w$]*)\s*,\s*([a-zA-Z_$][\w$]*)\s*\])\s*of([\s\S]*)$/
+const INSTRUCTION_PREFIX = '--' // TODO: expose option
 
-const MUTATORS = {
-  SET_NODE_VALUE: 'SET_NODE_VALUE'
-, SET_CLASS_NAME: 'SET_CLASS_NAME'
-, SET_CSS_TEXT: 'SET_CSS_TEXT'
-, SET_BOOLEAN_PROP: 'SET_BOOLEAN_PROPERTY'
-, MOUNT_CONDITION: 'MOUNT_CONDITION'
-, MOUNT_LOOP: 'MOUNT_LOOP'
+const EXPRESSION_DELIMITERS = ['${', '}'] // TODO: expose option
+
+const InstructionType = {
+  IF:        1 << 0,
+  ELIF:      1 << 1,
+  ELSE:      1 << 2,
+  FOR:       1 << 3,
+  SWITCH:    1 << 4,
+  CASE:      1 << 5,
+  DEFAULT:   1 << 6,
+  SLOT:      1 << 7,
+  COMPONENT: 1 << 8,
+  LISTENER:  1 << 9,
+  REFERENCE: 1 << 10,
+  STYLE:     1 << 11,
+  CDATA:     1 << 12,
+  PROPERTY:  1 << 13,
+  CLASSNAME: 1 << 14,
+  ATTRIBUTE: 1 << 15,
+  NODEVALUE: 1 << 16
 }
 
-const ATTR_PREFIX = '--'
-const ATTR_IS = '--is'
-const ATTR_SLOT = '--slot'
-const ATTR_NAME = 'name'
-const SLOT_NODENAME = 'SLOT'
-const SLOT_DEFAULT_NAME = 'content'
-const COMPONENT_NODENAME = 'COMPONENT'
+const FlowControlType =
+  InstructionType.IF |
+  InstructionType.ELIF |
+  InstructionType.ELSE |
+  InstructionType.FOR |
+  InstructionType.SWITCH |
+  InstructionType.CASE |
+  InstructionType.DEFAULT
 
+function isFlowControlType (type: string) {
+  return (InstructionType[type] & FlowControlType) !== 0
+}
+
+/**
+ * class Template
+ */
 class Template {
 
-  constructor (html, isComponent) {
-    this.mutators = []
-    this.components = []
-    this.template = Fragment(HTML.parse(html))
-    this.slots = isComponent ? {} : undefined
+  template: Element
 
+  instructions: Object[]
+
+  constructor (el: Element) {
+    this.template = el
+    this.instructions = []
     this.templateState()
   }
 
-  /**
-   * sequence diagram
-   *
-   * - templateState
-   *   - textNodeState
-   *   - elementState
-   *     - componentState
-   *     - slotState
-   *     - attributeState
-   */
   templateState () {
-    var tw = TreeWalker.create()
-      , node = tw.seed(this.template)
+    const tw = new TreeWalker(this.template)
 
-    for (; node; node = tw.next()) {
+    for (let node = tw.node; node; node = tw.next()) {
       switch (node.nodeType) {
         case TEXT_NODE: this.textNodeState(tw); break
         case ELEMENT_NODE: this.elementState(tw); break
       }
     }
   }
-  textNodeState (tw) {
-    var node = tw.node
-      , value = node.nodeValue
-      , expression
+  
+  textNodeState (tw: TreeWalker) {
+    // flowignore: cast Node to TextNode
+    var textNode: Text = tw.node
+    const text = textNode.nodeValue
 
-    // remove trailing empty text-nodes
-    if (isTextBoundary(node.nextSibling) && isEmptyText(node)) {
-      tw.prev()
-      removeNode(node)
-      return
+    // remove [trailing] empty text-nodes
+    if (isEmptyText(textNode) && isTextBoundary(textNode.nextSibling)) {
+      return tw.remove()
     }
 
-    // parse and cache expression
-    expression = Expression.parse(value, ['${', '}'])
+    // parse expression
+    const expression = scan(text, EXPRESSION_DELIMITERS)
     if (!expression) return
 
-    // split text-node where the expression starts
+    // split text-node where the expression begins
     if (expression.begin > 0) {
-      node.splitText(expression.begin)
+      textNode.splitText(expression.begin)
 
       // remove leading empty text-nodes
-      if (isTextBoundary(node.previousSibling) && isEmptyText(node)) {
-        tw.prev()
-        removeNode(node)
+      // TODO: doesnt seem to effectively remove empty text-nodes
+      if (isEmptyText(textNode) && isTextBoundary(textNode.previousSibling)) {
+        tw.remove()
       }
 
-      node = tw.next()
+      textNode = tw.next()
     }
 
-    // register task
-    this.mutators.push({
+    this.instructions.push({
+      type: InstructionType.NODEVALUE,
+      target: tw.path(),
       expression: expression
-    , mutator: MUTATORS.SET_NODE_VALUE
-    , target: tw.path()
     })
 
     // split text-node where the expression ends
-    if (expression.end < value.length) {
-      node.splitText(expression.end - expression.begin)
+    if (expression.end < text.length) {
+      textNode.splitText(expression.end - expression.begin)
       // leave the off-split to the next iteration
     }
   }
-  elementState (tw) {
-    var node = tw.node
-      , nodeName = getNodeName(node)
-      , component
-      , isControlled
 
-    if (nodeName === SLOT_NODENAME) {
-      this.slotState(tw)
+  elementState (tw: TreeWalker) {
+    // flowignore: cast Node to Element
+    const elem: Element = tw.node
+    const nodeName = getNodeName(elem)
+    const attrs = getAttributes(elem, INSTRUCTION_PREFIX)
+
+    // 1st precedence : slot placeholders with optional default templates
+    if (nodeName === 'SLOT') {
+      return this.slotState(tw, attrs['NAME'], false)
     }
-    else if (nodeName === COMPONENT_NODENAME) {
-      this.componentState(tw, Expression.parse(node.getAttribute(ATTR_IS)))
+    else if (hasOwn.call(attrs, 'SLOT')) {
+      return this.slotState(tw, attrs['SLOT'], true)
+    }
+
+    // 2nd precedence : flow control instructions
+    const flowControls: string[] = filter(keys(attrs), isFlowControlType)
+    switch (flowControls.length) {
+      case 0: break
+      case 1: return this.flowControlState(tw, flowControls[0], attrs[flowControls[0]])
+      default: throw new Error('cannot apply multiple flow controls to a single element')
+    }
+
+    // 3rd precedence : component tags <component/> or --is="nameExpression"
+    // TODO: handle component arguments and component-level event listeners
+    if (hasOwn.call(Registry.components, nodeName)) {
+      this.componentState(tw, nodeName)
+    }
+    else if (hasOwn.call(attrs, 'IS')) {
+      const nameExpression = scan(attrs['IS'])
+      if (!nameExpression) throw new Error('instruction --is requires an expression')
+      this.componentState(tw, nameExpression)
+    }
+
+    // 4th precedence : simple class-, style- & attribute-instructions
+    // --class, --style, --attr, --prop
+    forOwn(attrs, (attrValue, attrName) => {
+      this.attributeState(tw, attrName, attrValue)
+    })
+  }
+
+  slotState (tw: TreeWalker, slotName: string, hasDefaultTemplate: boolean) {
+    // flowignore: cast Node to Element
+    const el: Element = tw.node
+    tw.node = replaceNode(el, createMountNode('SLOT'))
+
+    if (hasDefaultTemplate) {
+      el.removeAttribute(INSTRUCTION_PREFIX + 'SLOT')
+
+      this.instructions.push({
+        type: InstructionType.SLOT,
+        name: slotName,
+        target: tw.path(),
+        template: new Template(el)
+      })
+    }
+    else if (!isBlankElement(el)) {
+      throw new Error('in order to provide a default template, do not use ' +
+        'the <slot> tag but the --slot attribute on the template\'s root node')
     }
     else {
-
-      if (Registry.components.has(nodeName)) {
-        component = this.componentState(tw, nodeName)
-      }
-
-      isControlled = some(node.attributes, attr =>
-        startsWith(attr.nodeName, ATTR_PREFIX) &&
-        this.attributeState(tw, attr, component)
-      )
-
-      if (component && !isControlled) {
-        this.components.push(component)
-      }
+      this.instructions.push({
+        type: InstructionType.SLOT,
+        name: slotName,
+        target: tw.path(),
+        template: null
+      })
     }
   }
-  componentState (tw, tag, inset) {
-    var root = tw.node
-      , node = root.firstChild
-      , slots = {}
 
-    for (; node; node = node.nextSibling) {
-      switch (node.nodeType) {
+  flowControlState (tw: TreeWalker, instName: string, value: string) {
+    // flowignore: cast Node to Element
+    const el: Element = tw.node
+    const target = tw.path()
+    const instType = InstructionType[instName]
 
-        case TEXT_NODE:
-          var prev = node.previousSibling
+    el.removeAttribute(INSTRUCTION_PREFIX + instName)
 
-          if (isTextBoundary(prev) && isEmptyText(node)) {
-            root.removeChild(node)
-            node = prev
-          }
+    switch (instType) {
+      case InstructionType.IF:
+        tw.node = replaceNode(el, createMountNode(instName))
 
-          break
-
-        case ELEMENT_NODE:
-          var slotName
-
-          if (getNodeName(node) === SLOT_NODENAME) {
-            slotName = node.getAttribute(ATTR_NAME) || SLOT_DEFAULT_NAME
-            slots[slotName] = Template.create(extractContents(root.removeChild(node)))
-          }
-          else if (slotName = node.getAttribute(ATTR_SLOT)) {
-            removeAttr(node, ATTR_SLOT)
-            slots[slotName] = Template.create(root.removeChild(node))
-          }
-
-          break
-      }
-    }
-
-    var contents
-    if (contents = extractContents(root)) {
-      slots[SLOT_DEFAULT_NAME] = Template.create(contents)
-    }
-
-    return { tag, slots, inset: !!inset, target: tw.path() }
-  }
-
-  slotState (tw) {
-    var node = tw.node
-      , slotName = node.getAttribute(ATTR_NAME) || SLOT_DEFAULT_NAME
-      , contents = extractContents(node)
-
-    this.slots[slotName] = {
-      target: tw.path()
-    , default: contents ? Template.create(contents) : undefined
-    }
-  }
-  attributeState (tw, attr, component) {
-    var node = tw.node
-      , target = tw.path()
-      , attrName = attr.nodeName
-      , attrValue = attr.nodeValue
-      , keyword = attrName.substring(ATTR_PREFIX.length)
-
-    removeAttr(node, attrName)
-
-    switch (keyword) {
-
-      case 'class':
-        this.mutators.push({
-          target
-        , initial: node.className
-        , mutator: MUTATORS.SET_CLASS_NAME
-        , expression: Expression.parse(attrValue)
+        this.instructions.push({
+          type: instType,
+          target,
+          templates: [new Template(el)],
+          expressions: [scan(value)]
         })
         break
+      
+      case InstructionType.ELIF: /* fall through */
+      case InstructionType.ELSE:
+        tw.remove()
 
-      case 'style':
-        this.mutators.push({
-          target
-        , initial: node.style.cssText
-        , mutator: MUTATORS.SET_CSS_TEXT
-        , expression: Expression.parse(attrValue)
-        })
-        break
-
-      case 'prop-checked':
-        this.mutators.push({
-          target
-        , property: 'checked'
-        , mutator: MUTATORS.SET_BOOLEAN_PROPERTY
-        , expression: Expression.parse(attrValue)
-        })
-        break
-
-      case 'is':
-        this.components.push( this.componentState(tw, Expression.parse(attrValue), true) )
-        break
-
-      case 'if':
-        tw.node = replaceNode(node, MountNode('if'))
-
-        this.mutators.push({
-          target
-        , slots: [component || Template.create(node)]
-        , mutator: MUTATORS.MOUNT_CONDITION
-        , expressions: [Expression.parse(attrValue)]
-        })
-        break
-
-      case 'repeat':
-        tw.node = replaceNode(node, MountNode('repeat'))
-
-        var loop = attrValue.match(reMatchLoop)
-        if (!loop) throw new Error('malformed loop expression')
-
-        this.mutators.push({
-          target
-        , slots: [component || Template.create(node)]
-        , valName: loop[1] || loop[3]
-        , keyName: loop[2] || ''
-        , mutator: MUTATORS.MOUNT_LOOP
-        , expressions: [Expression.parse(loop[4])]
-        })
-        break
-
-      case 'elif':
-      case 'else':
-        var prev = tw.prev()
-        removeNode(node)
-
-        if (!(isMountNode(prev, 'if') || isMountNode(prev, 'repeat'))) {
-          throw new Error('elif and else require preceding if, elif or repeat')
-          // note: preceding elif-tags will have been removed by now
+        if (tw.node == null || !isMountNode(tw.node, 'IF') && !isMountNode(tw.node, 'FOR')) {
+          throw new Error('flow control directives --elif and --else must be preceded by either --if, --elif or --for')
         }
 
-        var mutator = last(this.mutators)
-        mutator.slots.push(component || Template.create(node))
-        mutator.expressions.push(Expression.parse(keyword === 'elif' ? attrValue : 'true'))
+        const flowControl = last(this.instructions)
+        flowControl.templates.push(new Template(el))
+        flowControl.expressions.push(scan(instType === InstructionType.ELIF ? value : 'true'))
         break
 
-      default:
-        throw new Error('not yet implemented attribute handler for: ' + keyword)
+      case InstructionType.FOR:
+        tw.node = replaceNode(el, createMountNode(instName))
+
+        const loop = value.match(reMatchLoop)
+        if (!loop) throw new Error('malformed loop expression')
+
+        this.instructions.push({
+          type: instType,
+          target,
+          keyName: loop[2],
+          valueName: loop[1] || loop[3],
+          templates: [new Template(el)],
+          expressions: [scan(loop[4])]
+        })
+        break
+
+      case InstructionType.CASE:
+        throw new Error('the --case directive can only be used within --switch')
+
+      case InstructionType.DEFAULT:
+        throw new Error('the --default directive can only be used within --switch')
+
+      case InstructionType.SWITCH:
+        const templates: Template[] = []
+        const expressions: Array<?Expression> = []
+
+        // retrieve element nodes from live NodeList for ulterior removal
+        const elements = filter(el.childNodes, node => node.nodeType === ELEMENT_NODE)
+
+        // flowignore: cast Node to Element
+        forEach(elements, (child: Element) => {
+          const attrs = getAttributes(child, INSTRUCTION_PREFIX)
+
+          const flowControls = filter(keys(attrs), isFlowControlType)
+          switch (flowControls.length) {
+            case 0: return
+            case 1: break
+            default: throw new Error('cannot apply multiple flow controls to a single element')
+          }
+
+          const instName = flowControls[0]
+          const instType = InstructionType[instName]
+          child.removeAttribute(INSTRUCTION_PREFIX + instName)
+
+          templates.push(new Template(el.removeChild(child)))
+          expressions.push(scan(instType === InstructionType.CASE ? attrs[instName] : 'true'))
+          // TODO: allow only runtime constants in case expressions
+        })
+
+        if (!isBlankElement(el)) {
+          throw new Error('instruction --switch only allows --case and --default children')
+        }
+        
+        // remove empty text-nodes and comments
+        el.innerHTML = ''
+        // the mount-node becomes the "default --default" template
+        el.appendChild(createMountNode(instName))
+        // point to the mount-node
+        tw.next()
+        
+        this.instructions.push({
+          type: instType,
+          target: tw.path(),
+          templates,
+          expressions,
+          'switch': scan(value)
+        })
+
+        break
+    }
+  }
+
+  componentState (tw: TreeWalker, name: string | Expression) {
+    // flowignore: cast Node to Element
+    const root: Element = tw.node
+    const slots: { [key: string]: Template } = {}
+
+    // retrieve element nodes from live NodeList for ulterior removal
+    const elements = filter(root.childNodes, node => node.nodeType === ELEMENT_NODE)
+    
+    // flowignore: cast Node to Element
+    forEach(elements, (el: Element) => {
+      const attrs = getAttributes(el, INSTRUCTION_PREFIX)
+      
+      if (hasOwn.call(attrs, 'SLOT')) {
+        el.removeAttribute(INSTRUCTION_PREFIX + 'SLOT')
+        slots[attrs['SLOT']] = new Template(root.removeChild(el))
+      }
+    })
+
+    if (!isBlankElement(root)) {
+      throw new Error('component tag can only contain --slot directives')
     }
 
-    // whether or not the component is subject to control-flow
-    return component && !node.parentNode
+    // remove empty text-nodes and comments
+    root.innerHTML = ''
+
+    this.instructions.push({
+      type: InstructionType.COMPONENT,
+      name,
+      target: tw.path(),
+      slots
+    })
+  }
+
+  attributeState (tw: TreeWalker, attrName: string, attrValue: string) {
+    // flowignore: cast Node to Element
+    const elem: Element = tw.node
+    const target = tw.path()
+    const expression = scan(attrValue)
+
+    if (!expression) {
+      throw new Error('prefixed attributes require an expression to evaluate')
+    }
+
+    elem.removeAttribute(INSTRUCTION_PREFIX + attrName)
+
+    if (attrName === 'CLASS') {
+      this.instructions.push({
+        type: InstructionType.CLASSNAME,
+        target,
+        className: elem.className,
+        expression
+      })
+    }
+    else if (attrName === 'STYLE') {
+      this.instructions.push({
+        type: InstructionType.STYLE,
+        target,
+        cssText: elem.style.cssText,
+        expression
+      })
+    }
+    else if (attrName === 'REF') {
+      this.instructions.push({
+        type: InstructionType.REFERENCE,
+        name: attrValue,
+        target
+      })
+    }
+    else if (attrName.toLowerCase() in elem) {
+      this.instructions.push({
+        type: InstructionType.PROPERTY,
+        target,
+        expression
+      })
+    }
+    else if (startsWith(attrName, 'ON-')) {
+      this.instructions.push({
+        type: InstructionType.LISTENER,
+        event: attrName.substring('ON-'.length),
+        target,
+        expression
+      })
+    }
+    else if (startsWith(attrName, 'DATA-')) {
+      this.instructions.push({
+        type: InstructionType.CDATA,
+        key: attrName.substring('DATA-'.length),
+        target,
+        expression
+      })
+    }
+    else {
+      this.instructions.push({
+        type: InstructionType.ATTRIBUTE,
+        target,
+        expression
+      })
+    }
   }
 }
 
 export default Template
 
-/* test template
 
-<component --is="'dummy'">
-  <p>Hello ${name}</p>
-</component>
+/*
+  special attribute precedence :
 
-<dummy>
-  <p>Hello ${name}</p>
-</dummy>
+  1. --slot <slot />
+  2. --if, --elif, --else, --for, --switch, --case, --default
+  3. --is <component />
+  4. --class, --style, --value, --on-click, --is-selected, 
 
-<div --is="dummy">
-  <p>Hello ${name}</p>
+  other goodies: --style.width.px="" --class.some-class=""
+
+  template example :
+
+<div --style="style" --class="class" --id="id">
+  <h1 --if="condition">if ${name}</h1>
+  <h2 --elif="condition">elif</h2>
+  <h3 --else="condition">else</h3>
+  <div --switch="switch">
+    <span --case="1">case 1</span>
+    <span --case="2">case 2</span>
+    <span --default >case default</span>
+  </div>
+  <ul --data-whatever="some.value">
+    <li --for="item of collection">
+      ${item}
+    </li>
+  </ul>
 </div>
-
-<p --if="condition">Hello</p>
-<p --elif="another">
-  <i --if="condition || another">World</i>
-</p>
-<p --else>GoodBye</p>
-<ul>
-  <li --repeat="item of collection">${item.property}</li>
-</ul>
-
- */
+*/

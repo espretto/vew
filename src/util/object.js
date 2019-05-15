@@ -4,7 +4,7 @@ import { thisify } from './function'
 import { isNative } from './type'
 import { append, filter, forEach, some } from './array'
 
-const hasEnumBug = !({ VueOf: null }).propertyIsEnumerable('VueOf')
+const hasEnumBug = !({ valueOf: null }).propertyIsEnumerable('valueOf')
 
 /**
  * hasOwn
@@ -19,7 +19,7 @@ const nativeKeys = Object.keys
 const brokenKeys = 'constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf'.split(',')
 
 function ownKeys (obj: Object) {
-  var _hasOwn = hasOwn // JIT: lift to loop
+  var _hasOwn = hasOwn // JIT: lift to scope
     , keys = []
     , i = -1
 
@@ -36,16 +36,17 @@ function safeKeys (obj: Object) {
   return append(ownKeys(obj), filter(brokenKeys, thisify(hasOwn, obj, 1)))
 }
 
-export const keys: Object => string[] =
-  isNative(nativeKeys) ? nativeKeys :
-  hasEnumBug           ? safeKeys   :
-                         ownKeys
+export const keys: typeof nativeKeys = isNative(nativeKeys)
+  ? nativeKeys
+  : hasEnumBug
+    ? safeKeys
+    : ownKeys
 
 /**
  * isEmptyObject
  */
 function isOwnEmptyObject (obj: Object) {
-  const _hasOwn = hasOwn
+  const _hasOwn = hasOwn // JIT: lift to scope
 
   for (var key in obj) {
     if (_hasOwn.call(obj, key)) {
@@ -77,6 +78,26 @@ export function forOwn <T, U: {[key: string]: T}> (obj: U, func: (T, string) => 
 }
 
 /**
+ * iterator factory for performance critical iteration of key-fixed objects
+ */
+export function iterator (obj: Object) {
+  const _keys = keys(obj)
+  const _len = _keys.length
+  
+  return (obj: Object, func: (mixed, string) => ?boolean) => {
+    const __keys = _keys // JIT: lift to scope
+    const __len = _len // JIT: lift to scope
+    
+    for (let key, i = -1; ++i < __len;) {
+      key = __keys[i]
+      if (func(obj[key], key) === false) {
+        break
+      }
+    }
+  }
+}
+
+/**
  * extend
  */
 const nativeAssign = Object.assign
@@ -105,7 +126,7 @@ function customCreate (proto: Object|null) {
 export const create = isNative(nativeCreate) ? nativeCreate : customCreate
 
 /**
- * deleteVue
+ * deleteValue
  */
 export function deleteValue <T, U: { [key: string|number]: T }> (obj: U, val: T) {
   for (let key in obj) {

@@ -1,9 +1,9 @@
 /* @flow */
 
-import type { Path } from './util/path'
+import type { KeyPath } from './util/path'
 
 export type Expression = {|
-  paths: Path[],
+  paths: KeyPath[],
   source: string,
   begin: number,
   end: number
@@ -19,7 +19,7 @@ const passIdent = /[a-zA-Z_$]/
 /** used to match javascript identifiers and keywords */
 const matchIdent = /[a-zA-Z_$][\w$]*/g
 
-/** used mangle identifiers */
+/** used to mangle identifiers */
 const toIdent = index => chr(97 + index)
 
 /** used to skip whitespace */
@@ -71,7 +71,7 @@ class Scanner {
     this.input = ''
     this.suffix = ''
     this.anchor = 0
-    this.brackets.length = 0
+    this.brackets = []
     this.maybeKey = false
     this.match = {
       paths: [],
@@ -137,9 +137,9 @@ class Scanner {
     )
   }
 
-  addPath (path: Path) {
-    var index = findIndex(this.match.paths, other => other.join() === path.join())
-    if (index < 0) index = this.match.paths.push(path) - 1
+  addKeyPath (keyPath: KeyPath) {
+    var index = findIndex(this.match.paths, other => other.join() === keyPath.join())
+    if (index < 0) index = this.match.paths.push(keyPath) - 1
     this.match.source += toIdent(index)
   }
 
@@ -149,7 +149,7 @@ class Scanner {
    * dataState
    * - slashState
    * - identState
-   *   - pathState
+   *   - keyPathState
    *     - dotState
    *     - bracketOpenState
    *       - bracketCloseState
@@ -157,8 +157,8 @@ class Scanner {
    * - [debugState]
    */
   dataState () {
-    var length = this.input.length
-      , index, chr
+    const length = this.input.length
+    var index, chr
 
     this.buffer()
 
@@ -209,16 +209,16 @@ class Scanner {
   }
 
   slashState () {
-    var chr = this.input.charAt(++this.index)
+    const chr = this.input.charAt(++this.index)
 
     if (chr === '/' || chr === '*') {
-      throw new Error('comments not allowed')
+      throw new Error('comments are not allowed')
     }
     else if (chr === '=') {
-      throw new Error('assignments not allowed')
+      throw new Error('assignments are not allowed')
     }
     else {
-      throw new Error('divisions cannot be distinguished from ')
+      throw new Error('divisions cannot be distinguished from regular expressions')
     }
   }
 
@@ -231,13 +231,13 @@ class Scanner {
 
       if (this.seek(noWs) !== ':') {
         this.match.source += ':'
-        this.addPath( [ident] )
+        this.addKeyPath( [ident] )
       }
     }
     else if (indexOf(keywords, ident) < 0) {
       this.flush()
       this.index += ident.length
-      this.pathState( [ident] )
+      this.keyPathState( [ident] )
     }
     else {
       this.index += ident.length
@@ -245,9 +245,9 @@ class Scanner {
     }
   }
 
-  pathState (path: Path) {
-    var length = this.input.length
-      , chr
+  keyPathState (path: KeyPath) {
+    const length = this.input.length
+    var chr
 
     while (this.index < length) {
       chr = this.seek(noWs)
@@ -274,13 +274,13 @@ class Scanner {
     // else to the while
     if (this.index === length) this.buffer()
 
-    this.addPath(path)
+    this.addKeyPath(path)
     this.flush()
   }
 
-  dotState (path?: Path) {
-    var chr = this.seek(noWs, true)
-      , ident
+  dotState (path?: KeyPath) {
+    const chr = this.seek(noWs, true)
+    var ident
 
     if (passIdent.test(chr)) {
       ident = this.seek(matchIdent)
@@ -296,9 +296,9 @@ class Scanner {
    * returns true if the enclosed expression is dynamic
    * i.e. cannot be statically resolved
    */
-  bracketOpenState (path: Path) {
-    var chr = this.seek(noWs, true)
-      , begin, ident
+  bracketOpenState (path: KeyPath) {
+    const chr = this.seek(noWs, true)
+    var begin, ident
 
     if (chr === '"' || chr === "'") {
       begin = this.index
@@ -329,8 +329,8 @@ class Scanner {
    * returns true if the enclosed expression is dynamic
    * i.e. cannot be statically resolved
    */
-  bracketCloseState (path: Path) {
-    var chr = this.seek(noWs)
+  bracketCloseState (path: KeyPath) {
+    const chr = this.seek(noWs)
 
     if (!chr) {
       throw new Error('expected expression, got end of script')
@@ -351,10 +351,10 @@ class Scanner {
     }
     else if (beginOperator.indexOf(chr) > -1) {
       matchOperator.lastIndex = this.index
-      var match = matchOperator.exec(this.input)
+      const match = matchOperator.exec(this.input)
 
       if (match && match.index === this.index) {
-        var operator = match[0]
+        const operator = match[0]
 
         if (operator === '=>') {
           throw new Error('arrow operator not supported')

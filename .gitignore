@@ -1,3 +1,6 @@
+# ---------------
+# nodejs defaults
+
 lib-cov
 *.seed
 *.log
@@ -14,16 +17,13 @@ results
 npm-debug.log
 node_modules
 
-# own
-dist
-build
+# ---------------
+# custom additions
+public
 output
-playground
 _*.js
 .tmp/
 
-# editor
+# ---------------
+# ide specific
 .vscode
-
-# flow type definition files
-flow-typed

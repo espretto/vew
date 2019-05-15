@@ -26,7 +26,7 @@ function customFrom <T> (countable: { length: number }): Array<T> {
   }
 
   return array
-} 
+}
 
 export const toArray = isNative(nativeFrom) ? nativeFrom : customFrom
 
@@ -74,7 +74,7 @@ export function indexOf <T> (array: T[], item: T, offset: number = 0): number {
 }
 
 export function lastIndexOf <T> (array: T[], item: T, i: number = array.length-1): number {
-  for (;i >= 0; i--) {
+  for (;i > -1; i--) {
     if (array[i] === item) {
       break
     }
@@ -87,7 +87,7 @@ export function lastIndexOf <T> (array: T[], item: T, i: number = array.length-1
  * @return {number} the lowest index in `array` at which to insert `item`
  *                  ranked by the `key` function
  */
-export function sortedIndexBy <T, U> (array: T[], item: T, key: Function): number {
+export function sortedIndexBy <T> (array: T[], item: T, key: T => string|number): number {
   var lo = 0
     , hi = array.length
     , search = key(item)
@@ -95,7 +95,8 @@ export function sortedIndexBy <T, U> (array: T[], item: T, key: Function): numbe
   while (lo < hi) {
     var mid = (lo + hi) >> 1 // Math.floor( (hi+lo) / 2 )
       , value = key(array[mid])
-    
+
+    // flowignore: search and value are both either string or number
     if (search < value) {
       lo = mid + 1
     }
@@ -135,7 +136,7 @@ export function some <T> (array: T[], func: (T, number) => boolean): boolean {
   return false
 }
 
-export function every <T> (array: T[], func: (T, number) => boolean): boolean {
+export function every <T> (array: T[] | NodeList<T>, func: (T, number) => boolean): boolean {
   var len = array.length
     , i = -1
 
@@ -160,7 +161,7 @@ export function map <T, U> (array: T[], func: (T, number) => U): U[] {
   return mapped
 }
 
-export function filter <T> (array: T[], func: (T, number) => boolean): T[] {
+export function filter <T> (array: T[] | NodeList<T>, func: (T, number) => boolean): T[] {
   var len = array.length
     , i = -1
     , item

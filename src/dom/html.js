@@ -3,10 +3,10 @@
 import { getOwn } from '../util/object'
 import { document } from '../util/global'
 import { TEXT_NODE, ELEMENT_NODE, COMMENT_NODE, FRAGMENT_NODE,
-         Fragment, TextNode, extractContents, removeNode, trim } from '../dom'
+         createFragment, createTextNode, extractContents, removeNode, trim } from '../dom'
 
 /** bug list */
-const support = {}
+export const support = {}
 
 /** used to parse/stringify html */
 const wrapElem: Element = document.createElement('div')
@@ -27,8 +27,8 @@ const reTagName = /<([a-zA-Z][^>\/\t\n\f ]*)/
  */
 
 // IE 6-8: join adjacent text-nodes when cloning
-wrapElem.appendChild(TextNode('a'))
-wrapElem.appendChild(TextNode('b'))
+wrapElem.appendChild(createTextNode('a'))
+wrapElem.appendChild(createTextNode('b'))
 support.noJoinText = wrapElem.cloneNode(true).childNodes.length !== 1
 
 // IE: link elements do no get serialized
@@ -51,7 +51,7 @@ support.cloneUnknown = wrapElem.cloneNode(true).innerHTML === wrapElem.innerHTML
 
 // Safari 5.1, iOS 5.1, Android 4.x, Android 2.3:
 // old WebKit doesn't clone checked state correctly in fragments
-Fragment(wrapElem)
+createFragment(wrapElem)
 wrapElem.innerHTML = '<input type="radio" checked="checked" name="name"/>'
 // flowignore: lastChild exists
 support.cloneChecked = !!wrapElem.cloneNode(true).cloneNode(true).lastChild.checked
@@ -100,35 +100,31 @@ function dive (node: Node, depth: number) {
   return depth ? dive(node.lastChild, depth-1) : node
 }
 
-/* -----------------------------------------------------------------------------
- * main
+/**
+ * parse an html string
  */
-export default {
+export function parse (html: string): DocumentFragment {
+  html = trim(html)
+  const tagMatch = html.match(reTagName)
+  if (!tagMatch) return createFragment(createTextNode(html))
+  const [depth, wrapper] = getOwn(wrapMap, tagMatch[1].toUpperCase(), wrapMapDefault)
+  wrapElem.innerHTML = wrapper.join(html)
+  return extractContents(dive(wrapElem, depth))
+}
 
-  /** bug list */
-  support
-  
-  /** @static */
-, parse (html: string): DocumentFragment {
-    var tagMatch = html.match(reTagName)
-    if (!tagMatch) return Fragment(TextNode(html))
-    var [depth, presuf] = getOwn(wrapMap, tagMatch[1].toUpperCase(), wrapMapDefault)
-    wrapElem.innerHTML = presuf.join(trim(html))
-    return extractContents(dive(wrapElem, depth))
-  }
-
-  /** @static */
-, stringify (node: Element) {
-    switch (node.nodeType) {
-      case TEXT_NODE: return node.nodeValue
-      case ELEMENT_NODE: return node.outerHTML
-      case COMMENT_NODE: /* fall through */
-      case FRAGMENT_NODE:
-        wrapElem.innerHTML = ''
-        wrapElem.appendChild(node)
-        return wrapElem.innerHTML
-      default:
-        throw new Error(`cannot serialize node type ${node.nodeType}`)
-    }
+/**
+ * stringify an html node-tree
+ */
+export function stringify (node: Element) {
+  switch (node.nodeType) {
+    case TEXT_NODE: return node.nodeValue
+    case ELEMENT_NODE: return node.outerHTML
+    case COMMENT_NODE: /* fall through */
+    case FRAGMENT_NODE:
+      wrapElem.innerHTML = ''
+      wrapElem.appendChild(node)
+      return wrapElem.innerHTML
+    default:
+      throw new Error(`cannot serialize node type ${node.nodeType}`)
   }
 }

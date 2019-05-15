@@ -13,12 +13,12 @@ export const chr = String.fromCharCode
  */
 const nativeStartsWith = String.prototype.startsWith
 
-function customStartsWith (str: string, prefix: string) {
+function customStartsWith (str: string, prefix: string): boolean {
   return str.lastIndexOf(prefix, prefix.length) === 0
 }
 
 export const startsWith = isNative(nativeStartsWith)
-  ? uncurry(nativeStartsWith, 1)
+  ? (uncurry(nativeStartsWith, 1): typeof customStartsWith)
   : customStartsWith
 
 /**
@@ -28,15 +28,15 @@ export const startsWith = isNative(nativeStartsWith)
  * 	 http://blog.stevenlevithan.com/archives/faster-trim-javascript
  */
 const reTrimLeft = /^\s\s*/
-const reTrimRight = /\s\s*$/;
+const reTrimRight = /\s\s*$/
 const nativeTrim = String.prototype.trim
 
-function customTrim (str: string) {
+function customTrim (str: string): string {
   return str.replace(reTrimLeft, '').replace(reTrimRight, '')
 }
 
 export const trim = isNative(nativeTrim)
-  ? uncurry(nativeTrim, 0)
+  ? (uncurry(nativeTrim, 0): typeof customTrim)
   : customTrim
 
 /**

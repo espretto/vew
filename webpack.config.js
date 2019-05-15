@@ -13,7 +13,7 @@ function readFileJSON (filepath) {
 }
 
 function resolve (dir) {
-  return path.join(__dirname, dir)
+  return path.resolve(__dirname, dir)
 }
 
 /* -----------------------------------------------------------------------------
@@ -23,12 +23,12 @@ const parts = require('./webpack.parts')
 const pkg = readFileJSON('package.json')
 const babelrc = readFileJSON('\.babelrc')
 
-delete babelrc.comments // for lack of comments in json
-Object.assign(babelrc, { cacheDirectory: './output/babelcache' })
+Object.assign(babelrc, { cacheDirectory: '.tmp/babel' })
 
 const PATHS = {
-  app: resolve('src'),
-  build: resolve('build')
+  source: resolve('src'),
+  test: resolve('test'),
+  public: resolve('public')
 }
 
 /* -----------------------------------------------------------------------------
@@ -37,47 +37,120 @@ const PATHS = {
 const commonConfig = merge([
   {
     entry: {
-      vew: PATHS.app,
+      vew: './src/index.js'
     },
     output: {
-      path: PATHS.build,
+      path: PATHS.public,
       filename: '[name].js',
-    }
-  },
-  parts.babelLoader({ include: [ PATHS.app ], exclude: /node_modules/, options: babelrc }),
-  parts.cssLoader(),
-  parts.imgLoader(),
-  parts.fontLoader(),
+    },
+    resolve: {
+      extensions: ['.js'],
+    },
+    module: {
+      rules: [
+        {
+          test: /\.js$/,
+          include: [ PATHS.source ],
+          exclude: /node_modules/,
+          use: {
+            loader: 'babel-loader',
+            options: babelrc
+          }
+        }
+      ]
+    },
+    plugins: []
+  }
 ])
 
 /* -----------------------------------------------------------------------------
  * development webpack configuration
  */
+const TerserPlugin = require('terser-webpack-plugin')
 const developmentConfig = merge([
   {
+    mode: 'development',
     entry: {
-      vew: path.join(PATHS.app, 'index_hmr.js')
+      vew: path.join(PATHS.test, 'repl.js')
     },
+    devtool: false, // 'eval', 'source-map', 'nosources-source-map'
     plugins: [
       new HtmlWebpackPlugin({
         title: 'Vew Playground',
-        template: path.join(PATHS.app, 'index_hmr.ejs')
+        template: path.join(PATHS.test, 'repl.ejs')
       }),
       new webpack.NamedModulesPlugin()
-    ]
+    ],
+    optimization: {
+      minimize: false,
+      minimizer: [
+        new TerserPlugin({
+          cache: '.tmp/terser-webpack-plugin/',
+          terserOptions: {
+            compress: {
+              sequences: false,
+              pure_funcs: ['isNative'],
+              toplevel: true,
+              top_retain: ['extend', 'create'],
+              passes: 2
+            },
+            output: {
+              ecma: 5,
+              beautify: true,
+              ascii_only: true,
+              indent_level: 2,
+              max_line_len: 8196,
+              keep_quoted_props: true,
+            },
+            mangle: {
+              reserved: ['extend', 'create']
+            },
+            ie8: true,
+            safari10: true,
+          },
+        })
+      ],
+      usedExports: true,
+      concatenateModules: true,
+    }
   },
-  parts.devServer({
-    host: process.env.HOST,
-    port: process.env.PORT,
-    base: PATHS.app
-  })
+  parts.cssLoader(), 
+  parts.devServer({ host: process.env.HOST, port: process.env.PORT })
 ])
 
 /* -----------------------------------------------------------------------------
  * production webpack configuration
  */
 const productionConfig = merge([
-  parts.uglify()
+  {
+    mode: 'production',
+    entry: {
+      vew: path.join(PATHS.source, 'index.js')
+    },
+    output: {
+      filename: '[name].min.js',
+    },
+    optimization: {
+      minimizer: [
+        new TerserPlugin({
+          cache: '.tmp/terser-webpack-plugin/',
+          terserOptions: {
+            compress: {
+              sequences: false,
+            },
+            output: {
+              ecma: 5,
+              ascii_only: true,
+              max_line_len: 8196,
+              keep_quoted_props: true,
+            },
+            ie8: true,
+            safari10: true,
+          }
+        })
+      ]
+    }
+  }
 ])
 
 module.exports = function(env) {

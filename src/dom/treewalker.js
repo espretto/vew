@@ -1,45 +1,23 @@
 /* @flow */
 
-import { FRAGMENT_NODE } from '../dom'
+import { FRAGMENT_NODE, removeNode } from '../dom'
 
-/**
- * alternative TreeWalker implementation
- *
- * - does not support filters
- * - does not halt when revisiting the root node
- * - can produce and resolve node-paths as integer-arrays
- * - throws on succeeding calls to next() once null was returned
- *
- * TODO
- * - fork native TreeWalker implementation
- * - make it a singleton i.e. implement the stash interface
- */
+export type NodePath = $ReadOnlyArray<number>
 
-class Walker {
+class TreeWalker {
 
   node: Node
 
-  constructor (node: Node) {
-    if (node.nodeType === FRAGMENT_NODE) {
-      if (node.firstChild) this.node = node.firstChild
-      else throw new Error('cannot walk an empty fragment')
-    }
-    else {
-      this.node = node
-    }
+  constructor (node: Element) {
+    this.node = node
   }
 
   next () {
-    let node = this.node
-    let next = node.firstChild
-
-    if (next) return next
-
-    do next = node.nextSibling
-    while (!next && (node = node.parentNode));
-
+    var node = this.node
+    var next = node.firstChild
+    if (next) return this.node = next
+    do next = node.nextSibling; while (!next && (node = node.parentNode));
     if (next) this.node = next
-
     return next
   }
 
@@ -49,29 +27,38 @@ class Walker {
     return prev
   }
 
-  path (): number[] {
-    var path = [], prev, node, nodeIndex
-
-    for (node = this.node; node; node = node.parentNode) {
-
-      for (nodeIndex = 0; prev = node.previousSibling; nodeIndex += 1) {
-        node = prev
-      }
-
-      path.push(nodeIndex)
-    }
-
-    path.pop()
-
-    return path
+  remove () {
+    const node = this.node
+    this.prev()
+    // flowignore: parentNode sure exists
+    node.parentNode.removeChild(node)
   }
 
-  static resolve (node: Node, path: number[]) {
-    for (var depth = path.length; depth--;) {
-      node = ((node.firstChild: any): Node)
+  path (): NodePath {
+    const path: number[] = []
+    
+    for (var node = this.node; node; node = node.parentNode) {
 
-      for (var width = path[depth]; width--;) {
-        node = ((node.nextSibling: any): Node)
+      for (var prev, breadth = 0; prev = node.previousSibling; breadth += 1) {
+        node = prev
+      }
+      
+      path.push(breadth)
+    }
+
+    path.pop() // pop root-node breadth=0
+
+    return path.reverse() // JIT: avoid unshift's unsteady malloc behaviour
+  }
+
+  static resolve (node: Node, path: NodePath) {
+    for (var depth = path.length; depth--;) {
+      // flowignore: resolve is called before dom injection/manipulation
+      node = node.firstChild
+
+      for (var breadth = path[depth]; breadth--;) {
+        // flowignore: resolve is called before dom injection/manipulation
+        node = node.nextSibling
       }
     }
 
@@ -79,4 +66,4 @@ class Walker {
   }
 }
 
-export default Walker
+export default TreeWalker
