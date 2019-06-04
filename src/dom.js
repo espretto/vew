@@ -37,6 +37,10 @@ export function isTextBoundary (node: ?Node) {
   return !node || node.nodeType !== TEXT_NODE
 }
 
+export function isElement (node: Node) {
+  return node.nodeType === ELEMENT_NODE
+}
+
 export function isBlankElement (node: Element) {
   return every(node.childNodes, node =>
     node.nodeType === TEXT_NODE && isEmptyText(node) ||

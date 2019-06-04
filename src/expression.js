@@ -378,8 +378,23 @@ export function evaluate (match: Expression): Function {
   return Function.apply(null, signature)
 }
 
-export function scan (input: string, delimiters?: [string, string]): ?Expression {
-  const [prefix, suffix] = delimiters || ['', '']
+export function createExpression (input: string): Expression {
+  const scanner = new Scanner()
+
+  scanner.index = 0
+  scanner.input = input
+  scanner.suffix = ''
+
+  scanner.dataState()
+
+  scanner.match.begin = 0
+  scanner.match.end = scanner.index
+
+  return scanner.match
+}
+
+export function searchExpression (input: string, delimiters: [string, string]): ?Expression {
+  const [prefix, suffix] = delimiters
   const begin = input.indexOf(prefix)
 
   if (begin < 0) return null

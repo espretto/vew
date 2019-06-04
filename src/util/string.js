@@ -45,7 +45,7 @@ export const trim = isNative(nativeTrim)
 const reCamelCase = /-([a-z])/g
 
 export function camelCase (str: string) {
-  return str.replace(reCamelCase, (_, chr) => chr.toUpperCase())
+  return str.toLowerCase().replace(reCamelCase, (_, chr) => chr.toUpperCase())
 }
 
 /**

@@ -2,17 +2,20 @@
 
 import type { Expression } from './expression'
 import type { NodePath } from './dom/treewalker'
+import type { Instruction } from './instruction'
+
+import { InstructionType, isFlowControl } from './instruction'
 
 import Registry from './registry'
 import TreeWalker from './dom/treewalker'
-import { scan } from './expression'
 import { thisify } from './util/function'
 import { isString } from './util/type'
 import { hasOwn, keys, forOwn } from './util/object'
-import { startsWith, kebabCase } from './util/string'
+import { startsWith, camelCase } from './util/string'
 import { some, last, map, filter, forEach } from './util/array'
+import { createExpression, searchExpression } from './expression'
 import { TEXT_NODE, ELEMENT_NODE, getNodeName, isEmptyText, isBlankElement,
-         isMountNode, isTextBoundary, createMountNode, replaceNode, getAttributes } from './dom'
+         isMountNode, isElement, isTextBoundary, createMountNode, replaceNode, getAttributes, createFragment } from './dom'
 
 const reMatchLoop = /^\s*(?:([a-z_$][\w$]*)|\[\s*([a-z_$][\w$]*)\s*,\s*([a-z_$][\w$]*)\s*\])\s*of([\s\S]*)$/i
 
@@ -20,56 +23,25 @@ const INSTRUCTION_PREFIX = '--' // TODO: expose option
 
 const EXPRESSION_DELIMITERS = ['${', '}'] // TODO: expose option
 
-const InstructionType = {
-  IF:        1 << 0,
-  ELIF:      1 << 1,
-  ELSE:      1 << 2,
-  FOR:       1 << 3,
-  SWITCH:    1 << 4,
-  CASE:      1 << 5,
-  DEFAULT:   1 << 6,
-  SLOT:      1 << 7,
-  COMPONENT: 1 << 8,
-  LISTENER:  1 << 9,
-  REFERENCE: 1 << 10,
-  STYLE:     1 << 11,
-  CDATA:     1 << 12,
-  PROPERTY:  1 << 13,
-  CLASSNAME: 1 << 14,
-  ATTRIBUTE: 1 << 15,
-  NODEVALUE: 1 << 16
-}
-
-const FlowControlType =
-  InstructionType.IF |
-  InstructionType.ELIF |
-  InstructionType.ELSE |
-  InstructionType.FOR |
-  InstructionType.SWITCH |
-  InstructionType.CASE |
-  InstructionType.DEFAULT
-
-function isFlowControlType (type: string) {
-  return (InstructionType[type] & FlowControlType) !== 0
-}
 
 /**
  * class Template
  */
 class Template {
 
-  template: Element
+  el: Element;
 
-  instructions: Object[]
+  instructions: Instruction[]
 
   constructor (el: Element) {
-    this.template = el
+    this.el = el
     this.instructions = []
     this.templateState()
   }
 
   templateState () {
-    const tw = new TreeWalker(this.template)
+    const tw = new TreeWalker(this.el)
+    let frag = createFragment(this.el)
 
     for (let node = tw.node; node; node = tw.next()) {
       switch (node.nodeType) {
@@ -77,6 +49,10 @@ class Template {
         case ELEMENT_NODE: this.elementState(tw); break
       }
     }
+
+    // flowignore: there sure is a first child
+    this.el = frag.removeChild(frag.firstChild)
+    frag = null // JIT: avoid memory leak
   }
   
   textNodeState (tw: TreeWalker) {
@@ -90,7 +66,7 @@ class Template {
     }
 
     // parse expression
-    const expression = scan(text, EXPRESSION_DELIMITERS)
+    const expression = searchExpression(text, EXPRESSION_DELIMITERS)
     if (!expression) return
 
     // split text-node where the expression begins
@@ -121,9 +97,9 @@ class Template {
 
   elementState (tw: TreeWalker) {
     // flowignore: cast Node to Element
-    const elem: Element = tw.node
-    const nodeName = getNodeName(elem)
-    const attrs = getAttributes(elem, INSTRUCTION_PREFIX)
+    const el: Element = tw.node
+    const nodeName = getNodeName(el)
+    const attrs = getAttributes(el, INSTRUCTION_PREFIX)
 
     // 1st precedence : slot placeholders with optional default templates
     if (nodeName === 'SLOT') {
@@ -134,7 +110,7 @@ class Template {
     }
 
     // 2nd precedence : flow control instructions
-    const flowControls: string[] = filter(keys(attrs), isFlowControlType)
+    const flowControls: string[] = filter(keys(attrs), isFlowControl)
     switch (flowControls.length) {
       case 0: break
       case 1: return this.flowControlState(tw, flowControls[0], attrs[flowControls[0]])
@@ -147,13 +123,11 @@ class Template {
       this.componentState(tw, nodeName)
     }
     else if (hasOwn.call(attrs, 'IS')) {
-      const nameExpression = scan(attrs['IS'])
-      if (!nameExpression) throw new Error('instruction --is requires an expression')
-      this.componentState(tw, nameExpression)
+      this.componentState(tw, createExpression(attrs['IS']))
     }
 
     // 4th precedence : simple class-, style- & attribute-instructions
-    // --class, --style, --attr, --prop
+    // --class, --style, --attr, --hyphen-ized, --data-property
     forOwn(attrs, (attrValue, attrName) => {
       this.attributeState(tw, attrName, attrValue)
     })
@@ -204,7 +178,7 @@ class Template {
           type: instType,
           target,
           templates: [new Template(el)],
-          expressions: [scan(value)]
+          expressions: [createExpression(value)]
         })
         break
       
@@ -213,12 +187,13 @@ class Template {
         tw.remove()
 
         if (tw.node == null || !isMountNode(tw.node, 'IF') && !isMountNode(tw.node, 'FOR')) {
-          throw new Error('flow control directives --elif and --else must be preceded by either --if, --elif or --for')
+          throw new Error('instruction --elif/--else must be preceded by --if, --elif or --for')
         }
 
-        const flowControl = last(this.instructions)
+        // flowignore: cast Instruction to FlowControlInstruction
+        const flowControl: FlowControlInstruction = last(this.instructions)
         flowControl.templates.push(new Template(el))
-        flowControl.expressions.push(scan(instType === InstructionType.ELIF ? value : 'true'))
+        flowControl.expressions.push(createExpression(instType === InstructionType.ELIF ? value : 'true'))
         break
 
       case InstructionType.FOR:
@@ -233,7 +208,7 @@ class Template {
           keyName: loop[2],
           valueName: loop[1] || loop[3],
           templates: [new Template(el)],
-          expressions: [scan(loop[4])]
+          expressions: [createExpression(loop[4])]
         })
         break
 
@@ -245,16 +220,16 @@ class Template {
 
       case InstructionType.SWITCH:
         const templates: Template[] = []
-        const expressions: Array<?Expression> = []
+        const expressions: Expression[] = []
 
         // retrieve element nodes from live NodeList for ulterior removal
-        const elements = filter(el.childNodes, node => node.nodeType === ELEMENT_NODE)
+        const elements = filter(el.childNodes, isElement)
 
         // flowignore: cast Node to Element
         forEach(elements, (child: Element) => {
           const attrs = getAttributes(child, INSTRUCTION_PREFIX)
 
-          const flowControls = filter(keys(attrs), isFlowControlType)
+          const flowControls = filter(keys(attrs), isFlowControl)
           switch (flowControls.length) {
             case 0: return
             case 1: break
@@ -266,8 +241,8 @@ class Template {
           child.removeAttribute(INSTRUCTION_PREFIX + instName)
 
           templates.push(new Template(el.removeChild(child)))
-          expressions.push(scan(instType === InstructionType.CASE ? attrs[instName] : 'true'))
-          // TODO: allow only runtime constants in case expressions
+          expressions.push(createExpression(instType === InstructionType.CASE ? attrs[instName] : 'true'))
+          // TODO: allow only runtime constants in case expressionsa
         })
 
         if (!isBlankElement(el)) {
@@ -286,7 +261,7 @@ class Template {
           target: tw.path(),
           templates,
           expressions,
-          'switch': scan(value)
+          'switch': createExpression(value)
         })
 
         break
@@ -299,7 +274,7 @@ class Template {
     const slots: { [key: string]: Template } = {}
 
     // retrieve element nodes from live NodeList for ulterior removal
-    const elements = filter(root.childNodes, node => node.nodeType === ELEMENT_NODE)
+    const elements = filter(root.childNodes, isElement)
     
     // flowignore: cast Node to Element
     forEach(elements, (el: Element) => {
@@ -320,8 +295,8 @@ class Template {
 
     this.instructions.push({
       type: InstructionType.COMPONENT,
-      name,
       target: tw.path(),
+      name,
       slots
     })
   }
@@ -330,7 +305,7 @@ class Template {
     // flowignore: cast Node to Element
     const elem: Element = tw.node
     const target = tw.path()
-    const expression = scan(attrValue)
+    const expression = createExpression(attrValue)
 
     if (!expression) {
       throw new Error('prefixed attributes require an expression to evaluate')
@@ -342,7 +317,7 @@ class Template {
       this.instructions.push({
         type: InstructionType.CLASSNAME,
         target,
-        className: elem.className,
+        preset: elem.className,
         expression
       })
     }
@@ -350,7 +325,7 @@ class Template {
       this.instructions.push({
         type: InstructionType.STYLE,
         target,
-        cssText: elem.style.cssText,
+        preset: elem.style.cssText,
         expression
       })
     }
@@ -361,17 +336,10 @@ class Template {
         target
       })
     }
-    else if (attrName.toLowerCase() in elem) {
-      this.instructions.push({
-        type: InstructionType.PROPERTY,
-        target,
-        expression
-      })
-    }
     else if (startsWith(attrName, 'ON-')) {
       this.instructions.push({
         type: InstructionType.LISTENER,
-        event: attrName.substring('ON-'.length),
+        name: attrName.substring('ON-'.length),
         target,
         expression
       })
@@ -379,7 +347,15 @@ class Template {
     else if (startsWith(attrName, 'DATA-')) {
       this.instructions.push({
         type: InstructionType.CDATA,
-        key: attrName.substring('DATA-'.length),
+        name: attrName.substring('DATA-'.length),
+        target,
+        expression
+      })
+    }
+    else if (camelCase(attrName) in elem) {
+      this.instructions.push({
+        type: InstructionType.PROPERTY,
+        name: camelCase(attrName),
         target,
         expression
       })
@@ -387,6 +363,7 @@ class Template {
     else {
       this.instructions.push({
         type: InstructionType.ATTRIBUTE,
+        name: attrName,
         target,
         expression
       })

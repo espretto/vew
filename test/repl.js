@@ -141,7 +141,7 @@ global.Util = {
 /* -----------------------------------------------------------------------------
  * hot module replacement testing
  */
-import { scan, evaluate } from '../src/expression'
+import { evaluate, createExpression } from '../src/expression'
 import Template from '../src/template'
 import Registry from '../src/registry'
 import { parse, stringify } from '../src/dom/html'
@@ -164,7 +164,7 @@ if (module.hot) {
       var out
 
       try {
-        var exp = scan(DOM.input.value)
+        var exp = createExpression(DOM.input.value)
         out = [evaluate(exp).toString(), Util.beautify(exp)]
       }
       catch (e) {
