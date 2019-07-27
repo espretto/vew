@@ -35,20 +35,20 @@ Now, which feels right: the ternary expression in the template or the class name
 
 Roadmap
 -------------------------
-[ ] 28/07/2016: offline reflow/repaint sections by setting `display:none` or `visiblity:hidden` before applying any changes
-[x] template content extraction: http://stackoverflow.com/a/33138997
-[x] jquery extract to domify: https://github.com/component/domify/blob/master/index.js
-[ ] memory leaks: read [about memory leaks][1] and implement `dispose` and/or `teardown`
-[ ] example: implement example session timeout visualization as an svg clock
-[ ] distinguish static from dynamic dom [sub]sections
-[ ] referential transparency
-[ ] stateful and stateless widgets ? do we need the differentiation ?
-[ ] event delegation
-[ ] inter-component communication
-[ ] provide lifecycle hooks with callback or promise api
-[ ] dom updates: fine grained control on dom updates:
-  [ ] `once` to bypass tracking mecanisms/householding
-  [ ] `always` to bypass dom-diffing, i.e. indicate that values always change
+- [ ] 28/07/2016: offline reflow/repaint sections by setting `display:none` or `visiblity:hidden` before applying any changes
+- [x] template content extraction: http://stackoverflow.com/a/33138997
+- [x] jquery extract to domify: https://github.com/component/domify/blob/master/index.js
+- [ ] memory leaks: read [about memory leaks][1] and implement `dispose` and/or `teardown`
+- [ ] example: implement example session timeout visualization as an svg clock
+- [ ] distinguish static from dynamic dom [sub]sections
+- [ ] referential transparency
+- [ ] stateful and stateless widgets ? do we need the differentiation ?
+- [ ] event delegation
+- [ ] inter-component communication
+- [ ] provide lifecycle hooks with callback or promise api
+- [ ] dom updates: fine grained control on dom updates:
+  - [ ] `once` to bypass tracking mecanisms/householding
+  - [ ] `always` to bypass dom-diffing, i.e. indicate that values always change
 
 Resources and insights [to be] gained from them
 -------------------------
