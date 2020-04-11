@@ -7,7 +7,7 @@ export function id <T> (any: T): T {
 /**
  * custom *Function#bind*
  */
-export function thisify <R> (func: () => R, that: mixed, arity: number): () => R  {
+export function thisify <R> (func: (...any) => R, that: mixed, arity: number): () => R  {
   switch (arity) {
     case 0: return () => func.call(that)
     case 1: return (a: any) => func.call(that, a)
