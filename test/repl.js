@@ -105,6 +105,8 @@ global.Util = {
           return data.every(Util.isPrimitive)
             ? '[' + data.join(', ') + ']'
             : data
+        case 'undefined':
+          return '<undefined>'
         default:
           return data
       }
