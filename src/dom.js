@@ -137,6 +137,6 @@ export const extractContents = isNative(document.createRange)
 /* -----------------------------------------------------------------------------
  * clone
  */
-export function clone (node: Node) {
-  return node.cloneNode(true)
+export function clone (el: Element) {
+  return el.cloneNode(true)
 }
