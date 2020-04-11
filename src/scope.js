@@ -30,6 +30,7 @@ class Scope {
     this.root.resolveOrCreate(path).tasks.push(task)
   }
 
+  /* TODO : why would you ever unsubscribe and not destroy the whole scope instance anyway ? */
   unsubscribe (path: string|KeyPath, task: Function) {
     if (isString(path)) path = toKeyPath(path)
 
