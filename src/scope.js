@@ -133,10 +133,10 @@ class Scope {
   }
 
   mergeObject (trg: any, src: any, sub: SubscriptionNode, clone: boolean) {
-    var childNodes = sub.childNodes
+    const childNodes = sub.childNodes
 
     forOwn(src, (srcValue, srcKey) => {
-      var closest = getOwn(childNodes, srcKey, sub)
+      const closest = getOwn(childNodes, srcKey, sub)
 
       trg[srcKey] = !clone && hasOwn.call(trg, srcKey)
         ? this.mergeDeep(trg[srcKey], srcValue, closest)
@@ -147,11 +147,11 @@ class Scope {
   }
 
   mergeArray (trg: Array<any>, src: Array<any>, sub: SubscriptionNode, clone: boolean) {
-    var childNodes = sub.childNodes
-      , trgLength = trg.length
+    const childNodes = sub.childNodes
+    const trgLength = trg.length
 
     forEach(src, (srcValue, srcIndex) => {
-      var closest = getOwn(childNodes, srcIndex, sub)
+      const closest = getOwn(childNodes, srcIndex, sub)
 
       trg[srcIndex] = !clone && srcIndex < trgLength
         ? this.mergeDeep(trg[srcIndex], srcValue, closest)
