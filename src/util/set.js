@@ -1,33 +1,48 @@
 
 import { Set } from './global'
 import { isUndefined, isFunction } from './type'
-import { forEach, insertAt, sortedIndexBy } from './array'
+import { hasOwn, forOwn } from './object'
+import { forEach } from './array'
 
-/**
- * this shim uses a sorted array and does not maintain the order in which
- * the items were added. all items must have the sorting property.
- */
-function CustomSet (initials) {
-  this.items = initials || []
+
+function CustomSet (hash) {
+  this.hash = hash
+  this.items = {}
 }
 
 CustomSet.prototype = {
 
-  constructor: CustomSet
+  has (item) {
+    return hasOwn.call(this.items, this.hash(item))
+  },
 
-, add (item) {
-    var i = sortedIndexBy(this.items, item, item => item.getComparableId())
-    if (i < 0) insertAt(this.items, item, ~i)
+  add (item) {
+    const hash = this.hash(item)
+    if (!hasOwn.call(this.items, hash)) {
+      this.items[hash] = item
+    }
     return this
-  }
+  },
   
-, forEach (func) {
-    forEach(this.items, func)
-  }
+  forEach (func) {
+    forOwn(this.items, func)
+  },
   
-, clear () {
-    this.items.length = 0
+  clear () {
+    this.items = {}
   }
 }
 
-export default !isUndefined(Set) && isFunction(new Set().values) ? Set : CustomSet
+function createNativeSet () {
+  return new Set()
+}
+
+function createCustomSet (key) {
+  return new CustomSet(key)
+}
+
+type setFactory = <T> (key: T => string|number) => Set<T>
+
+const createSet: setFactory = !isUndefined(Set) && isFunction(new Set().values)
+  ? createNativeSet
+  : createCustomSet

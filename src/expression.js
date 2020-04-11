@@ -57,8 +57,8 @@ class Scanner {
   /** pending index used for buffering, copying parts from input to output */
   anchor: number
 
-  /** used to keep track of brackets/braces/parentheses */
-  brackets: string[]
+  /** used to keep track of bracketStack/braces/parentheses */
+  bracketStack: string[]
 
   /** indicates whether the current identifier could be an object key */
   maybeKey: boolean
@@ -71,7 +71,7 @@ class Scanner {
     this.input = ''
     this.suffix = ''
     this.anchor = 0
-    this.brackets = []
+    this.bracketStack = []
     this.maybeKey = false
     this.match = {
       paths: [],
@@ -110,7 +110,7 @@ class Scanner {
     }
   }
 
-  seekEndOfString (quote: string) {
+  skipString (quote: string) {
     this.index += 1
 
     // skip empty string literal
@@ -132,7 +132,7 @@ class Scanner {
   hasReachedSuffix () {
     return (
       this.suffix &&
-      this.brackets.length === 0 &&
+      this.bracketStack.length === 0 &&
       this.input.lastIndexOf(this.suffix, this.index) === this.index
     )
   }
@@ -176,14 +176,14 @@ class Scanner {
         this.slashState()
       }
       else if (chr === '"' || chr === "'") {
-        this.seekEndOfString(chr)
+        this.skipString(chr)
       }
       else if (chr === '(' || chr === '[' || chr === '{') {
-        this.brackets.unshift(chr)
+        this.bracketStack.unshift(chr)
         this.maybeKey = true
       }
       else if (chr === ')' || chr === ']' || chr === '}') {
-        this.brackets.shift()
+        this.bracketStack.shift()
       }
       else if (chr === ':') {
         this.maybeKey = false
@@ -225,7 +225,7 @@ class Scanner {
   identState () {
     const ident = this.seek(matchIdent)
 
-    if (this.maybeKey && this.brackets[0] === '{') {
+    if (this.maybeKey && this.bracketStack[0] === '{') {
       this.index += ident.length
       this.flush()
 
@@ -302,7 +302,7 @@ class Scanner {
 
     if (chr === '"' || chr === "'") {
       begin = this.index
-      this.seekEndOfString(chr)
+      this.skipString(chr)
       ident = this.input.substring(begin+1, this.index-1) // trim quotes
       path.push(ident)
 
