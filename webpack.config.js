@@ -73,7 +73,7 @@ const developmentConfig = merge([
     entry: {
       vew: path.join(PATHS.test, 'repl.js')
     },
-    devtool: false, // 'eval', 'source-map', 'nosources-source-map'
+    devtool: 'source-map', // 'eval', 'source-map', 'nosources-source-map'
     plugins: [
       new HtmlWebpackPlugin({
         title: 'Vew Playground',
