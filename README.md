@@ -44,6 +44,8 @@ Roadmap
 - [ ] referential transparency
 - [ ] stateful and stateless widgets ? do we need the differentiation ?
 - [ ] event delegation
+- [ ] introduce `--on-event-args="[...expression]"` to accompany `--on-event="handler"` instructions
+      to avoid multiple handers in loop expressions
 - [ ] inter-component communication
 - [ ] provide lifecycle hooks with callback or promise api
 - [ ] dom updates: fine grained control on dom updates:
