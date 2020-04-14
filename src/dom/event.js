@@ -13,7 +13,7 @@
   event delegation strategy:
   - central listener registry on root-component basis
   - set a data-guid (or id or configurable) attribute/property on bound elements to index attached listeners in that registry
-  - moralize event, 
+  - normalize event, 
   - fix mouse coordinates on events
   - fix target/srcElement ambiguity
   - fix event target text node safari bug
@@ -54,7 +54,7 @@ var EventHub = (function () {
    */
   function fixEvent (event) {
     return event
-  }
+  }relativeTarget
 
   function fixTarget (event) {
     return event.target
@@ -102,7 +102,7 @@ var EventHub = (function () {
     while (++i < len) {
       var handler = handers[i]
       var [listener, node] = callchain[i]
-      if (handler(event)) event.preventDefault()
+      if (handler(event) === false) event.preventDefault()
       if (event.isPropagationStopped) return
     }
 
