@@ -46,6 +46,7 @@ Roadmap
 - [ ] event delegation
 - [ ] introduce `--on-event-args="[...expression]"` to accompany `--on-event="handler"` instructions
       to avoid multiple handers in loop expressions
+- [ ] provide --switch-equals parameter to overload the equality-operator
 - [ ] inter-component communication
 - [ ] provide lifecycle hooks with callback or promise api
 - [ ] dom updates: fine grained control on dom updates:
