@@ -8,7 +8,7 @@ class TreeWalker {
 
   node: Node
 
-  constructor (node: Element) {
+  constructor (node: Node) {
     this.node = node
   }
 
@@ -46,24 +46,26 @@ class TreeWalker {
       path.push(breadth)
     }
 
-    path.pop() // pop root-node breadth=0
+    path.pop() // pop root node
 
-    return path.reverse() // JIT: avoid unshift's unsteady malloc behaviour
-  }
-
-  static resolve (node: Node, path: NodePath) {
-    for (var depth = path.length; depth--;) {
-      // flowignore: resolve is called before dom injection/manipulation
-      node = node.firstChild
-
-      for (var breadth = path[depth]; breadth--;) {
-        // flowignore: resolve is called before dom injection/manipulation
-        node = node.nextSibling
-      }
-    }
-
-    return node
+    return path
   }
 }
 
-export default TreeWalker
+
+function resolve (node: Node, path: NodePath): Node {
+  for (var depth = path.length; depth--;) {
+    // flowignore: resolve is called before dom injection/manipulation
+    node = node.firstChild
+
+    for (var breadth = path[depth]; breadth--;) {
+      // flowignore: resolve is called before dom injection/manipulation
+      node = node.nextSibling
+    }
+  }
+
+  return node
+}
+
+
+export { resolve, TreeWalker }

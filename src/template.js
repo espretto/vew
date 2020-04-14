@@ -2,20 +2,20 @@
 
 import type { Expression } from './expression'
 import type { NodePath } from './dom/treewalker'
-import type { Instruction } from './instruction'
+import type { Instruction, Partial } from './instruction'
 
 import { InstructionType, isFlowControl } from './instruction'
 
 import Registry from './registry'
-import TreeWalker from './dom/treewalker'
-import { thisify } from './util/function'
-import { isString } from './util/type'
+import { TreeWalker } from './dom/treewalker'
+import { stringify } from './dom/html'
 import { hasOwn, keys, forOwn } from './util/object'
 import { startsWith, camelCase } from './util/string'
-import { some, last, map, filter, forEach } from './util/array'
+import { last, filter, forEach } from './util/array'
 import { createExpression, searchExpression } from './expression'
 import { TEXT_NODE, ELEMENT_NODE, getNodeName, isEmptyText, isBlankElement,
-         isMountNode, isElement, isTextBoundary, createMountNode, replaceNode, getAttributes, createFragment } from './dom'
+         isMountNode, isElement, isTextBoundary, createMountNode, replaceNode as replaceNode_, getAttributes, createFragment } from './dom'
+
 
 const reMatchLoop = /^\s*(?:([a-z_$][\w$]*)|\[\s*([a-z_$][\w$]*)\s*,\s*([a-z_$][\w$]*)\s*\])\s*of([\s\S]*)$/i
 
@@ -29,8 +29,8 @@ const EXPRESSION_DELIMITERS = ['${', '}'] // TODO: expose option
  */
 class Template {
 
-  el: Element;
-
+  el: Node
+  
   instructions: Instruction[]
 
   constructor (el: Element) {
@@ -39,9 +39,12 @@ class Template {
     this.templateState()
   }
 
+  replaceNode (prev: Node, next: Node) {
+    return prev.parentNode ? replaceNode_(prev, next) : (this.el = next)
+  }
+
   templateState () {
     const tw = new TreeWalker(this.el)
-    let frag = createFragment(this.el)
 
     for (let node = tw.node; node; node = tw.next()) {
       switch (node.nodeType) {
@@ -49,10 +52,6 @@ class Template {
         case ELEMENT_NODE: this.elementState(tw); break
       }
     }
-
-    // flowignore: there sure is a first child
-    this.el = frag.removeChild(frag.firstChild)
-    frag = null // JIT: avoid memory leak
   }
   
   textNodeState (tw: TreeWalker) {
@@ -83,8 +82,8 @@ class Template {
     }
 
     this.instructions.push({
-      type: InstructionType.NODEVALUE,
-      target: tw.path(),
+      type: InstructionType.TEXT,
+      nodePath: tw.path(),
       expression: expression
     })
 
@@ -136,7 +135,7 @@ class Template {
   slotState (tw: TreeWalker, slotName: string, hasDefaultTemplate: boolean) {
     // flowignore: cast Node to Element
     const el: Element = tw.node
-    tw.node = replaceNode(el, createMountNode('SLOT'))
+    tw.node = this.replaceNode(el, createMountNode('SLOT'))
 
     if (hasDefaultTemplate) {
       el.removeAttribute(INSTRUCTION_PREFIX + 'SLOT')
@@ -144,7 +143,7 @@ class Template {
       this.instructions.push({
         type: InstructionType.SLOT,
         name: slotName,
-        target: tw.path(),
+        nodePath: tw.path(),
         template: new Template(el)
       })
     }
@@ -156,29 +155,29 @@ class Template {
       this.instructions.push({
         type: InstructionType.SLOT,
         name: slotName,
-        target: tw.path(),
+        nodePath: tw.path(),
         template: null
       })
     }
   }
 
-  flowControlState (tw: TreeWalker, instName: string, value: string) {
+  flowControlState (tw: TreeWalker, instructionType: string, value: string) {
     // flowignore: cast Node to Element
     const el: Element = tw.node
-    const target = tw.path()
-    const instType = InstructionType[instName]
+    
+    el.removeAttribute(INSTRUCTION_PREFIX + instructionType)
 
-    el.removeAttribute(INSTRUCTION_PREFIX + instName)
-
-    switch (instType) {
+    switch (instructionType) {
       case InstructionType.IF:
-        tw.node = replaceNode(el, createMountNode(instName))
+        tw.node = this.replaceNode(el, createMountNode(instructionType))
 
         this.instructions.push({
-          type: instType,
-          target,
-          templates: [new Template(el)],
-          expressions: [createExpression(value)]
+          type: instructionType,
+          nodePath: tw.path(),
+          partials: [{
+            template: new Template(el),
+            expression: createExpression(value)
+          }]
         })
         break
       
@@ -190,25 +189,28 @@ class Template {
           throw new Error('instruction --elif/--else must be preceded by --if, --elif or --for')
         }
 
-        // flowignore: cast Instruction to FlowControlInstruction
-        const flowControl: FlowControlInstruction = last(this.instructions)
-        flowControl.templates.push(new Template(el))
-        flowControl.expressions.push(createExpression(instType === InstructionType.ELIF ? value : 'true'))
+        // flowignore: cast Instruction to ConditionalInstruction
+        last(this.instructions).partials.push({
+          template: new Template(el),
+          expression: createExpression(instructionType === InstructionType.ELIF ? value : 'true')
+        })
         break
 
       case InstructionType.FOR:
-        tw.node = replaceNode(el, createMountNode(instName))
+        tw.node = this.replaceNode(el, createMountNode(instructionType))
 
         const loop = value.match(reMatchLoop)
         if (!loop) throw new Error('malformed loop expression')
 
         this.instructions.push({
-          type: instType,
-          target,
+          type: instructionType,
+          nodePath: tw.path(),
           keyName: loop[2],
           valueName: loop[1] || loop[3],
-          templates: [new Template(el)],
-          expressions: [createExpression(loop[4])]
+          partials: [{
+            template: new Template(el),
+            expression: createExpression(loop[4])
+          }]
         })
         break
 
@@ -219,8 +221,7 @@ class Template {
         throw new Error('the --default directive can only be used within --switch')
 
       case InstructionType.SWITCH:
-        const templates: Template[] = []
-        const expressions: Expression[] = []
+        const partials: Partial[] = []
 
         // retrieve element nodes from live NodeList for ulterior removal
         const elements = filter(el.childNodes, isElement)
@@ -236,13 +237,15 @@ class Template {
             default: throw new Error('cannot apply multiple flow controls to a single element')
           }
 
-          const instName = flowControls[0]
-          const instType = InstructionType[instName]
-          child.removeAttribute(INSTRUCTION_PREFIX + instName)
+          const instructionName = flowControls[0]
+          const instructionType = InstructionType[instructionName]
+          child.removeAttribute(INSTRUCTION_PREFIX + instructionName)
 
-          templates.push(new Template(el.removeChild(child)))
-          expressions.push(createExpression(instType === InstructionType.CASE ? attrs[instName] : 'true'))
-          // TODO: allow only runtime constants in case expressionsa
+          // TODO: allow only runtime constants in case expressions
+          partials.push({
+            template: new Template(el.removeChild(child)),
+            expression: createExpression(instructionType === InstructionType.CASE ? attrs[instructionName] : 'true')
+          })
         })
 
         if (!isBlankElement(el)) {
@@ -252,16 +255,15 @@ class Template {
         // remove empty text-nodes and comments
         el.innerHTML = ''
         // the mount-node becomes the "default --default" template
-        el.appendChild(createMountNode(instName))
+        el.appendChild(createMountNode(instructionType))
         // point to the mount-node
         tw.next()
         
         this.instructions.push({
-          type: instType,
-          target: tw.path(),
-          templates,
-          expressions,
-          'switch': createExpression(value)
+          type: instructionType,
+          nodePath: tw.path(),
+          switched: createExpression(value),
+          partials
         })
 
         break
@@ -295,7 +297,7 @@ class Template {
 
     this.instructions.push({
       type: InstructionType.COMPONENT,
-      target: tw.path(),
+      nodePath: tw.path(),
       name,
       slots
     })
@@ -304,7 +306,7 @@ class Template {
   attributeState (tw: TreeWalker, attrName: string, attrValue: string) {
     // flowignore: cast Node to Element
     const elem: Element = tw.node
-    const target = tw.path()
+    const nodePath = tw.path()
     const expression = createExpression(attrValue)
 
     if (!expression) {
@@ -316,7 +318,7 @@ class Template {
     if (attrName === 'CLASS') {
       this.instructions.push({
         type: InstructionType.CLASSNAME,
-        target,
+        nodePath,
         preset: elem.className,
         expression
       })
@@ -324,7 +326,7 @@ class Template {
     else if (attrName === 'STYLE') {
       this.instructions.push({
         type: InstructionType.STYLE,
-        target,
+        nodePath,
         preset: elem.style.cssText,
         expression
       })
@@ -333,22 +335,22 @@ class Template {
       this.instructions.push({
         type: InstructionType.REFERENCE,
         name: attrValue,
-        target
+        nodePath
       })
     }
     else if (startsWith(attrName, 'ON-')) {
       this.instructions.push({
         type: InstructionType.LISTENER,
-        name: attrName.substring('ON-'.length),
-        target,
+        event: attrName.substring('ON-'.length).toLowerCase(),
+        nodePath,
         expression
       })
     }
     else if (startsWith(attrName, 'DATA-')) {
       this.instructions.push({
-        type: InstructionType.CDATA,
+        type: InstructionType.DATASET,
         name: attrName.substring('DATA-'.length),
-        target,
+        nodePath,
         expression
       })
     }
@@ -356,7 +358,7 @@ class Template {
       this.instructions.push({
         type: InstructionType.PROPERTY,
         name: camelCase(attrName),
-        target,
+        nodePath,
         expression
       })
     }
@@ -364,7 +366,7 @@ class Template {
       this.instructions.push({
         type: InstructionType.ATTRIBUTE,
         name: attrName,
-        target,
+        nodePath,
         expression
       })
     }

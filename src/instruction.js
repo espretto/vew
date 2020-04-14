@@ -5,81 +5,109 @@ import type { Expression } from './expression'
 import type Template from './template'
 
 export const InstructionType = {
-  IF:        1 << 0,
-  ELIF:      1 << 1,
-  ELSE:      1 << 2,
-  FOR:       1 << 3,
-  SWITCH:    1 << 4,
-  CASE:      1 << 5,
-  DEFAULT:   1 << 6,
-  SLOT:      1 << 7,
-  COMPONENT: 1 << 8,
-  LISTENER:  1 << 9,
-  REFERENCE: 1 << 10,
-  STYLE:     1 << 11,
-  CDATA:     1 << 12,
-  PROPERTY:  1 << 13,
-  CLASSNAME: 1 << 14,
-  ATTRIBUTE: 1 << 15,
-  NODEVALUE: 1 << 16
+  IF: 'IF',
+  ELIF: 'ELIF',
+  ELSE: 'ELSE',
+  FOR: 'FOR',
+  SWITCH: 'SWITCH',
+  CASE: 'CASE',
+  DEFAULT: 'DEFAULT',
+  SLOT: 'SLOT',
+  COMPONENT: 'COMPONENT',
+  LISTENER: 'LISTENER',
+  REFERENCE: 'REFERENCE',
+  STYLE: 'STYLE',
+  DATASET: 'DATASET',
+  PROPERTY: 'PROPERTY',
+  CLASSNAME: 'CLASSNAME',
+  ATTRIBUTE: 'ATTRIBUTE',
+  TEXT: 'TEXT'
 }
 
-const FlowControlMask =
-  InstructionType.IF |
-  InstructionType.ELIF |
-  InstructionType.ELSE |
-  InstructionType.FOR |
-  InstructionType.SWITCH |
-  InstructionType.CASE |
-  InstructionType.DEFAULT
+const FlowControlTypes = {}
+FlowControlTypes[InstructionType.IF] =
+FlowControlTypes[InstructionType.ELIF] =
+FlowControlTypes[InstructionType.ELSE] =
+FlowControlTypes[InstructionType.FOR] =
+FlowControlTypes[InstructionType.SWITCH] =
+FlowControlTypes[InstructionType.CASE] =
+FlowControlTypes[InstructionType.DEFAULT] = true
 
 export function isFlowControl (type: string): boolean {
-  return (InstructionType[type] & FlowControlMask) !== 0
+  return FlowControlTypes[type] === true
 }
+
+export type Partial = {|
+  template: Template,
+  expression: Expression
+|}
 
 export interface Instruction {
-  type: number, // $Values<typeof InstructionType>,
-  target: NodePath
-}
-
-export interface ReferenceInstruction extends Instruction {
-  name: string
+  type: string,
+  nodePath: NodePath
 }
 
 export interface TextInstruction extends Instruction {
   expression: Expression
 }
 
-export interface MutationInstruction extends Instruction {
-  name: string,
-  expression: Expression
-}
-
-export interface PresetMutationInstruction extends Instruction {
-  preset: string,
-  expression: Expression
-}
-
 export interface SlotInstruction extends Instruction {
   name: string,
-  template: Template | null
+  template: Template
+}
+
+/** regroups IF, ELIF, ELSE */
+//  continue: map instructions to dom manipulations
+export interface ConditionalInstruction extends Instruction {
+  partials: Partial[]
+}
+
+export interface LoopInstruction extends Instruction {
+  keyName: string,
+  valueName: string,
+  partials: Partial[]
+}
+
+export interface SwitchInstruction extends Instruction {
+  switcher: Expression,
+  partials: Partial[]
 }
 
 export interface ComponentInstruction extends Instruction {
   name: string,
-  slots: { [key: string]: Template }
+  slots: { [name: string]: Template }
 }
 
-export interface FlowControlInstruction extends Instruction {
-  templates: Template[],
-  expressions: Expression[]
+export interface ClassNameInstruction extends Instruction {
+  preset: string,
+  expression: Expression
 }
 
-export interface ForInstruction extends FlowControlInstruction {
-  key: string,
-  value: Expression
+export interface StyleInstruction extends Instruction {
+  preset: string,
+  expression: Expression
 }
 
-export interface SwitchInstruction extends FlowControlInstruction {
-  switch: Expression
+export interface ReferenceInstruction extends Instruction {
+  name: string
+}
+
+export interface ListenerInstruction extends Instruction {
+  event: string,
+  expression: Expression
+}
+
+export interface DatasetInstruction extends Instruction {
+  name: string,
+  expression: Expression
+}
+
+export interface PropertyInstruction extends Instruction {
+  name: string,
+  expression: Expression
+}
+
+export interface AttributeInstruction extends Instruction {
+  name: string,
+  expression: Expression
 }

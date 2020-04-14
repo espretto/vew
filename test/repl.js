@@ -147,6 +147,7 @@ import { evaluate, createExpression } from '../src/expression'
 import Template from '../src/template'
 import Registry from '../src/registry'
 import { parse, stringify } from '../src/dom/html'
+import { bootstrapComponent } from '../src/component'
 
 if (module.hot) {
   module.hot.accept()
@@ -265,4 +266,22 @@ if (module.hot) {
   TemplateGround.setup()
   TemplateGround.load()
   
+  /* ---------------------------------------------------------------------------
+   * component
+   */
+  const html = `
+    <p>
+      the quick brown fox jumps
+      <strong --if="one">\${how}</strong>
+      over the lazy dog
+    </p>
+  `
+  const frag = parse(html)
+  const template = new Template(frag.removeChild(frag.firstChild))
+  const data = () => ({ one: true, how: 'high' })
+  const app = window.app = bootstrapComponent(template, data)(null)
+  
+  app.mount(document.getElementById('root'))
+
+
 }
