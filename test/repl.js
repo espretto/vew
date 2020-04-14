@@ -272,13 +272,17 @@ if (module.hot) {
   const html = `
     <p>
       the quick brown fox jumps
-      <strong --if="one">\${how}</strong>
+      <span --switch="color">
+        <span --case="'red'" --style="{ color: color }">high</span>
+        <span --case="'blue'" style="text-decoration: line-through" --style="{ color: color }">low</span>
+
+      </span>
       over the lazy dog
     </p>
   `
   const frag = parse(html)
   const template = new Template(frag.removeChild(frag.firstChild))
-  const data = () => ({ one: true, how: 'high' })
+  const data = () => ({ color: 'red' })
   const app = window.app = bootstrapComponent(template, data)(null)
   
   app.mount(document.getElementById('root'))

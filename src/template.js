@@ -254,7 +254,7 @@ class Template {
         
         // remove empty text-nodes and comments
         el.innerHTML = ''
-        // the mount-node becomes the "default --default" template
+        // insert a mount-node for the --case[s], if no --default is given, the mount node is rendered
         el.appendChild(createMountNode(instructionType))
         // point to the mount-node
         tw.next()

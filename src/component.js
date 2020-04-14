@@ -8,7 +8,8 @@ import type {
   PropertyInstruction,
   DatasetInstruction,
   AttributeInstruction,
-  ConditionalInstruction
+  ConditionalInstruction,
+  SwitchInstruction
   } from './instruction'
 import type Template from './template'
 import { Instruction, InstructionType } from './instruction'
@@ -22,7 +23,60 @@ import { indexOf, forEach, map, find, flatMap } from './util/array'
 import { replaceNode, clone } from './dom'
 
 
+function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
+  const switched_ = evaluate(switched)
+  const cases = map(partials, ({ template, expression }) => ({
+    setup: bootstrapComponent(template),
+    compute: evaluate(expression),
+    paths: expression.paths
+  }))
 
+  return function setup (parent: Component) {
+    const { el, scope } = parent
+    const placeholder = resolve(el, nodePath)
+    let prev = null
+    let mounted: Component | null = null
+
+    function task () {
+      const args = map(switched.paths, path => scope.resolve(path))
+      const value = switched_.apply(null, args)
+
+      const next = find(cases, ({ compute, paths }) => {
+        const args = map(paths, path => scope.resolve(path))
+        return value === compute.apply(null, args)
+      })
+
+      if (prev === next) return
+      else prev = next
+
+      if (mounted) {
+        mounted.teardown()
+        
+        if (next) {
+          mounted = next.setup(parent, true).mount(mounted.el)
+        }
+        else {
+          replaceNode(mounted.el, placeholder)
+          mounted = null
+        }
+      }
+      else if (next) {
+        mounted = next.setup(parent, true).mount(placeholder)
+      }
+    }
+
+    // initial render
+    task()
+
+    // TODO: do not subscribe to conditions below/after the currently fulfilled one
+    forEach(switched.paths, path => scope.subscribe(path, task))
+    forEach(cases, ({ paths }) => forEach(paths, path => scope.subscribe(path, task)))
+    return function teardown () {
+      forEach(switched.paths, path => scope.unsubscribe(path, task))
+      forEach(cases, ({ paths }) => forEach(paths, path => scope.unsubscribe(path, task)))
+    }
+  }
+}
 
 
 function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
@@ -44,10 +98,10 @@ function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
         return compute.apply(null, args)
       })
 
-      if (prev === next) {
-        return
-      }
-      else if (mounted) {
+      if (prev === next) return
+      else prev = next
+
+      if (mounted) {
         mounted.teardown()
         
         if (next) {
@@ -173,6 +227,7 @@ function bootstrapListener ({ nodePath, event, expression }: ListenerInstruction
 
 
 const bootstappers = {
+  [InstructionType.SWITCH]: bootstrapSwitch,
   [InstructionType.IF]: bootstrapConditional,
   [InstructionType.ATTRIBUTE]: bootstrapSetter,
   [InstructionType.DATASET]: bootstrapSetter,

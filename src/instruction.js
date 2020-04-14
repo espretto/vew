@@ -69,7 +69,7 @@ export interface LoopInstruction extends Instruction {
 }
 
 export interface SwitchInstruction extends Instruction {
-  switcher: Expression,
+  switched: Expression,
   partials: Partial[]
 }
 
