@@ -28,7 +28,7 @@ Object.assign(babelrc, { cacheDirectory: '.tmp/babel' })
 const PATHS = {
   source: resolve('src'),
   test: resolve('test'),
-  public: resolve('public')
+  public: resolve('dist')
 }
 
 /* -----------------------------------------------------------------------------
@@ -107,7 +107,7 @@ const developmentConfig = merge([
             },
             ie8: true,
             safari10: true,
-          },
+          }
         })
       ],
       usedExports: true,
@@ -125,12 +125,14 @@ const productionConfig = merge([
   {
     mode: 'production',
     entry: {
-      vew: path.join(PATHS.source, 'index.js')
+      runtime: path.join(PATHS.source, 'component.js'),
+      buildtime: path.join(PATHS.source, 'template.js')
     },
     output: {
       filename: '[name].min.js',
     },
     optimization: {
+      minimize: false,
       minimizer: [
         new TerserPlugin({
           cache: '.tmp/terser-webpack-plugin/',

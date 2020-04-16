@@ -20,9 +20,7 @@ package-lock.json
 
 # ---------------
 # custom additions
-public
-output
-_*.js
+dist
 .tmp/
 notes.md
 
