@@ -1,9 +1,9 @@
 /* @flow */
 
-import { isNative } from './util/type'
-import { document } from './util/global'
-import { startsWith } from './util/string'
-import { every } from './util/array'
+import { isNative } from '../util/type'
+import { document } from '../util/global'
+import { startsWith } from '../util/string'
+import { every } from '../util/array'
 
 export const ELEMENT_NODE = 1
 export const TEXT_NODE = 3

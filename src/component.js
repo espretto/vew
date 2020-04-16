@@ -20,7 +20,7 @@ import { resolve } from './dom/treewalker'
 import Effects from './dom/effects'
 
 import { indexOf, forEach, map, find, flatMap } from './util/array'
-import { replaceNode, clone } from './dom'
+import { replaceNode, clone } from './dom/core'
 
 
 function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {

@@ -3,7 +3,7 @@
 import { getOwn } from '../util/object'
 import { document } from '../util/global'
 import { TEXT_NODE, ELEMENT_NODE, COMMENT_NODE, FRAGMENT_NODE,
-         createFragment, createTextNode, extractContents, removeNode, trim } from '../dom'
+         createFragment, createTextNode, extractContents, removeNode, trim } from './core'
 
 /** bug list */
 export const support = {}

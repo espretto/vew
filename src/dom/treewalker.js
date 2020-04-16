@@ -1,6 +1,6 @@
 /* @flow */
 
-import { FRAGMENT_NODE, removeNode } from '../dom'
+import { removeNode } from './core'
 
 export type NodePath = $ReadOnlyArray<number>
 
@@ -16,7 +16,8 @@ class TreeWalker {
     var node = this.node
     var next = node.firstChild
     if (next) return this.node = next
-    do next = node.nextSibling; while (!next && (node = node.parentNode));
+    do next = node.nextSibling
+    while (!next && (node = node.parentNode))
     if (next) this.node = next
     return next
   }
@@ -30,8 +31,7 @@ class TreeWalker {
   remove () {
     const node = this.node
     this.prev()
-    // flowignore: parentNode sure exists
-    node.parentNode.removeChild(node)
+    removeNode(node)
   }
 
   path (): NodePath {

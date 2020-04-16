@@ -14,7 +14,7 @@ import { startsWith, camelCase } from './util/string'
 import { last, filter, forEach } from './util/array'
 import { createExpression, searchExpression } from './expression'
 import { TEXT_NODE, ELEMENT_NODE, getNodeName, isEmptyText, isBlankElement,
-         isMountNode, isElement, isTextBoundary, createMountNode, replaceNode as replaceNode_, getAttributes, createFragment } from './dom'
+         isMountNode, isElement, isTextBoundary, createMountNode, replaceNode as replaceNode_, getAttributes, createFragment } from './dom/core'
 
 
 const reMatchLoop = /^\s*(?:([a-z_$][\w$]*)|\[\s*([a-z_$][\w$]*)\s*,\s*([a-z_$][\w$]*)\s*\])\s*of([\s\S]*)$/i
