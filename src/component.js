@@ -212,9 +212,13 @@ function bootstrapListener ({ nodePath, event, expression }: ListenerInstruction
     const { el, scope } = component
     const target = resolve(el, nodePath)
 
+    // TODO: find the host
+    let handlerHost = component
+    while (handlerHost.isPartial) handlerHost = handlerHost.parent
+
     function proxy () {
       handler.apply(null, paths.map(path =>
-        String(path) === 'this' ? component : scope.resolve(path)
+        String(path) === 'this' ? handlerHost : scope.resolve(path)
       ))
     }
 
@@ -243,6 +247,7 @@ export interface Component {
   el: Node,
   scope: Scope,
   parent: Component,
+  isPartial: boolean,
   teardowns: Function[],
   teardown: () => Component,
   mount: Node => Component,
@@ -256,8 +261,12 @@ export function bootstrapComponent ({ el, instructions }: Template, data?: Funct
     const component = {
       el: clone(el),
       scope: isPartial ? parent.scope : new Scope(),
+      isPartial: isPartial,
       parent: parent,
       teardowns: [],
+
+      // TODO: if is partial, listener instruction expression scope resolvers
+      // need to provide the parent component when evaluating key-path ["this"]
 
       mount (node: Node) {
         replaceNode(node, this.el)
