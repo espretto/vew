@@ -12,6 +12,7 @@ import { stringify } from './dom/html'
 import { hasOwn, keys, forOwn } from './util/object'
 import { startsWith, camelCase } from './util/string'
 import { last, filter, forEach } from './util/array'
+import { isString } from './util/type'
 import { createExpression, searchExpression } from './expression'
 import { TEXT_NODE, ELEMENT_NODE, getNodeName, isEmptyText, isBlankElement,
          isMountNode, isElement, isTextBoundary, createMountNode, replaceNode as replaceNode_, getAttributes, createFragment } from './dom/core'
@@ -119,10 +120,10 @@ class Template {
     // 3rd precedence : component tags <component/> or --is="nameExpression"
     // TODO: handle component arguments and component-level event listeners
     if (hasOwn.call(Registry.components, nodeName)) {
-      this.componentState(tw, nodeName)
+      return this.componentState(tw, nodeName)
     }
     else if (hasOwn.call(attrs, 'IS')) {
-      this.componentState(tw, createExpression(attrs['IS']))
+      return this.componentState(tw, createExpression(attrs['IS']))
     }
 
     // 4th precedence : simple class-, style- & attribute-instructions
@@ -274,6 +275,10 @@ class Template {
     // flowignore: cast Node to Element
     const root: Element = tw.node
     const slots: { [key: string]: Template } = {}
+    const props = getAttributes(root, '')
+
+    if (isString(name)) name = name.toUpperCase()
+    else delete props[INSTRUCTION_PREFIX + 'IS']
 
     // retrieve element nodes from live NodeList for ulterior removal
     const elements = filter(root.childNodes, isElement)
@@ -299,7 +304,8 @@ class Template {
       type: InstructionType.COMPONENT,
       nodePath: tw.path(),
       name,
-      slots
+      slots,
+      props
     })
   }
 

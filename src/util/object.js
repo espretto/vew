@@ -78,6 +78,17 @@ export function forOwn <T, U: {[key: string]: T}> (obj: U, func: (T, string) => 
 }
 
 /**
+ * mapOwn 
+ */
+export function mapOwn <T, U: { key: T }, V> (obj: U, mapper: (T, string) => V): { key: V } {
+  var mapped = {}
+  forOwn(obj, (value, key) => {
+    mapped[key] = mapper(value, key)
+  })
+  return mapped
+}
+
+/**
  * iterator factory for performance critical iteration of key-fixed objects
  */
 export function iterator (obj: Object) {

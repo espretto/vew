@@ -1,6 +1,9 @@
+/* @flow */
 
-export default {
+import type { setup } from './component'
 
-  components: {}
+type Registry = { [tag: string]: setup }
 
-}
+const registry: Registry = {}
+
+export default registry

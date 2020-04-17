@@ -75,7 +75,8 @@ export interface SwitchInstruction extends Instruction {
 
 export interface ComponentInstruction extends Instruction {
   name: string,
-  slots: { [name: string]: Template }
+  slots: { [name: string]: Template },
+  props: { [name: string]: string }
 }
 
 export interface ClassNameInstruction extends Instruction {

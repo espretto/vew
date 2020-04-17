@@ -11,19 +11,45 @@ import type {
   AttributeInstruction,
   ConditionalInstruction,
   SwitchInstruction,
-  SlotInstruction
+  SlotInstruction,
+  ComponentInstruction
   } from './instruction'
 import type Template from './template'
 import { InstructionType } from './instruction'
 
 import Scope from './scope'
+import Registry from './registry'
 import { evaluate } from './expression'
 import { resolve } from './dom/treewalker'
 import Effects from './dom/effects'
 
 import { indexOf, forEach, map, find, flatMap } from './util/array'
 import { replaceNode, clone } from './dom/core'
-import { hasOwn, getOwn } from './util/object'
+import { hasOwn, getOwn, mapOwn } from './util/object'
+
+// continue: register component finalizer as bootstrapper
+
+// continue: mute tasks which components/partials have been unmounted by other tasks in the same runloop cycle
+
+
+function finalizeComponent ({ nodePath, name, slots, props }: ComponentInstruction) {
+  const slotFactories = mapOwn(slots, slot => bootstrapComponent(slot))
+
+  console.assert(hasOwn.call(Registry, name), `component "${name}" has not been defined`)
+  const componentFactory = Registry[name]
+
+  return function setup (parent: Component) {
+    const { el } = parent
+    
+    // continue: pass props down to child component
+
+    const component = componentFactory(parent, false, slotFactories).mount(resolve(el, nodePath))
+    return function teardown () {
+      component.teardown()
+    }
+  }
+}
+
 
 function bootstrapSlot ({ nodePath, name, template }: SlotInstruction) {
   const defaultSlot = template ? bootstrapComponent(template) : null
@@ -234,6 +260,7 @@ function bootstrapListener ({ nodePath, event, expression }: ListenerInstruction
     const target = resolve(el, nodePath)
 
     // TODO: find the host
+    // a listener is managed by its closest partial but subscribes to its closest component
     let handlerHost = component
     while (handlerHost.isPartial) handlerHost = handlerHost.parent
 
@@ -264,7 +291,7 @@ const bootstappers = {
   [InstructionType.LISTENER]: bootstrapListener,
 }
 
-type setup = (
+export type setup = (
   parent: Component,
   isPartial: boolean,
   slots: ?{ [name: string]: setup }
