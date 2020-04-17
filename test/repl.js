@@ -269,23 +269,31 @@ if (module.hot) {
   /* ---------------------------------------------------------------------------
    * component
    */
-  const html = `
-    <p>
-      the quick brown fox jumps
-      <span --switch="color">
-        <span --case="'red'" --style="{ color: color }">high</span>
-        <span --case="'blue'" style="text-decoration: line-through" --style="{ color: color }">low</span>
+  function createTemplate (html) {
+    const frag = parse(html)
+    return new Template(frag.removeChild(frag.firstChild))
+  }
 
-      </span>
-      over the lazy dog
-    </p>
-  `
-  const frag = parse(html)
-  const template = new Template(frag.removeChild(frag.firstChild))
-  const data = () => ({ color: 'red' })
-  const app = window.app = bootstrapComponent(template, data)(null)
+  const slotFactory = bootstrapComponent(
+    createTemplate('<span>${how}</span>')
+  )
+
+  const appFactory = bootstrapComponent(
+    createTemplate(`
+      <p>
+        the quick brown fox jumps
+        <span --slot="main">high</span>
+        over the lazy dog
+      </p>
+    `),
+    function data () {
+      return { how: 'low' }
+    }
+  )
+
+  const app = appFactory(null, false, { main: slotFactory })
   
-  app.mount(document.getElementById('root'))
+  global.app = app.mount(document.getElementById('root'))
 
 
 }

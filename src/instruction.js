@@ -53,7 +53,7 @@ export interface TextInstruction extends Instruction {
 
 export interface SlotInstruction extends Instruction {
   name: string,
-  template: Template
+  template: Template | null
 }
 
 /** regroups IF, ELIF, ELSE */

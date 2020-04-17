@@ -1,6 +1,7 @@
 /* @flow */
 
 import type {
+  Instruction,
   TextInstruction,
   ListenerInstruction,
   ClassNameInstruction,
@@ -9,10 +10,11 @@ import type {
   DatasetInstruction,
   AttributeInstruction,
   ConditionalInstruction,
-  SwitchInstruction
+  SwitchInstruction,
+  SlotInstruction
   } from './instruction'
 import type Template from './template'
-import { Instruction, InstructionType } from './instruction'
+import { InstructionType } from './instruction'
 
 import Scope from './scope'
 import { evaluate } from './expression'
@@ -21,6 +23,25 @@ import Effects from './dom/effects'
 
 import { indexOf, forEach, map, find, flatMap } from './util/array'
 import { replaceNode, clone } from './dom/core'
+import { hasOwn, getOwn } from './util/object'
+
+function bootstrapSlot ({ nodePath, name, template }: SlotInstruction) {
+  const defaultSlot = template ? bootstrapComponent(template) : null
+
+  return function setup (component: Component) {
+    const { el, tag, slots } = component
+
+    // content transclusion
+    // flowignore: defaultSlot may be null, that's fine
+    const slotFactory = getOwn(slots, name, defaultSlot)
+    console.assert(slotFactory, `component "${tag}" has no default slot i.e. requires an input slot "${name}"`)
+    
+    const slot = slotFactory(component, true).mount(resolve(el, nodePath))
+    return function teardown () {
+      slot.teardown()
+    }
+  }
+}
 
 
 function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
@@ -231,6 +252,7 @@ function bootstrapListener ({ nodePath, event, expression }: ListenerInstruction
 
 
 const bootstappers = {
+  [InstructionType.SLOT]: bootstrapSlot,
   [InstructionType.SWITCH]: bootstrapSwitch,
   [InstructionType.IF]: bootstrapConditional,
   [InstructionType.ATTRIBUTE]: bootstrapSetter,
@@ -242,27 +264,36 @@ const bootstappers = {
   [InstructionType.LISTENER]: bootstrapListener,
 }
 
+type setup = (
+  parent: Component,
+  isPartial: boolean,
+  slots: ?{ [name: string]: setup }
+  ) => Component
 
 export interface Component {
   el: Node,
+  tag: string, 
   scope: Scope,
   parent: Component,
   isPartial: boolean,
   teardowns: Function[],
   teardown: () => Component,
   mount: Node => Component,
-  mergeState: any => Component
+  mergeState: any => Component,
+  slots: { [name: string]: setup }
 }
 
-export function bootstrapComponent ({ el, instructions }: Template, data?: Function) {
+export function bootstrapComponent ({ el, instructions }: Template, data: ?Function): setup {
   const setups = map(instructions, i => bootstappers[i.type](i))
 
-  return function setup (parent: Component, isPartial: boolean): Component {
+  return function setup (parent: Component, isPartial: boolean, slots: ?{ [name: string]: setup }): Component {
     const component = {
       el: clone(el),
+      tag: '', // TODO
       scope: isPartial ? parent.scope : new Scope(),
       isPartial: isPartial,
       parent: parent,
+      slots: slots || {},
       teardowns: [],
 
       // TODO: if is partial, listener instruction expression scope resolvers
