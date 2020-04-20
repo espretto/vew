@@ -12,7 +12,8 @@ import type {
   ConditionalInstruction,
   SwitchInstruction,
   SlotInstruction,
-  ComponentInstruction
+  ComponentInstruction,
+  ReferenceInstruction
   } from './instruction'
 import type Template from './template'
 import { InstructionType } from './instruction'
@@ -29,6 +30,18 @@ import { hasOwn, getOwn, mapOwn } from './util/object'
 
 
 // continue: mute tasks which components/partials have been unmounted by other tasks in the same runloop cycle
+
+function bootsrapReference ({ nodePath, name }: ReferenceInstruction) {
+
+  return function setup (host: Component, provider: Component) {
+    // TODO: implement reference arrays or getter(index/key) function for loop instructions
+    provider.refs[name] = resolve(host.el, nodePath)
+
+    return function teardown () {
+      provider.refs[name] = null // JIT: faster delete
+    }
+  }
+}
 
 
 function finalizeComponent ({ nodePath, name, slots, props }: ComponentInstruction) {
@@ -85,7 +98,7 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
     paths: expression.paths
   }))
 
-  
+
 
   return function setup (host: Component, provider: Component) {
     const target = resolve(host.el, nodePath)
@@ -282,6 +295,7 @@ function bootstrapListener (instruction: ListenerInstruction) {
 type taskFactory = (host: Component, provider: Component) => () => void
 
 const bootstappers: { [type: string]: any => taskFactory } = {
+  [InstructionType.REFERENCE]: bootsrapReference,
   [InstructionType.COMPONENT]: finalizeComponent,
   [InstructionType.SLOT]: bootstrapSlot,
   [InstructionType.SWITCH]: bootstrapSwitch,
@@ -304,14 +318,15 @@ export type componentFactory = (
 export interface Component {
   el: Node,
   tag: string, 
-  scope: Scope,
   host: Component,
-  isPartial: boolean,
+  refs: { [name: string ]: ?Node },
+  scope: Scope,
+  slots: ?{ [name: string]: componentFactory },
   teardowns: Function[],
-  teardown: () => Component,
+
   mount: Node => Component,
+  teardown: () => Component,
   mergeState: any => Component,
-  slots: ?{ [name: string]: componentFactory }
 }
 
 export function bootstrapComponent (template: Template, isPartial: boolean, data?: Function): componentFactory {
@@ -321,14 +336,13 @@ export function bootstrapComponent (template: Template, isPartial: boolean, data
     const component = {
       el: clone(template.el),
       tag: '', // TODO
-      scope: isPartial ? host.scope : new Scope(),
-      isPartial: isPartial,
       host: host,
+      // flowignore: TODO
+      refs: isPartial ? null : {},
+      // flowignore: TODO
+      scope: isPartial ? null : new Scope(),
       slots: slots,
       teardowns: [],
-
-      // TODO: if is partial, listener instruction expression scope resolvers
-      // need to provide the host component when evaluating key-path ["this"]
 
       mount (node: Node) {
         replaceNode(node, this.el)
