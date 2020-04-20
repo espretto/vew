@@ -4,32 +4,41 @@ import { forOwn } from '../util/object'
 import { kebabCase } from '../util/string'
 import { InstructionType } from '../instruction'
 
+const typeParserMap = {
+  'string': String,
+  'number': Number,
+  'boolean': Boolean
+}
+
 export default {
   [InstructionType.TEXT]: (node, value) => {
-    if (node.nodeValue !== value) {
+    if (node.nodeValue !== String(value)) {
       node.nodeValue = value
     }
   },
 
-  [InstructionType.PROPERTY]: (node, value, property) => {
-    if (!!node[property] !== !!value) {
-      node[property] = !!value
+  [InstructionType.PROPERTY]: (el, value, property) => {
+    const prev = el[property]
+    const next = typeParserMap[typeof prev](value)
+
+    if (prev !== next) {
+      el[property] = next
     }
   },
 
-  [InstructionType.ATTRIBUTE]: (node, value, attribute) => {
-    if (node.getAttribute(attribute) !== value) {
-      node.setAttribute(attribute, value)
+  [InstructionType.ATTRIBUTE]: (el, value, attribute) => {
+    if (el.getAttribute(attribute) !== String(value)) {
+      el.setAttribute(attribute, value)
     }
   },
 
-  [InstructionType.DATASET]: (node, value, key) => {
-    if (node.getAttribute('data-' + key) !== value) {
-      node.setAttribute('data-' + key, value)
+  [InstructionType.DATASET]: (el, value, key) => {
+    if (el.getAttribute('data-' + key) !== String(value)) {
+      el.setAttribute('data-' + key, value)
     }
   },
 
-  [InstructionType.CLASSNAME]: (node, value, className) => {
+  [InstructionType.CLASSNAME]: (el, value, className) => {
     if (isObject(value)) {
       forOwn(value, (active, klass) => {
         if (active) className += ' ' + klass
@@ -39,13 +48,13 @@ export default {
       className += ' ' + value
     }    
 
-    if (node.className !== className) {
-      node.className = className
+    if (el.className !== className) {
+      el.className = className
     }
   },
 
   // [FIXME] cannot set properties "content" and "font-family" because their values contain quotes
-  [InstructionType.STYLE]: (node, value, cssText) => {
+  [InstructionType.STYLE]: (el, value, cssText) => {
     if (isObject(value)) {
       forOwn(value, (style, prop) => {
         cssText += ';' + kebabCase(prop) + ':' + style
@@ -55,8 +64,8 @@ export default {
       cssText += ';' + value
     }
 
-    if (node.style.cssText !== cssText) {
-      node.style.cssText = cssText
+    if (el.style.cssText !== cssText) {
+      el.style.cssText = cssText
     }
   }
 }
