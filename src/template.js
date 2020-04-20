@@ -119,7 +119,7 @@ class Template {
 
     // 3rd precedence : component tags <component/> or --is="nameExpression"
     // TODO: handle component arguments and component-level event listeners
-    if (hasOwn.call(Registry.components, nodeName)) {
+    if (hasOwn.call(Registry, nodeName)) {
       return this.componentState(tw, nodeName)
     }
     else if (hasOwn.call(attrs, 'IS')) {
