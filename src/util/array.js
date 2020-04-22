@@ -16,7 +16,7 @@ import { isNative, isUndefined } from './type'
 
 const nativeFrom = Array.from
 
-function customFrom <T> (countable: { length: number }): Array<T> {
+function customFrom <T> (countable: $ArrayLike<T>): Array<T> {
   var len = countable.length
     , i = -1
     , array = new Array<T>(len)
