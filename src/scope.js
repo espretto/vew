@@ -92,14 +92,7 @@ class Scope {
         case objectProto:
           return this.mergeObject(trg, src, sub, false)
         case dateProto:
-          if (+src === +trg) {
-            return src
-          }
-          else {
-            trg.setTime(src)
-            this.notify(sub)
-            return trg
-          }
+          return this.mergeDate(trg, src, sub, false)
         default:
           console.assert(false, 'cannot merge type of', src)
       }
@@ -123,7 +116,7 @@ class Scope {
         case objectProto:
           return this.mergeObject({}, src, sub, true)
         case dateProto:
-          return new Date(src)
+          return this.mergeDate(new Date(), src, sub, true)
         default:
           console.assert(false, 'cannot clone type of', src)
       }
@@ -160,6 +153,21 @@ class Scope {
 
     if (trgLength !== trg.length) {
       this.notify(getOwn(childNodes, 'length', sub))
+    }
+
+    return trg
+  }
+
+  mergeDate(trg: Date, src: Date, sub: SubscriptionNode, clone: boolean) {
+    if (clone) {
+      trg.setTime(+src)
+    }
+    else if (+src !== +trg) {
+      trg.setTime(+src)
+      this.notify(sub)
+    }
+    else {
+      return src
     }
 
     return trg
