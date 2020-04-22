@@ -18,15 +18,17 @@ import type {
 import type Template from './template'
 import { InstructionType } from './instruction'
 
-import Scope from './scope'
+
+import type { Store } from './store'
+import { State, Props } from './store'
 import Registry from './registry'
 import { evaluate } from './expression'
 import { resolve } from './dom/treewalker'
 import Effects from './dom/effects'
 
-import { indexOf, forEach, map, find, flatMap } from './util/array'
+import { indexOf, forEach, map, find } from './util/array'
 import { replaceNode, clone } from './dom/core'
-import { hasOwn, getOwn, mapOwn } from './util/object'
+import { hasOwn, getOwn, mapOwn, forOwn } from './util/object'
 
 
 // continue: mute tasks which components/partials have been unmounted by other tasks in the same runloop cycle
@@ -44,19 +46,36 @@ function bootsrapReference ({ nodePath, name }: ReferenceInstruction) {
 }
 
 
-function finalizeComponent ({ nodePath, name, slots, props }: ComponentInstruction) {
-  const slotFactories = mapOwn(slots, slot => bootstrapComponent(slot, true))
-
+function finalizeComponent ({ nodePath, name, props, slots }: ComponentInstruction) {
   console.assert(hasOwn.call(Registry, name), `component "${name}" has not been defined`)
   const componentFactory = Registry[name]
+  const slotFactories = mapOwn(slots, slot => bootstrapComponent(slot))
+  const properties = mapOwn(props, (expression, prop) => ({
+    compute: evaluate(expression),
+    paths: expression.paths
+  }))
 
   return function setup (host: Component, provider: Component) {
-    const target = resolve(host.el, nodePath)
     
-    // continue: pass props down to child component
+    function getProps () {
+      return mapOwn(properties, ({ compute, paths }) =>
+        compute.apply(null, map(paths, path =>
+          provider.store.resolve(path)
+        ))
+      )
+    }
 
-    const component = componentFactory(host, provider, slotFactories).mount(target)
+    function task () {
+      component.store.merge(getProps)
+    }
+
+    // initial render
+    const component = componentFactory(host, provider, getProps, slotFactories)
+
+    component.mount(resolve(host.el, nodePath))
+    forOwn(properties, ({ paths }) => forEach(paths, path => provider.store.subscribe(path, task)))
     return function teardown () {
+      forOwn(properties, ({ paths }) => forEach(paths, path => provider.store.unsubscribe(path, task)))
       component.teardown()
     }
   }
@@ -64,7 +83,7 @@ function finalizeComponent ({ nodePath, name, slots, props }: ComponentInstructi
 
 
 function bootstrapSlot ({ nodePath, name, template }: SlotInstruction) {
-  const defaultSlot = template ? bootstrapComponent(template, true) : null
+  const defaultSlot = template ? bootstrapComponent(template) : null
 
   return function setup (host: Component, provider: Component) {
     const { el, tag, slots } = host
@@ -93,7 +112,7 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
   const computeSwitched = evaluate(switched)
 
   const cases = map(partials, ({ template, expression }) => ({
-    setup: bootstrapComponent(template, true),
+    setup: bootstrapComponent(template),
     compute: evaluate(expression),
     paths: expression.paths
   }))
@@ -149,7 +168,7 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
 
 function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
   const conditioned = map(partials, ({ template, expression }) => ({
-    setup: bootstrapComponent(template, true),
+    setup: bootstrapComponent(template),
     compute: evaluate(expression),
     paths: expression.paths
   }))
@@ -312,6 +331,7 @@ const bootstappers: { [type: string]: any => taskFactory } = {
 export type componentFactory = (
   host: Component,
   provider: Component,
+  getProps?: Function,
   slots?: { [name: string]: componentFactory }
   ) => Component
 
@@ -325,24 +345,31 @@ export interface Component {
   teardowns: Function[],
 
   mount: Node => Component,
-  teardown: () => Component,
-  mergeState: any => Component,
+  teardown: () => Component
 }
 
-export function bootstrapComponent (template: Template, isPartial: boolean, data?: Function): componentFactory {
+export function bootstrapComponent (template: Template, isComponent: ?boolean, getState?: Function): componentFactory {
   const setups = map(template.instructions, i => bootstappers[i.type](i))
 
-  return function setup (host: Component, provider: Component, slots: ?{ [name: string]: componentFactory }): Component {
+  const setup: componentFactory = (host, provider, getProps, slots) => {      
     const component = {
       el: clone(template.el),
       tag: '', // TODO
       host: host,
       // flowignore: TODO
-      refs: isPartial ? null : {},
-      // flowignore: TODO
-      scope: isPartial ? null : new Scope(),
+      refs: isComponent ? {} : null,
       slots: slots,
       teardowns: [],
+      
+      // TODO: implement default properties
+      store:
+        getState
+          ? getProps
+              ? new Props(new State(getState), getProps) // stateful components with properties
+              : new State(getState) // stateful components, probably toplevel
+          : getProps
+              ? new Props(provider.store, getProps) // --for partials
+              : provider.store, // useless
 
       mount (node: Node) {
         replaceNode(node, this.el)
@@ -352,22 +379,14 @@ export function bootstrapComponent (template: Template, isPartial: boolean, data
       teardown () {
         forEach(this.teardowns, teardown => teardown())
         return this
-      },
-
-      mergeState (obj: any) {
-        this.store.merge(obj)
-        setTimeout(() => { this.store.update() })
-        return this
       }
     }
 
-    if (!isPartial && data) {
-      component.store.data = data()
-    }
-
-    // setup subscriptions to scope and render initially
+    // setup subscriptions to state and render initially
     component.teardowns = map(setups, setup => setup(component, provider || component))
         
     return component
   }
+
+  return setup
 }

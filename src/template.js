@@ -9,7 +9,7 @@ import { InstructionType, isFlowControl } from './instruction'
 import Registry from './registry'
 import { TreeWalker } from './dom/treewalker'
 import { stringify } from './dom/html'
-import { hasOwn, keys, forOwn } from './util/object'
+import { hasOwn, keys, forOwn, mapOwn } from './util/object'
 import { startsWith, camelCase } from './util/string'
 import { last, filter, forEach } from './util/array'
 import { isString } from './util/type'
@@ -120,10 +120,10 @@ class Template {
     // 3rd precedence : component tags <component/> or --is="nameExpression"
     // TODO: handle component arguments and component-level event listeners
     if (hasOwn.call(Registry, nodeName)) {
-      return this.componentState(tw, nodeName)
+      return this.componentState(tw, nodeName, attrs)
     }
     else if (hasOwn.call(attrs, 'IS')) {
-      return this.componentState(tw, createExpression(attrs['IS']))
+      throw new Error('not yet implemented (scheduled for router outlet)')
     }
 
     // 4th precedence : simple class-, style- & attribute-instructions
@@ -271,14 +271,15 @@ class Template {
     }
   }
 
-  componentState (tw: TreeWalker, name: string | Expression) {
+  componentState (tw: TreeWalker, name: string, attrs: { [attrName: string]: string }) {
     // flowignore: cast Node to Element
     const root: Element = tw.node
-    const slots: { [key: string]: Template } = {}
-    const props = getAttributes(root, '')
+    const slots: { [name: string]: Template } = {}
+    const props: { [prop: string]: Expression } = {}
 
-    if (isString(name)) name = name.toUpperCase()
-    else delete props[INSTRUCTION_PREFIX + 'IS']
+    forOwn(attrs, (attrValue, attrName) => {
+      props[camelCase(attrName)] = createExpression(attrValue)
+    })
 
     // retrieve element nodes from live NodeList for ulterior removal
     const elements = filter(root.childNodes, isElement)

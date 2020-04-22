@@ -3,12 +3,21 @@
 import type { KeyPath } from './util/path'
 
 import { toKeyPath, has } from './util/path'
-import { forEach, every, remove, fold } from './util/array'
+import { forEach, every, remove, fold, filter } from './util/array'
 import { isString, isObject, isUndefined, protof } from './util/type'
 import { objectProto, stringProto, arrayProto, dateProto } from './util/type'
-import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue } from './util/object'
+import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue, keys } from './util/object'
 
-class Scope {
+export interface Store {
+  subscribe (path: KeyPath, task: Function): void;
+  unsubscribe (path: KeyPath, task: Function): void;
+  resolve (path: KeyPath): any;
+  update (): void;
+  merge (src: any): void;
+  has (path: KeyPath): boolean;
+}
+
+class State implements Store {
 
   data: any
 
@@ -18,24 +27,20 @@ class Scope {
 
   dirty: Set<SubscriptionNode>
 
-  constructor (data: any) {
-    this.data = data
+  constructor (data?: Function) {
+    this.data = data ? data() : void 0
     this.root = new SubscriptionNode()
     this.tasks = new Set()
     this.dirty = new Set()
   }
 
-  subscribe (path: string|KeyPath, task: Function) {
-    if (isString(path)) path = toKeyPath(path)
+  subscribe (path: KeyPath, task: Function) {
     this.root.resolveOrCreate(path).tasks.push(task)
   }
 
   /* TODO : why would you ever unsubscribe and not destroy the whole scope instance anyway ? */
-  unsubscribe (path: string|KeyPath, task: Function) {
-    if (isString(path)) path = toKeyPath(path)
-
+  unsubscribe (path: KeyPath, task: Function) {
     var sub = this.root.resolve(path)
-
     remove(sub.tasks, task)
 
     for (; sub && sub.isEmpty(); sub = sub.parentNode) {
@@ -43,19 +48,12 @@ class Scope {
     }
   }
 
-  resolve (path: string|KeyPath) {
-    if (isString(path)) path = toKeyPath(path)
-    return fold(path, this.data, (obj, key) => obj[key])
+  has (path: KeyPath) {
+    return hasOwn.call(this.data, path[0])
   }
 
-  notify (sub: SubscriptionNode) {
-    if (!this.dirty.has(sub)) {
-      this.dirty.add(sub)
-
-      if (sub.parentNode) {
-        this.notify(sub.parentNode)
-      }
-    }
+  resolve (path: KeyPath) {
+    return fold(path, this.data, (obj, key) => obj[key])
   }
 
   update () {
@@ -75,11 +73,21 @@ class Scope {
 
   merge (src: any) {
     this.data = isUndefined(this.data)
-      ? this.cloneDeep(src, this.root)
-      : this.mergeDeep(this.data, src, this.root)
+      ? this._cloneDeep(src, this.root)
+      : this._mergeDeep(this.data, src, this.root)
   }
 
-  mergeDeep (trg: any, src: any, sub: SubscriptionNode) {
+  _notify (sub: SubscriptionNode) {
+    if (!this.dirty.has(sub)) {
+      this.dirty.add(sub)
+
+      if (sub.parentNode) {
+        this._notify(sub.parentNode)
+      }
+    }
+  }
+
+  _mergeDeep (trg: any, src: any, sub: SubscriptionNode) {
 
     // merge mutables
     if (isObject(src)) {
@@ -88,11 +96,11 @@ class Scope {
 
       switch (srcProto) {
         case arrayProto:
-          return this.mergeArray(trg, src, sub, false)
+          return this._mergeArray(trg, src, sub, false)
         case objectProto:
-          return this.mergeObject(trg, src, sub, false)
+          return this._mergeObject(trg, src, sub, false)
         case dateProto:
-          return this.mergeDate(trg, src, sub, false)
+          return this._mergeDate(trg, src, sub, false)
         default:
           console.assert(false, 'cannot merge type of', src)
       }
@@ -100,23 +108,23 @@ class Scope {
 
     // fall through to same-value-zero comparison
     if (trg === trg ? trg !== src : src === src) {
-      this.notify(sub)
+      this._notify(sub)
     }
 
     return src
   }
 
-  cloneDeep (src: any, sub: SubscriptionNode) {
-    this.notify(sub)
+  _cloneDeep (src: any, sub: SubscriptionNode) {
+    this._notify(sub)
 
     if (isObject(src)) {
       switch (protof(src)) {
         case arrayProto:
-          return this.mergeArray(new Array(src.length), src, sub, true)
+          return this._mergeArray(new Array(src.length), src, sub, true)
         case objectProto:
-          return this.mergeObject({}, src, sub, true)
+          return this._mergeObject({}, src, sub, true)
         case dateProto:
-          return this.mergeDate(new Date(), src, sub, true)
+          return this._mergeDate(new Date(), src, sub, true)
         default:
           console.assert(false, 'cannot clone type of', src)
       }
@@ -125,21 +133,21 @@ class Scope {
     return src
   }
 
-  mergeObject (trg: any, src: any, sub: SubscriptionNode, clone: boolean) {
+  _mergeObject (trg: any, src: any, sub: SubscriptionNode, clone: boolean) {
     const childNodes = sub.childNodes
 
     forOwn(src, (srcValue, srcKey) => {
       const closest = getOwn(childNodes, srcKey, sub)
 
       trg[srcKey] = !clone && hasOwn.call(trg, srcKey)
-        ? this.mergeDeep(trg[srcKey], srcValue, closest)
-        : this.cloneDeep(srcValue, closest)
+        ? this._mergeDeep(trg[srcKey], srcValue, closest)
+        : this._cloneDeep(srcValue, closest)
     })
 
     return trg
   }
 
-  mergeArray (trg: Array<any>, src: Array<any>, sub: SubscriptionNode, clone: boolean) {
+  _mergeArray (trg: Array<any>, src: Array<any>, sub: SubscriptionNode, clone: boolean) {
     const childNodes = sub.childNodes
     const trgLength = trg.length
 
@@ -147,24 +155,24 @@ class Scope {
       const closest = getOwn(childNodes, srcIndex, sub)
 
       trg[srcIndex] = !clone && srcIndex < trgLength
-        ? this.mergeDeep(trg[srcIndex], srcValue, closest)
-        : this.cloneDeep(srcValue, closest)
+        ? this._mergeDeep(trg[srcIndex], srcValue, closest)
+        : this._cloneDeep(srcValue, closest)
     })
 
     if (trgLength !== trg.length) {
-      this.notify(getOwn(childNodes, 'length', sub))
+      this._notify(getOwn(childNodes, 'length', sub))
     }
 
     return trg
   }
 
-  mergeDate(trg: Date, src: Date, sub: SubscriptionNode, clone: boolean) {
+  _mergeDate(trg: Date, src: Date, sub: SubscriptionNode, clone: boolean) {
     if (clone) {
       trg.setTime(+src)
     }
     else if (+src !== +trg) {
       trg.setTime(+src)
-      this.notify(sub)
+      this._notify(sub)
     }
     else {
       return src
@@ -181,6 +189,65 @@ class Scope {
     throw new Error('not yet implemented')
   }
 }
+
+
+class Props implements Store {
+
+  props: Store
+  state: Store
+
+  constructor (state: Store, data?: Function) {
+    this.props = new State(data)
+    this.state = state
+  }
+
+  subscribe (path: KeyPath, task: Function) {
+    if (this.props.has(path)) {
+      this.props.subscribe(path, task)
+    }
+    else {
+      this.state.subscribe(path, task)
+    }
+  }
+
+  unsubscribe (path: KeyPath, task: Function) {
+    if (this.props.has(path)) {
+      this.props.unsubscribe(path, task)
+    }
+    else {
+      this.state.unsubscribe(path, task)
+    }
+  }
+
+  resolve (path: KeyPath) {
+    if (this.props.has(path)) {
+      this.props.resolve(path)
+    }
+    else {
+      this.state.resolve(path)
+    }
+  }
+
+  update () {
+    this.props.update()
+    this.state.update()
+  }
+
+  merge (src: any) {
+    console.assert(
+      every(keys(src), key => !this.props.has([key])),
+      `you are trying to update input properties
+       [${filter(keys(src), key => this.props.has([key])).join()}]
+       from within the receiving component. only its parent can do that.`
+    )
+    this.state.merge(src)
+  }
+
+  has (path: KeyPath) {
+    return this.props.has(path) || this.state.has(path)
+  }
+}
+
 
 class SubscriptionNode {
 
@@ -220,4 +287,4 @@ class SubscriptionNode {
   }
 }
 
-export default Scope
+export { State, Props }
