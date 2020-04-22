@@ -106,11 +106,11 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
     let mounted: Component | null = null
 
     function task () {
-      const args = map(switched.paths, path => provider.scope.resolve(path))
+      const args = map(switched.paths, path => provider.store.resolve(path))
       const value = computeSwitched.apply(null, args)
 
       const next = find(cases, ({ compute, paths }) => {
-        const args = map(paths, path => provider.scope.resolve(path))
+        const args = map(paths, path => provider.store.resolve(path))
         return value === compute.apply(null, args)
       })
 
@@ -137,11 +137,11 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
     task()
 
     // TODO: do not subscribe to conditions below/after the currently fulfilled one
-    forEach(switched.paths, path => provider.scope.subscribe(path, task))
-    forEach(cases, ({ paths }) => forEach(paths, path => provider.scope.subscribe(path, task)))
+    forEach(switched.paths, path => provider.store.subscribe(path, task))
+    forEach(cases, ({ paths }) => forEach(paths, path => provider.store.subscribe(path, task)))
     return function teardown () {
-      forEach(switched.paths, path => provider.scope.unsubscribe(path, task))
-      forEach(cases, ({ paths }) => forEach(paths, path => provider.scope.unsubscribe(path, task)))
+      forEach(switched.paths, path => provider.store.unsubscribe(path, task))
+      forEach(cases, ({ paths }) => forEach(paths, path => provider.store.unsubscribe(path, task)))
     }
   }
 }
@@ -161,7 +161,7 @@ function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
 
     function task () {
       const next = find(conditioned, ({ compute, paths }) => {
-        const args = map(paths, path => provider.scope.resolve(path))
+        const args = map(paths, path => provider.store.resolve(path))
         return compute.apply(null, args)
       })
 
@@ -188,9 +188,9 @@ function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
     task()
 
     // TODO: do not subscribe to conditions below/after the currently fulfilled one
-    forEach(conditioned, ({ paths }) => forEach(paths, path => provider.scope.subscribe(path, task)))
+    forEach(conditioned, ({ paths }) => forEach(paths, path => provider.store.subscribe(path, task)))
     return function teardown () {
-      forEach(conditioned, ({ paths }) => forEach(paths, path => provider.scope.unsubscribe(path, task)))
+      forEach(conditioned, ({ paths }) => forEach(paths, path => provider.store.unsubscribe(path, task)))
     }
   }
 }
@@ -205,7 +205,7 @@ function bootstrapSetter ({ type, nodePath, name, expression }: PropertyInstruct
     const target = resolve(host.el, nodePath)
     
     function task () {
-      const args = map(paths, path => provider.scope.resolve(path))
+      const args = map(paths, path => provider.store.resolve(path))
       const input = compute.apply(null, args)
       effect(target, input, name)
     }
@@ -213,9 +213,9 @@ function bootstrapSetter ({ type, nodePath, name, expression }: PropertyInstruct
     // initial render
     task()
 
-    forEach(paths, path => provider.scope.subscribe(path, task))
+    forEach(paths, path => provider.store.subscribe(path, task))
     return function teardown () {
-      forEach(paths, path => provider.scope.unsubscribe(path, task))
+      forEach(paths, path => provider.store.unsubscribe(path, task))
     }
   }
 }
@@ -230,7 +230,7 @@ function bootstrapPresetSetter ({ type, nodePath, preset, expression }: ClassNam
     let target = resolve(host.el, nodePath)
     
     function task () {
-      const args = map(paths, path => provider.scope.resolve(path))
+      const args = map(paths, path => provider.store.resolve(path))
       const input = compute.apply(null, args)
       effect(target, input, preset)
     }
@@ -238,9 +238,9 @@ function bootstrapPresetSetter ({ type, nodePath, preset, expression }: ClassNam
     // initial render
     task()
 
-    forEach(paths, path => provider.scope.subscribe(path, task))
+    forEach(paths, path => provider.store.subscribe(path, task))
     return function teardown () {
-      forEach(paths, path => provider.scope.unsubscribe(path, task))
+      forEach(paths, path => provider.store.unsubscribe(path, task))
     }
   }
 }
@@ -255,7 +255,7 @@ function bootstrapText ({ type, nodePath, expression }: TextInstruction) {
     let target = resolve(host.el, nodePath)
     
     function task () {
-      const args = map(paths, path => provider.scope.resolve(path))
+      const args = map(paths, path => provider.store.resolve(path))
       const input = compute.apply(null, args)
       effect(target, input)
     }
@@ -263,9 +263,9 @@ function bootstrapText ({ type, nodePath, expression }: TextInstruction) {
     // initial renderisPartial: boolean, 
     task()
 
-    forEach(paths, path => provider.scope.subscribe(path, task))
+    forEach(paths, path => provider.store.subscribe(path, task))
     return function teardown () {
-      forEach(paths, path => provider.scope.unsubscribe(path, task))
+      forEach(paths, path => provider.store.unsubscribe(path, task))
     }
   }
 }
@@ -281,7 +281,7 @@ function bootstrapListener (instruction: ListenerInstruction) {
 
     function proxy () {
       handler.apply(null, paths.map(path =>
-        String(path) === 'this' ? provider : provider.scope.resolve(path)
+        String(path) === 'this' ? provider : provider.store.resolve(path)
       ))
     }
 
@@ -320,7 +320,7 @@ export interface Component {
   tag: string, 
   host: Component,
   refs: { [name: string ]: ?Node },
-  scope: Scope,
+  store: Store,
   slots: ?{ [name: string]: componentFactory },
   teardowns: Function[],
 
@@ -355,14 +355,14 @@ export function bootstrapComponent (template: Template, isPartial: boolean, data
       },
 
       mergeState (obj: any) {
-        this.scope.merge(obj)
-        setTimeout(() => { this.scope.update() })
+        this.store.merge(obj)
+        setTimeout(() => { this.store.update() })
         return this
       }
     }
 
     if (!isPartial && data) {
-      component.scope.data = data()
+      component.store.data = data()
     }
 
     // setup subscriptions to scope and render initially
