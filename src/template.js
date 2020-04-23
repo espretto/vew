@@ -8,14 +8,24 @@ import { InstructionType, isFlowControl } from './instruction'
 
 import Registry from './registry'
 import { TreeWalker } from './dom/treewalker'
-import { stringify } from './dom/html'
 import { hasOwn, keys, forOwn, mapOwn } from './util/object'
 import { startsWith, camelCase } from './util/string'
 import { last, filter, forEach } from './util/array'
-import { isString } from './util/type'
 import { createExpression, searchExpression } from './expression'
-import { TEXT_NODE, ELEMENT_NODE, getNodeName, isEmptyText, isBlankElement,
-         isMountNode, isElement, isTextBoundary, createMountNode, replaceNode as replaceNode_, getAttributes, createFragment } from './dom/core'
+import {
+  TEXT_NODE,
+  ELEMENT_NODE,
+  isElement,
+  isEmptyText,
+  isMountNode,
+  isBlankElement,
+  isTextBoundary,
+  getNodeName,
+  getAttributes,
+  createMountNode,
+  preservesWhitespace,
+  replaceNode as replaceNode_
+  } from './dom/core'
 
 
 const reMatchLoop = /^\s*(?:([a-z_$][\w$]*)|\[\s*([a-z_$][\w$]*)\s*,\s*([a-z_$][\w$]*)\s*\])\s*of([\s\S]*)$/i
@@ -60,8 +70,11 @@ class Template {
     var textNode: Text = tw.node
     const text = textNode.nodeValue
 
+    // flowignore: parentNode is not null
+    const allowTrim = !preservesWhitespace(textNode.parentNode)
+
     // remove [trailing] empty text-nodes
-    if (isEmptyText(textNode) && isTextBoundary(textNode.nextSibling)) {
+    if (allowTrim && isEmptyText(textNode) && isTextBoundary(textNode.nextSibling)) {
       return tw.remove()
     }
 
@@ -74,8 +87,7 @@ class Template {
       textNode.splitText(expression.begin)
 
       // remove leading empty text-nodes
-      // TODO: doesnt seem to effectively remove empty text-nodes
-      if (isEmptyText(textNode) && isTextBoundary(textNode.previousSibling)) {
+      if (allowTrim && isEmptyText(textNode) && isTextBoundary(textNode.previousSibling)) {
         tw.remove()
       }
 

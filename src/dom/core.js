@@ -10,6 +10,37 @@ export const TEXT_NODE = 3
 export const COMMENT_NODE = 8
 export const FRAGMENT_NODE = 11
 
+const WHITESPACERS = {}
+WHITESPACERS.A =
+WHITESPACERS.ABBR =
+WHITESPACERS.B =
+WHITESPACERS.BDI =
+WHITESPACERS.BDO =
+WHITESPACERS.BR =
+WHITESPACERS.CITE =
+WHITESPACERS.CODE =
+WHITESPACERS.DATA =
+WHITESPACERS.DEL =
+WHITESPACERS.DFN =
+WHITESPACERS.EM =
+WHITESPACERS.I =
+WHITESPACERS.INS =
+WHITESPACERS.KBD =
+WHITESPACERS.MARK =
+WHITESPACERS.Q =
+WHITESPACERS.S =
+WHITESPACERS.SAMP =
+WHITESPACERS.SMALL =
+WHITESPACERS.SPAN =
+WHITESPACERS.STRONG =
+WHITESPACERS.SUB =
+WHITESPACERS.SUMMARY =
+WHITESPACERS.SUP =
+WHITESPACERS.TIME =
+WHITESPACERS.U =
+WHITESPACERS.VAR =
+WHITESPACERS.WBR = WHITESPACERS
+
 /** used to detect empty html text nodes */
 const passNotEmpty = /[^ \t\n\f]/
 
@@ -46,6 +77,10 @@ export function isBlankElement (node: Element) {
     node.nodeType === TEXT_NODE && isEmptyText(node) ||
     node.nodeType === COMMENT_NODE
   )
+}
+
+export function preservesWhitespace (el: Element) {
+  return WHITESPACERS[getNodeName(el)] === WHITESPACERS
 }
 
 /* -----------------------------------------------------------------------------
