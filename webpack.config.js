@@ -50,7 +50,7 @@ const commonConfig = merge([
       rules: [
         {
           test: /\.js$/,
-          include: [ PATHS.source ],
+          include: [ PATHS.source, PATHS.test ],
           exclude: /node_modules/,
           use: {
             loader: 'babel-loader',
