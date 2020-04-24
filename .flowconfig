@@ -1,7 +1,7 @@
 [ignore]
 <PROJECT_ROOT>/\.vscode/.*
 <PROJECT_ROOT>/\.tmp/.*
-<PROJECT_ROOT>/public/.*
+<PROJECT_ROOT>/dist/.*
 <PROJECT_ROOT>/node_modules/.*
 
 [include]
