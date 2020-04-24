@@ -103,7 +103,7 @@ function bootsrapReference ({ nodePath, name }: ReferenceInstruction) {
 
 
 function finalizeComponent ({ nodePath, name, props, slots }: ComponentInstruction) {
-  console.assert(hasOwn.call(Registry, name), `component "${name}" has not been defined`)
+  console.assert(hasOwn(Registry, name), `component "${name}" has not been defined`)
   const componentFactory = Registry[name]
   const slotFactories = mapOwn(slots, slot => bootstrapComponent(slot))
   const properties = mapOwn(props, (expression, prop) => ({
@@ -152,7 +152,7 @@ function bootstrapSlot ({ nodePath, name, template }: SlotInstruction) {
 
     // slots render using their defining component's view model. if transcluded,
     // that component is not the same as their host
-    if (slots && hasOwn.call(slots, name)) {
+    if (slots && hasOwn(slots, name)) {
       slot = slots[name].mount(target)
     }
     else {

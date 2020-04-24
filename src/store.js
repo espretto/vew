@@ -49,7 +49,7 @@ class State implements Store {
   }
 
   has (path: KeyPath) {
-    return hasOwn.call(this.data, path[0])
+    return hasOwn(this.data, path[0])
   }
 
   resolve (path: KeyPath) {
@@ -139,7 +139,7 @@ class State implements Store {
     forOwn(src, (srcValue, srcKey) => {
       const closest = getOwn(childNodes, srcKey, sub)
 
-      trg[srcKey] = !clone && hasOwn.call(trg, srcKey)
+      trg[srcKey] = !clone && hasOwn(trg, srcKey)
         ? this._mergeDeep(trg[srcKey], srcValue, closest)
         : this._cloneDeep(srcValue, closest)
     })
@@ -268,7 +268,7 @@ class SubscriptionNode {
     return fold(path, this, (node, key) => {
       const childNodes = node.childNodes
 
-      if (hasOwn.call(childNodes, key)) {
+      if (hasOwn(childNodes, key)) {
         return childNodes[key]
       }
       else {

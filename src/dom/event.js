@@ -72,7 +72,7 @@ var EventHub = (function () {
     var type = event.type
 
     // early exit if no handler is registered for the event
-    if (!hasOwn.call(registry, type)) return
+    if (!hasOwn(registry, type)) return
 
     var entries = registry[type]
     var targets = __targets // JIT: lift to scope
@@ -81,7 +81,7 @@ var EventHub = (function () {
     for (var target = fixTarget(event); target; target = target.parentNode) {
       var guid = target.getAttribute('data-guid')
       
-      if (guid && hasOwn.call(entries, guid)) {
+      if (guid && hasOwn(entries, guid)) {
         targets.push(target)
         handlers.push(entries[guid])
       }

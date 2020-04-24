@@ -1,15 +1,18 @@
 /* @flow */
 
-import { thisify } from './function'
 import { isNative } from './type'
 import { append, filter, forEach, some } from './array'
 
 const hasEnumBug = !({ valueOf: null }).propertyIsEnumerable('valueOf')
 
+const hasOwnProperty = Object.prototype.hasOwnProperty
+
 /**
  * hasOwn
  */
-export const hasOwn = Object.prototype.hasOwnProperty
+export function hasOwn (obj: Object, key: string) {
+  return hasOwnProperty.call(obj, key)
+}
 
 /**
  * keys
@@ -19,12 +22,12 @@ const nativeKeys = Object.keys
 const brokenKeys = 'constructor,hasOwnProperty,isPrototypeOf,propertyIsEnumerable,toLocaleString,toString,valueOf'.split(',')
 
 function ownKeys (obj: Object) {
-  var _hasOwn = hasOwn // JIT: lift to scope
-    , keys = []
-    , i = -1
+  const hasOwn = hasOwnProperty // JIT: lift to scope
+  const keys = []
+  let i = -1
 
-  for (var key in obj) {
-    if (_hasOwn.call(obj, key)) {
+  for (let key in obj) {
+    if (hasOwn.call(obj, key)) {
       keys[++i] = key
     }
   }
@@ -33,7 +36,7 @@ function ownKeys (obj: Object) {
 }
 
 function safeKeys (obj: Object) {
-  return append(ownKeys(obj), filter(brokenKeys, thisify(hasOwn, obj, 1)))
+  return append(ownKeys(obj), filter(brokenKeys, key => hasOwnProperty.call(obj, key)))
 }
 
 export const keys: typeof nativeKeys = isNative(nativeKeys)
@@ -46,10 +49,10 @@ export const keys: typeof nativeKeys = isNative(nativeKeys)
  * isEmptyObject
  */
 function isOwnEmptyObject (obj: Object) {
-  const _hasOwn = hasOwn // JIT: lift to scope
+  const hasOwn = hasOwnProperty // JIT: lift to scope
 
-  for (var key in obj) {
-    if (_hasOwn.call(obj, key)) {
+  for (let key in obj) {
+    if (hasOwn.call(obj, key)) {
       return false
     }
   }
@@ -58,7 +61,7 @@ function isOwnEmptyObject (obj: Object) {
 }
 
 function isSafeEmptyObject (obj: Object) {
-  return isOwnEmptyObject(obj) && !some(brokenKeys, thisify(hasOwn, obj, 1))
+  return isOwnEmptyObject(obj) && !some(brokenKeys, key => hasOwnProperty.call(obj))
 }
 
 export const isEmptyObject = hasEnumBug ? isSafeEmptyObject : isOwnEmptyObject
@@ -67,13 +70,13 @@ export const isEmptyObject = hasEnumBug ? isSafeEmptyObject : isOwnEmptyObject
  * getOwn
  */
 export function getOwn <T, U, V: { [key: U]: T }> (obj: V, key: U, alt: T): T {
-  return hasOwn.call(obj, key) ? obj[key] : alt
+  return hasOwnProperty.call(obj, key) ? obj[key] : alt
 }
 
 /**
  * forOwn
  */
-export function forOwn <T, U: {[key: string]: T}> (obj: U, func: (T, string) => ?boolean) {
+export function forOwn <T, U: { key: T }> (obj: U, func: (T, string) => ?boolean) {
   forEach(keys(obj), key => func(obj[key], key))
 }
 

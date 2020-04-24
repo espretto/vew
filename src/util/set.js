@@ -13,12 +13,12 @@ function CustomSet (hash) {
 CustomSet.prototype = {
 
   has (item) {
-    return hasOwn.call(this.items, this.hash(item))
+    return hasOwn(this.items, this.hash(item))
   },
 
   add (item) {
     const hash = this.hash(item)
-    if (!hasOwn.call(this.items, hash)) {
+    if (!hasOwn(this.items, hash)) {
       this.items[hash] = item
     }
     return this

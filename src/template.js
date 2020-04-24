@@ -117,7 +117,7 @@ class Template {
     if (nodeName === 'SLOT') {
       return this.slotState(tw, attrs['NAME'], false)
     }
-    else if (hasOwn.call(attrs, 'SLOT')) {
+    else if (hasOwn(attrs, 'SLOT')) {
       return this.slotState(tw, attrs['SLOT'], true)
     }
 
@@ -131,10 +131,10 @@ class Template {
 
     // 3rd precedence : component tags <component/> or --is="nameExpression"
     // TODO: handle component arguments and component-level event listeners
-    if (hasOwn.call(Registry, nodeName)) {
+    if (hasOwn(Registry, nodeName)) {
       return this.componentState(tw, nodeName, attrs)
     }
-    else if (hasOwn.call(attrs, 'IS')) {
+    else if (hasOwn(attrs, 'IS')) {
       throw new Error('not yet implemented (scheduled for router outlet)')
     }
 
@@ -300,7 +300,7 @@ class Template {
     forEach(elements, (el: Element) => {
       const attrs = getAttributes(el, INSTRUCTION_PREFIX)
       
-      if (hasOwn.call(attrs, 'SLOT')) {
+      if (hasOwn(attrs, 'SLOT')) {
         el.removeAttribute(INSTRUCTION_PREFIX + 'SLOT')
         slots[attrs['SLOT']] = new Template(root.removeChild(el))
       }
