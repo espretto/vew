@@ -43,7 +43,7 @@ export type Partial = {|
 |}
 
 export interface Instruction {
-  type: string,
+  type: $Keys<typeof InstructionType>,
   nodePath: NodePath
 }
 

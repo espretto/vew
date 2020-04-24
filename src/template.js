@@ -66,8 +66,8 @@ class Template {
   }
   
   textNodeState (tw: TreeWalker) {
-    // flowignore: cast Node to TextNode
-    var textNode: Text = tw.node
+    // flowignore: cast to TextNode
+    let textNode: Text = tw.node
     const text = textNode.nodeValue
 
     // flowignore: parentNode is not null
@@ -91,7 +91,7 @@ class Template {
         tw.remove()
       }
 
-      textNode = tw.next()
+      textNode: Text = tw.next()
     }
 
     this.instructions.push({
@@ -185,7 +185,7 @@ class Template {
         tw.node = this.replaceNode(el, createMountNode(instructionType))
 
         this.instructions.push({
-          type: instructionType,
+          type: InstructionType.IF,
           nodePath: tw.path(),
           partials: [{
             template: new Template(el),
@@ -216,7 +216,7 @@ class Template {
         if (!loop) throw new Error('malformed loop expression')
 
         this.instructions.push({
-          type: instructionType,
+          type: InstructionType.FOR,
           nodePath: tw.path(),
           keyName: loop[2],
           valueName: loop[1] || loop[3],
@@ -273,7 +273,7 @@ class Template {
         tw.next()
         
         this.instructions.push({
-          type: instructionType,
+          type: InstructionType.SWITCH,
           nodePath: tw.path(),
           switched: createExpression(value),
           partials
@@ -324,7 +324,7 @@ class Template {
 
   attributeState (tw: TreeWalker, attrName: string, attrValue: string) {
     // flowignore: cast Node to Element
-    const elem: Element = tw.node
+    const elem: HTMLElement = tw.node
     const nodePath = tw.path()
     const expression = createExpression(attrValue)
 
