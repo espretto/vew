@@ -12,6 +12,7 @@ import type {
   ConditionalInstruction,
   SwitchInstruction,
   SlotInstruction,
+  LoopInstruction,
   ComponentInstruction,
   ReferenceInstruction
   } from './instruction'
@@ -32,6 +33,55 @@ import { hasOwn, getOwn, mapOwn, forOwn } from './util/object'
 
 
 // continue: mute tasks which components/partials have been unmounted by other tasks in the same runloop cycle
+
+function bootstrapLoop ({ nodePath, keyName, valueName, partials: [{ template, expression }] }: LoopInstruction) {
+  const partialFactory = bootstrapComponent(template)
+  const { paths } = expression
+  const compute = evaluate(expression)
+
+  return function setup (host: Component) {
+    const target = resolve(host.el, nodePath)
+    const mounted: Component[] = []
+
+    function task () {
+      const args = map(paths, path => host.store.resolve(path))
+      const items = compute.apply(null, args)
+      
+      // create missing partials
+      while (mounted.length < items.length) {
+        const props = { [valueName]: items[mounted.length] }
+        const partial = partialFactory(host, props)
+        // flowignore: ensure parentNode
+        target.parentNode.insertBefore(partial.el, target)
+        mounted.push(partial)
+      }
+
+      // remove superfluous partials
+      while (mounted.length > items.length) {
+        const partial = mounted.pop().teardown()
+        // flowignore: ensure parentNode
+        target.parentNode.removeChild(partial.el)
+      }
+      
+      // items and mounted are of equal length, zip them up
+      forEach(items, (item, i) => {
+        const props = { [valueName]: item }
+        // flowignore: partial have property stores
+        mounted[i].store.props.merge(props)
+      })
+    }
+
+    // initial render
+    task()
+
+    forEach(paths, path => { host.store.subscribe(path, task) })
+    return function teardown () {
+      forEach(mounted, partial => { partial.teardown() })
+      forEach(paths, path => { host.store.unsubscribe(path, task) })
+    }
+  }
+}
+
 
 function bootsrapReference ({ nodePath, name }: ReferenceInstruction) {
 
@@ -319,6 +369,7 @@ function bootstrapListener (instruction: ListenerInstruction) {
 type taskFactory = (host: Component) => () => void;
 
 const bootstappers: { [type: string]: any => taskFactory } = {
+  [InstructionType.FOR]: bootstrapLoop,
   [InstructionType.REFERENCE]: bootsrapReference,
   [InstructionType.COMPONENT]: finalizeComponent,
   [InstructionType.SLOT]: bootstrapSlot,
