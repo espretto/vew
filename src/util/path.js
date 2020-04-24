@@ -1,25 +1,11 @@
 /* @flow */
 
-import { hasOwn } from './object'
-import { isObject, isString } from './type'
+export type KeyPath = string[];
 
-export type KeyPath = string[]
-
-/**
- * has
- */
-export function has (object: any, key: string): boolean {
-  return isObject(object) && (Array.isArray(object)
-    ? key < object.length
-    : hasOwn.call(object, key)
-  )
-}
-
-/**
- * toKeyPath
- */
+/** used to remove leading backslashes */
 const reUnescapeQuotes = /\\('|")/g
 
+/** used to capture segments of a keypath */
 const reCaptureKeys = /\[('|")((?:\\\1|[^\1])*)\1\]|\[(\d+)|(?:^|\.)([^\.\[]*)/g
 
 export function toKeyPath (path: string): KeyPath {
@@ -34,7 +20,7 @@ export function toKeyPath (path: string): KeyPath {
       index ? index : key
     )
 
-    return ''
+    return '' // JIT: monomorphism
   })
 
   return keys

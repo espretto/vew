@@ -2,7 +2,7 @@
 
 import type { KeyPath } from './util/path'
 
-import { toKeyPath, has } from './util/path'
+import { toKeyPath } from './util/path'
 import { forEach, every, remove, fold, filter } from './util/array'
 import { isString, isObject, isUndefined, protof } from './util/type'
 import { objectProto, stringProto, arrayProto, dateProto } from './util/type'
