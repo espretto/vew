@@ -35,12 +35,15 @@ import { hasOwn, getOwn, mapOwn, forOwn } from './util/object'
 
 function bootsrapReference ({ nodePath, name }: ReferenceInstruction) {
 
-  return function setup (host: Component, provider: Component) {
+  return function setup (host: Component) {
+    // crawl upto the defining component
+    while (host.host) host = host.host
+    
     // TODO: implement reference arrays or getter(index/key) function for loop instructions
-    provider.refs[name] = resolve(host.el, nodePath)
+    host.refs[name] = resolve(host.el, nodePath)
 
     return function teardown () {
-      provider.refs[name] = null // JIT: faster delete
+      host.refs[name] = null // JIT: faster delete
     }
   }
 }
@@ -55,28 +58,30 @@ function finalizeComponent ({ nodePath, name, props, slots }: ComponentInstructi
     paths: expression.paths
   }))
 
-  return function setup (host: Component, provider: Component) {
+  return function setup (host: Component) {
     
     function getProps () {
       return mapOwn(properties, ({ compute, paths }) =>
         compute.apply(null, map(paths, path =>
-          provider.store.resolve(path)
+          host.store.resolve(path)
         ))
       )
     }
 
     function task () {
-      component.store.merge(getProps)
+      // flowignore: components have property stores
+      component.store.props.merge(getProps())
     }
 
-    // initial render
-    const component = componentFactory(host, provider, getProps, slotFactories)
+    // initial render - we pass props to the constructor so they can be read by child-setup routines
+    const component = componentFactory(host, getProps(), mapOwn(slotFactories, setup => setup(host)))
 
     component.mount(resolve(host.el, nodePath))
-    forOwn(properties, ({ paths }) => forEach(paths, path => provider.store.subscribe(path, task)))
+    forOwn(properties, ({ paths }) => forEach(paths, path => host.store.subscribe(path, task)))
+    
     return function teardown () {
-      forOwn(properties, ({ paths }) => forEach(paths, path => provider.store.unsubscribe(path, task)))
       component.teardown()
+      forOwn(properties, ({ paths }) => forEach(paths, path => host.store.unsubscribe(path, task)))
     }
   }
 }
@@ -85,7 +90,7 @@ function finalizeComponent ({ nodePath, name, props, slots }: ComponentInstructi
 function bootstrapSlot ({ nodePath, name, template }: SlotInstruction) {
   const defaultSlot = template ? bootstrapComponent(template) : null
 
-  return function setup (host: Component, provider: Component) {
+  return function setup (host: Component) {
     const { el, tag, slots } = host
     const target = resolve(el, nodePath)
     let slot
@@ -93,12 +98,12 @@ function bootstrapSlot ({ nodePath, name, template }: SlotInstruction) {
     // slots render using their defining component's view model. if transcluded,
     // that component is not the same as their host
     if (slots && hasOwn.call(slots, name)) {
-      slot = slots[name](host, provider).mount(target)
+      slot = slots[name].mount(target)
     }
     else {
       console.assert(defaultSlot != null, `component "${tag}" has no default slot i.e. requires an input slot "${name}"`)
       // flowignore: we just asserted that defaultSlot exists
-      slot = defaultSlot(host, host).mount(target)
+      slot = defaultSlot(host).mount(target)
     }
 
     return function teardown () {
@@ -119,17 +124,17 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
 
 
 
-  return function setup (host: Component, provider: Component) {
+  return function setup (host: Component) {
     const target = resolve(host.el, nodePath)
     let prev = null
     let mounted: Component | null = null
 
     function task () {
-      const args = map(switched.paths, path => provider.store.resolve(path))
+      const args = map(switched.paths, path => host.store.resolve(path))
       const value = computeSwitched.apply(null, args)
 
       const next = find(cases, ({ compute, paths }) => {
-        const args = map(paths, path => provider.store.resolve(path))
+        const args = map(paths, path => host.store.resolve(path))
         return value === compute.apply(null, args)
       })
 
@@ -140,7 +145,7 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
         mounted.teardown()
         
         if (next) {
-          mounted = next.setup(host, provider).mount(mounted.el)
+          mounted = next.setup(host).mount(mounted.el)
         }
         else {
           replaceNode(mounted.el, target)
@@ -148,7 +153,7 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
         }
       }
       else if (next) {
-        mounted = next.setup(host, provider).mount(target)
+        mounted = next.setup(host).mount(target)
       }
     }
 
@@ -156,11 +161,11 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
     task()
 
     // TODO: do not subscribe to conditions below/after the currently fulfilled one
-    forEach(switched.paths, path => provider.store.subscribe(path, task))
-    forEach(cases, ({ paths }) => forEach(paths, path => provider.store.subscribe(path, task)))
+    forEach(switched.paths, path => host.store.subscribe(path, task))
+    forEach(cases, ({ paths }) => forEach(paths, path => host.store.subscribe(path, task)))
     return function teardown () {
-      forEach(switched.paths, path => provider.store.unsubscribe(path, task))
-      forEach(cases, ({ paths }) => forEach(paths, path => provider.store.unsubscribe(path, task)))
+      forEach(switched.paths, path => host.store.unsubscribe(path, task))
+      forEach(cases, ({ paths }) => forEach(paths, path => host.store.unsubscribe(path, task)))
     }
   }
 }
@@ -173,14 +178,14 @@ function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
     paths: expression.paths
   }))
 
-  return function setup (host: Component, provider: Component) {
+  return function setup (host: Component) {
     const target = resolve(host.el, nodePath)
     let prev = null
     let mounted: Component | null = null
 
     function task () {
       const next = find(conditioned, ({ compute, paths }) => {
-        const args = map(paths, path => provider.store.resolve(path))
+        const args = map(paths, path => host.store.resolve(path))
         return compute.apply(null, args)
       })
 
@@ -191,7 +196,7 @@ function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
         mounted.teardown()
         
         if (next) {
-          mounted = next.setup(host, provider).mount(mounted.el)
+          mounted = next.setup(host).mount(mounted.el)
         }
         else {
           replaceNode(mounted.el, target)
@@ -199,7 +204,7 @@ function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
         }
       }
       else if (next) {
-        mounted = next.setup(host, provider).mount(target)
+        mounted = next.setup(host).mount(target)
       }
     }
 
@@ -207,9 +212,9 @@ function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
     task()
 
     // TODO: do not subscribe to conditions below/after the currently fulfilled one
-    forEach(conditioned, ({ paths }) => forEach(paths, path => provider.store.subscribe(path, task)))
+    forEach(conditioned, ({ paths }) => forEach(paths, path => host.store.subscribe(path, task)))
     return function teardown () {
-      forEach(conditioned, ({ paths }) => forEach(paths, path => provider.store.unsubscribe(path, task)))
+      forEach(conditioned, ({ paths }) => forEach(paths, path => host.store.unsubscribe(path, task)))
     }
   }
 }
@@ -220,11 +225,11 @@ function bootstrapSetter ({ type, nodePath, name, expression }: PropertyInstruct
   const { paths } = expression
   const compute = evaluate(expression)
 
-  return function setup (host: Component, provider: Component) {
+  return function setup (host: Component) {
     const target = resolve(host.el, nodePath)
     
     function task () {
-      const args = map(paths, path => provider.store.resolve(path))
+      const args = map(paths, path => host.store.resolve(path))
       const input = compute.apply(null, args)
       effect(target, input, name)
     }
@@ -232,9 +237,9 @@ function bootstrapSetter ({ type, nodePath, name, expression }: PropertyInstruct
     // initial render
     task()
 
-    forEach(paths, path => provider.store.subscribe(path, task))
+    forEach(paths, path => host.store.subscribe(path, task))
     return function teardown () {
-      forEach(paths, path => provider.store.unsubscribe(path, task))
+      forEach(paths, path => host.store.unsubscribe(path, task))
     }
   }
 }
@@ -245,11 +250,11 @@ function bootstrapPresetSetter ({ type, nodePath, preset, expression }: ClassNam
   const { paths } = expression
   const compute = evaluate(expression)
 
-  return function setup (host: Component, provider: Component) {
+  return function setup (host: Component) {
     let target = resolve(host.el, nodePath)
     
     function task () {
-      const args = map(paths, path => provider.store.resolve(path))
+      const args = map(paths, path => host.store.resolve(path))
       const input = compute.apply(null, args)
       effect(target, input, preset)
     }
@@ -257,9 +262,9 @@ function bootstrapPresetSetter ({ type, nodePath, preset, expression }: ClassNam
     // initial render
     task()
 
-    forEach(paths, path => provider.store.subscribe(path, task))
+    forEach(paths, path => host.store.subscribe(path, task))
     return function teardown () {
-      forEach(paths, path => provider.store.unsubscribe(path, task))
+      forEach(paths, path => host.store.unsubscribe(path, task))
     }
   }
 }
@@ -270,21 +275,21 @@ function bootstrapText ({ type, nodePath, expression }: TextInstruction) {
   const { paths } = expression
   const compute = evaluate(expression)
 
-  return function setup (host: Component, provider: Component) {
+  return function setup (host: Component) {
     let target = resolve(host.el, nodePath)
     
     function task () {
-      const args = map(paths, path => provider.store.resolve(path))
+      const args = map(paths, path => host.store.resolve(path))
       const input = compute.apply(null, args)
       effect(target, input)
     }
 
-    // initial renderisPartial: boolean, 
+    // initial render
     task()
 
-    forEach(paths, path => provider.store.subscribe(path, task))
+    forEach(paths, path => host.store.subscribe(path, task))
     return function teardown () {
-      forEach(paths, path => provider.store.unsubscribe(path, task))
+      forEach(paths, path => host.store.unsubscribe(path, task))
     }
   }
 }
@@ -295,12 +300,12 @@ function bootstrapListener (instruction: ListenerInstruction) {
   const handler = evaluate(expression)
   const { paths } = expression
 
-  return function setup (host: Component, provider: Component) {
+  return function setup (host: Component) {
     const target = resolve(host.el, nodePath)
 
     function proxy () {
       handler.apply(null, paths.map(path =>
-        String(path) === 'this' ? provider : provider.store.resolve(path)
+        String(path) === 'this' ? host : host.store.resolve(path)
       ))
     }
 
@@ -311,7 +316,7 @@ function bootstrapListener (instruction: ListenerInstruction) {
   }
 }
 
-type taskFactory = (host: Component, provider: Component) => () => void
+type taskFactory = (host: Component) => () => void;
 
 const bootstappers: { [type: string]: any => taskFactory } = {
   [InstructionType.REFERENCE]: bootsrapReference,
@@ -330,46 +335,49 @@ const bootstappers: { [type: string]: any => taskFactory } = {
 
 export type componentFactory = (
   host: Component,
-  provider: Component,
-  getProps?: Function,
-  slots?: { [name: string]: componentFactory }
-  ) => Component
+  props?: { [prop: string]: any },
+  slots?: { [name: string]: Component }
+  ) => Component;
+
+type ReferenceMap = { [name: string]: Node | Node[] | null };
 
 export interface Component {
   el: Node,
-  tag: string, 
+  tag: string,
   host: Component,
-  refs: { [name: string ]: ?Node },
+  refs: ReferenceMap,
   store: Store,
-  slots: ?{ [name: string]: componentFactory },
+  slots: ?{ [name: string]: Component },
   teardowns: Function[],
 
   mount: Node => Component,
   teardown: () => Component
 }
 
-export function bootstrapComponent (template: Template, isComponent: ?boolean, getState?: Function): componentFactory {
+export function bootstrapComponent (template: Template, state?: Function): componentFactory {
   const setups = map(template.instructions, i => bootstappers[i.type](i))
 
-  const setup: componentFactory = (host, provider, getProps, slots) => {      
+  const setup: componentFactory = (host, props, slots) => {      
     const component = {
       el: clone(template.el),
-      tag: '', // TODO
-      host: host,
-      // flowignore: TODO
-      refs: isComponent ? {} : null,
-      slots: slots,
+      tag: '',
+      host,
+      refs: {},
+      slots,
       teardowns: [],
       
       // TODO: implement default properties
-      store:
-        getState
-          ? getProps
-              ? new Props(new State(getState), getProps) // stateful components with properties
-              : new State(getState) // stateful components, probably toplevel
-          : getProps
-              ? new Props(provider.store, getProps) // --for partials
-              : provider.store, // useless
+      store: state
+        ? props
+            // stateful components with properties
+            ? new Props(new State(state()), props)
+            // stateful components without properties (ex. toplevel)
+            : new State(state())
+        : props
+            // delegate to inherited state after own property lookup (ex. --for partials)
+            ? new Props(host.store, props)
+            // inherit state from host
+            : host.store,
 
       mount (node: Node) {
         replaceNode(node, this.el)
@@ -383,7 +391,7 @@ export function bootstrapComponent (template: Template, isComponent: ?boolean, g
     }
 
     // setup subscriptions to state and render initially
-    component.teardowns = map(setups, setup => setup(component, provider || component))
+    component.teardowns = map(setups, setup => setup(component))
         
     return component
   }

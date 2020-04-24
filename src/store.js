@@ -27,8 +27,8 @@ class State implements Store {
 
   dirty: Set<SubscriptionNode>
 
-  constructor (data?: Function) {
-    this.data = data ? data() : void 0
+  constructor (data: any) {
+    this.data = data
     this.root = new SubscriptionNode()
     this.tasks = new Set()
     this.dirty = new Set()
@@ -196,36 +196,27 @@ class Props implements Store {
   props: Store
   state: Store
 
-  constructor (state: Store, data?: Function) {
+  constructor (state: Store, data: any) {
     this.props = new State(data)
     this.state = state
   }
 
   subscribe (path: KeyPath, task: Function) {
-    if (this.props.has(path)) {
-      this.props.subscribe(path, task)
-    }
-    else {
-      this.state.subscribe(path, task)
-    }
+    return this.props.has(path)
+      ? this.props.subscribe(path, task)
+      : this.state.subscribe(path, task)
   }
 
   unsubscribe (path: KeyPath, task: Function) {
-    if (this.props.has(path)) {
-      this.props.unsubscribe(path, task)
-    }
-    else {
-      this.state.unsubscribe(path, task)
-    }
+    return this.props.has(path)
+      ? this.props.unsubscribe(path, task)
+      : this.state.unsubscribe(path, task)
   }
 
   resolve (path: KeyPath) {
-    if (this.props.has(path)) {
-      this.props.resolve(path)
-    }
-    else {
-      this.state.resolve(path)
-    }
+    return this.props.has(path)
+      ? this.props.resolve(path)
+      : this.state.resolve(path)
   }
 
   update () {
