@@ -34,7 +34,8 @@ import { hasOwn, getOwn, mapOwn, forOwn } from './util/object'
 
 // continue: mute tasks which components/partials have been unmounted by other tasks in the same runloop cycle
 
-function bootstrapLoop ({ nodePath, keyName, valueName, partials: [{ template, expression }] }: LoopInstruction) {
+function bootstrapLoop ({ nodePath, keyName, valueName, partials }: LoopInstruction) {
+  const { template, expression } = partials[0]
   const partialFactory = bootstrapComponent(template)
   const { paths } = expression
   const compute = evaluate(expression)
@@ -68,6 +69,8 @@ function bootstrapLoop ({ nodePath, keyName, valueName, partials: [{ template, e
         const props = { [valueName]: item }
         // flowignore: partial have property stores
         mounted[i].store.props.merge(props)
+        // flowignore: partial have property stores
+        mounted[i].store.props.update()
       })
     }
 
@@ -121,6 +124,8 @@ function finalizeComponent ({ nodePath, name, props, slots }: ComponentInstructi
     function task () {
       // flowignore: components have property stores
       component.store.props.merge(getProps())
+      // flowignore: components have property stores
+      component.store.props.update()
     }
 
     // initial render - we pass props to the constructor so they can be read by child-setup routines
