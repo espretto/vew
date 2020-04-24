@@ -38,7 +38,7 @@ const EXPRESSION_DELIMITERS = ['${', '}'] // TODO: expose option
 /**
  * class Template
  */
-class Template {
+export default class Template {
 
   el: Node
   
@@ -391,35 +391,3 @@ class Template {
     }
   }
 }
-
-export default Template
-
-
-/*
-  special attribute precedence :
-
-  1. --slot <slot />
-  2. --if, --elif, --else, --for, --switch, --case, --default
-  3. --is <component />
-  4. --class, --style, --value, --on-click, --is-selected, 
-
-  other goodies: --style.width.px="" --class.some-class=""
-
-  template example :
-
-<div --style="style" --class="class" --id="id">
-  <h1 --if="condition">if ${name}</h1>
-  <h2 --elif="condition">elif</h2>
-  <h3 --else="condition">else</h3>
-  <div --switch="switch">
-    <span --case="1">case 1</span>
-    <span --case="2">case 2</span>
-    <span --default >case default</span>
-  </div>
-  <ul --data-whatever="some.value">
-    <li --for="item of collection">
-      ${item}
-    </li>
-  </ul>
-</div>
-*/

@@ -40,7 +40,7 @@ export function isFlowControl (type: string): boolean {
 export type Partial = {|
   template: Template,
   expression: Expression
-|}
+|};
 
 export interface Instruction {
   type: $Keys<typeof InstructionType>,

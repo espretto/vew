@@ -17,7 +17,7 @@ export interface Store {
   has (path: KeyPath): boolean;
 }
 
-class State implements Store {
+export class State implements Store {
 
   data: any
 
@@ -191,7 +191,7 @@ class State implements Store {
 }
 
 
-class Props implements Store {
+export class Props implements Store {
 
   props: Store
   state: Store
@@ -277,5 +277,3 @@ class SubscriptionNode {
     })
   }
 }
-
-export { State, Props }

@@ -10,7 +10,7 @@ type Prototype =
     typeof objectProto
   | typeof stringProto
   | typeof arrayProto
-  | typeof dateProto
+  | typeof dateProto;
 
 const objectTypes: { [type: string]: boolean } = { 'object': true, 'function': true }
 

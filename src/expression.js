@@ -7,7 +7,7 @@ export type Expression = {|
   source: string,
   begin: number,
   end: number
-|}
+|};
 
 import { hasOwn } from './util/object'
 import { trim, chr } from './util/string'

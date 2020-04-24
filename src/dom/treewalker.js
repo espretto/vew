@@ -2,9 +2,9 @@
 
 import { removeNode } from './core'
 
-export type NodePath = $ReadOnlyArray<number>
+export type NodePath = $ReadOnlyArray<number>;
 
-class TreeWalker {
+export class TreeWalker {
 
   node: Node
 
@@ -53,7 +53,7 @@ class TreeWalker {
 }
 
 
-function resolve (node: Node, path: NodePath): Node {
+export function resolve (node: Node, path: NodePath): Node {
   for (var depth = path.length; depth--;) {
     // flowignore: resolve is called before dom injection/manipulation
     node = node.firstChild
@@ -66,6 +66,3 @@ function resolve (node: Node, path: NodePath): Node {
 
   return node
 }
-
-
-export { resolve, TreeWalker }

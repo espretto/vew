@@ -87,7 +87,7 @@ export function lastIndexOf <T> (array: T[], item: T, i: number = array.length-1
  * @return {number} the lowest index in `array` at which to insert `item`
  *                  ranked by the `key` function
  */
-type Comparable = string|number
+type Comparable = string | number;
 
 export function sortedIndexBy <T> (array: T[], item: T, key: T => Comparable): number {
   var lo = 0
