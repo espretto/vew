@@ -214,6 +214,7 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
     forEach(switched.paths, path => host.store.subscribe(path, task))
     forEach(cases, ({ paths }) => forEach(paths, path => host.store.subscribe(path, task)))
     return function teardown () {
+      if (mounted) mounted.teardown()
       forEach(switched.paths, path => host.store.unsubscribe(path, task))
       forEach(cases, ({ paths }) => forEach(paths, path => host.store.unsubscribe(path, task)))
     }
@@ -264,6 +265,7 @@ function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
     // TODO: do not subscribe to conditions below/after the currently fulfilled one
     forEach(conditioned, ({ paths }) => forEach(paths, path => host.store.subscribe(path, task)))
     return function teardown () {
+      if (mounted) mounted.teardown()
       forEach(conditioned, ({ paths }) => forEach(paths, path => host.store.unsubscribe(path, task)))
     }
   }
