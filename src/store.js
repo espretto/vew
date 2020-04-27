@@ -256,6 +256,7 @@ class SubscriptionNode {
     return !this.tasks.length && isEmptyObject(this.childNodes)
   }
 
+  // TODO: do not delete but store subscription nodes for future use
   remove () {
     if (this.parentNode) deleteValue(this.parentNode.childNodes, this)
   }
@@ -272,6 +273,7 @@ class SubscriptionNode {
         return childNodes[key]
       }
       else {
+        // TODO: do not create but reuse pooled subscription nodes
         return childNodes[key] = new SubscriptionNode(node)
       }
     })
