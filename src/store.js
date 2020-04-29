@@ -72,9 +72,7 @@ export class State implements Store {
   }
 
   merge (src: any) {
-    this.data = isUndefined(this.data)
-      ? this._cloneDeep(src, this.root)
-      : this._mergeDeep(this.data, src, this.root)
+    this.data = this._merge(this.data, src, this.root)
   }
 
   _notify (sub: SubscriptionNode) {
@@ -87,106 +85,116 @@ export class State implements Store {
     }
   }
 
-  _mergeDeep (trg: any, src: any, sub: SubscriptionNode) {
+  _invalidate (sub: SubscriptionNode) {
+    forOwn(sub.childNodes, (sub, key) => {
+      this.dirty.add(sub)
+      this._invalidate(sub)
+    })
+  }
 
-    // merge mutables
-    if (isObject(src)) {
+  _merge (trg: any, src: any, sub: SubscriptionNode) {
+    // bail out on referential equality
+    if (trg === trg ? trg === src : src !== src) {
+      return trg
+    }
+
+    if (isObject(trg) && src == null || trg == null && isObject(src)) {
+      this._notify(sub)
+      this._invalidate(sub)
+      return src
+    }
+
+    if (isObject(trg) && isObject(src)) {
+      const trgProto = protof(trg)
       const srcProto = protof(src)
-      console.assert(srcProto === protof(trg), 'type mismatch while merging')
 
-      switch (srcProto) {
+      console.assert(trgProto === srcProto, 'type mismatch while merging')
+
+      switch (trgProto) {
         case arrayProto:
-          return this._mergeArray(trg, src, sub, false)
+          return this._mergeArray(trg, src, sub)
         case objectProto:
-          return this._mergeObject(trg, src, sub, false)
+          return this._mergeObject(trg, src, sub)
         case dateProto:
-          return this._mergeDate(trg, src, sub, false)
+          return this._mergeDate(trg, src, sub)
         default:
           console.assert(false, 'cannot merge type of', src)
       }
     }
-
-    // fall through to same-value-zero comparison
+    
     if (trg === trg ? trg !== src : src === src) {
       this._notify(sub)
+      return src
     }
-
-    return src
   }
 
-  _cloneDeep (src: any, sub: SubscriptionNode) {
-    this._notify(sub)
-
-    if (isObject(src)) {
-      switch (protof(src)) {
-        case arrayProto:
-          return this._mergeArray(new Array(src.length), src, sub, true)
-        case objectProto:
-          return this._mergeObject({}, src, sub, true)
-        case dateProto:
-          return this._mergeDate(new Date(), src, sub, true)
-        default:
-          console.assert(false, 'cannot clone type of', src)
-      }
-    }
-
-    return src
-  }
-
-  _mergeObject (trg: any, src: any, sub: SubscriptionNode, clone: boolean) {
+  _mergeObject (trg: any, src: any, sub: SubscriptionNode) {
     const childNodes = sub.childNodes
+    // TODO: the public api may not allow root subscriptions
+    const hasRootSubscriptions = this.root.tasks.length > 0
 
-    forOwn(src, (srcValue, srcKey) => {
-      const closest = getOwn(childNodes, srcKey, sub)
+    forOwn(src, (value, key) => {
+      const closest = getOwn(childNodes, key, sub)
 
-      trg[srcKey] = !clone && hasOwn(trg, srcKey)
-        ? this._mergeDeep(trg[srcKey], srcValue, closest)
-        : this._cloneDeep(srcValue, closest)
+      if (this.root === closest && !hasRootSubscriptions) {
+        trg[key] = value
+      }
+      else if (hasOwn(trg, key)) {
+        trg[key] = this._merge(trg[key], value, closest)
+      }
+      else {
+        trg[key] = value
+        this._notify(closest)
+        // TODO: cannot _invalidate unless we know for sure the subscription node
+        // is the one corresponding to this the current data tree level
+      }
     })
 
     return trg
   }
 
-  _mergeArray (trg: Array<any>, src: Array<any>, sub: SubscriptionNode, clone: boolean) {
+  _mergeArray (trg: Array<any>, src: Array<any>, sub: SubscriptionNode) {
     const childNodes = sub.childNodes
-    const trgLength = trg.length
 
-    forEach(src, (srcValue, srcIndex) => {
-      const closest = getOwn(childNodes, srcIndex, sub)
-
-      trg[srcIndex] = !clone && srcIndex < trgLength
-        ? this._mergeDeep(trg[srcIndex], srcValue, closest)
-        : this._cloneDeep(srcValue, closest)
-    })
-
-    if (trgLength !== trg.length) {
+    if (trg.length !== src.length) {
       this._notify(getOwn(childNodes, 'length', sub))
     }
 
+    const trgLength = trg.length
+
+    // allocate/deallocate
+    trg.length = src.length
+    
+    // TODO: the public api may not allow root subscriptions
+    const hasRootSubscriptions = this.root.tasks.length > 0
+
+    forEach(src, (value, index) => {
+      const closest = getOwn(childNodes, index, sub)
+
+      if (this.root === closest && !hasRootSubscriptions) {
+        trg[index] = value
+      }
+      else if (index < trgLength) {
+        trg[index] = this._merge(trg[index], value, closest)
+      }
+      else {
+        trg[index] = value
+        this._notify(closest)
+        // TODO: cannot _invalidate unless we know for sure the subscription node
+        // is the one corresponding to this the current data tree level
+      }
+    })
+
     return trg
   }
 
-  _mergeDate(trg: Date, src: Date, sub: SubscriptionNode, clone: boolean) {
-    if (clone) {
-      trg.setTime(+src)
-    }
-    else if (+src !== +trg) {
-      trg.setTime(+src)
+  _mergeDate(trg: Date, src: Date, sub: SubscriptionNode) {
+    if (+trg !== +src) {
       this._notify(sub)
-    }
-    else {
-      return src
+      // the tree ends here, no need to _invalidate
     }
 
-    return trg
-  }
-
-  /**
-   * skip deep comparison completely and simply set the new value.
-   * then deeply invalidate all Subscriptions associated to the affected paths.
-   */
-  replace () {
-    throw new Error('not yet implemented')
+    return src
   }
 }
 
