@@ -53,7 +53,7 @@ export default {
     }
   },
 
-  // [FIXME] cannot set properties "content" and "font-family" because their values contain quotes
+  // TODO: cannot set properties "content" and "font-family" because their values contain quotes
   [InstructionType.STYLE]: (el, value, cssText) => {
     if (isObject(value)) {
       forOwn(value, (style, prop) => {

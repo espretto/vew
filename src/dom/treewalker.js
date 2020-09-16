@@ -13,8 +13,8 @@ export class TreeWalker {
   }
 
   next () {
-    var node = this.node
-    var next = node.firstChild
+    let node = this.node
+    let next = node.firstChild
     if (next) return this.node = next
     do next = node.nextSibling
     while (!next && (node = node.parentNode))

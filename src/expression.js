@@ -11,16 +11,13 @@ export type Expression = {|
 
 import { hasOwn } from './util/object'
 import { trim, chr } from './util/string'
-import { indexOf, findIndex, map, range } from './util/array'
+import { indexOf, every, range } from './util/array'
 
 /** used to match the first character of a javascript identifier or keyword */
 const passIdent = /[a-zA-Z_$]/
 
 /** used to match javascript identifiers and keywords */
 const matchIdent = /[a-zA-Z_$][\w$]*/g
-
-/** used to mangle identifiers */
-const toIdent = index => chr(97 + index)
 
 /** used to skip whitespace */
 const noWs = /\S/g
@@ -84,14 +81,10 @@ class Scanner {
   /* ---------------------------------------------------------------------------
    * parser utilities
    */
-  buffer () {
-    this.anchor = this.index
-  }
-
   flush () {
     if (this.anchor < this.index) {
-      this.match.source += this.input.substring(this.anchor, this.index)
-      this.anchor = this.index
+      this.match.source += this.input.substring(this.anchor, this.index);
+      this.anchor = this.index;
     }
   }
 
@@ -138,9 +131,9 @@ class Scanner {
   }
 
   addKeyPath (keyPath: KeyPath) {
-    var index = findIndex(this.match.paths, other => other.join() === keyPath.join())
-    if (index < 0) index = this.match.paths.push(keyPath) - 1
-    this.match.source += toIdent(index)
+    if (every(this.match.paths, other => other.join() !== keyPath.join())) {
+      this.match.paths.push(keyPath)
+    }
   }
 
   /* ---------------------------------------------------------------------------
@@ -158,9 +151,7 @@ class Scanner {
    */
   dataState () {
     const length = this.input.length
-    var index, chr
-
-    this.buffer()
+    let index, chr
 
     while (this.index < length) {
       index = this.index
@@ -205,7 +196,7 @@ class Scanner {
       if (this.index === index) this.index += 1
     }
 
-    this.flush()
+    this.flush();
   }
 
   slashState () {
@@ -226,64 +217,52 @@ class Scanner {
     const ident = this.seek(matchIdent)
 
     if (this.maybeKey && this.bracketStack[0] === '{') {
-      this.index += ident.length
       this.flush()
+      this.index += ident.length
 
+      // es6 shorthand syntax
       if (this.seek(noWs) !== ':') {
-        this.match.source += ':'
+        this.match.source += ident + ":" + "this."
+        this.flush()
         this.addKeyPath( [ident] )
       }
     }
     else if (indexOf(keywords, ident) < 0) {
       this.flush()
+      this.match.source += "this."
       this.index += ident.length
       this.keyPathState( [ident] )
     }
     else {
       this.index += ident.length
-      this.flush()
     }
   }
 
   keyPathState (path: KeyPath) {
     const length = this.input.length
-    var chr
 
     while (this.index < length) {
-      chr = this.seek(noWs)
+      const chr = this.seek(noWs)
 
       if (chr === '.') {
-        this.buffer()
         this.dotState(path)
       }
       else if (chr === '[') {
-        this.buffer()
         if (this.bracketOpenState(path)) break
       }
-      // preserve this-bindings of function calls
-      else if (chr === '(' && path.length > 1) {
-        path.pop()
-        break
-      }
       else {
-        this.buffer()
         break
       }
     }
 
-    // else to the while
-    if (this.index === length) this.buffer()
-
     this.addKeyPath(path)
-    this.flush()
   }
 
   dotState (path?: KeyPath) {
     const chr = this.seek(noWs, true)
-    var ident
 
     if (passIdent.test(chr)) {
-      ident = this.seek(matchIdent)
+      const ident = this.seek(matchIdent)
       this.index += ident.length
       if (path) path.push(ident)
     }
@@ -372,16 +351,14 @@ class Scanner {
 }
 
 export function evaluate (match: Expression): Function {
-  const signature = map(range(match.paths.length), toIdent)
-  signature.push('return ' + match.source)
-  // flowignore: await constructor type definition
-  return Function.apply(null, signature)
+  return new Function('return ' + match.source)
 }
 
 export function createExpression (input: string): Expression {
   const scanner = new Scanner()
 
   scanner.index = 0
+  scanner.anchor = scanner.index
   scanner.input = input
   scanner.suffix = ''
 
@@ -402,6 +379,7 @@ export function searchExpression (input: string, delimiters: [string, string]): 
   const scanner = new Scanner()
 
   scanner.index = begin + prefix.length
+  scanner.anchor = scanner.index
   scanner.input = input
   scanner.suffix = suffix
 

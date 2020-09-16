@@ -20,8 +20,9 @@
   - fix global event vs listener argument (IE)
   - fix keyCode vs which (IE)
   - fix relativeTarget
-  - polyfill compareDocumentPosition, then Node#closest to
-    fix mouseenter/mouseover and mouseleave/mouseout events
+  - do not delegate mouse events:
+      polyfill compareDocumentPosition, then Node#closest to
+      fix mouseenter/mouseover and mouseleave/mouseout events
   - polyfill input event
   - replace focus and blur by focusin and blurout(?) events
   - polyfill preventDefault (returnValue property)

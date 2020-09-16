@@ -38,7 +38,7 @@ Roadmap
 - [ ] 28/07/2016: offline reflow/repaint sections by setting `display:none` or `visiblity:hidden` before applying any changes
 - [x] template content extraction: http://stackoverflow.com/a/33138997
 - [x] jquery extract to domify: https://github.com/component/domify/blob/master/index.js
-- [ ] memory leaks: read [about memory leaks][1] and implement `dispose` and/or `teardown`
+- [x] implement `dispose` and/or `teardown`
 - [ ] example: implement example session timeout visualization as an svg clock
 - [ ] distinguish static from dynamic dom [sub]sections
 - [ ] referential transparency
@@ -47,6 +47,7 @@ Roadmap
 - [ ] introduce `--on-event-args="[...expression]"` to accompany `--on-event="handler"` instructions
       to avoid multiple handers in loop expressions
 - [ ] provide --switch-equals parameter to overload the equality-operator
+- [x] do not mangle template expressions but prepend `this.` to each keypath. then `.call(component.store.data)` them to evaluate them. just like before, keypaths can be retained for dependency tracking. then use a prototype chain to shadow `state` with `props` effectively reimplementing a scope chain. added benefit: property resolvers are faster and dont have to go through map(resolve) on the store. only drawback, compiled expressions no longer resemble themselves so memoizing them has no interest, a rather small price for property acces by offset without indirection.4
 - [ ] inter-component communication
 - [ ] provide lifecycle hooks with callback or promise api
 - [ ] dom updates: fine grained control on dom updates:
@@ -74,8 +75,6 @@ accessing properties by resolving key chains cannot be optimized to efficient re
 - only record accessed keychains for the subscriptions
 - do not mangle keychains, rather prepend `this.` and later call performant getters in the context of the scope instance !
 - this will remove the possibility to memoize expression evaluation but produce faster getters. this happens at build-time anyways.
-
-[1]: http://javascript.info/tutorial/memory-leaks
 
 Testing
 -------------------------

@@ -6,20 +6,12 @@ import { toKeyPath } from './util/path'
 import { forEach, every, remove, fold, filter } from './util/array'
 import { isString, isObject, isUndefined, protof } from './util/type'
 import { objectProto, stringProto, arrayProto, dateProto } from './util/type'
-import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue, keys } from './util/object'
+import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue, keys, create, extend } from './util/object'
 
-export interface Store {
-  subscribe (path: KeyPath, task: Function): void;
-  unsubscribe (path: KeyPath, task: Function): void;
-  resolve (path: KeyPath): any;
-  update (): void;
-  merge (src: any): void;
-  has (path: KeyPath): boolean;
-}
 
-export class State implements Store {
+export class Store {
 
-  data: any
+  state: any
 
   root: SubscriptionNode
 
@@ -27,8 +19,8 @@ export class State implements Store {
 
   dirty: Set<SubscriptionNode>
 
-  constructor (data: any) {
-    this.data = data
+  constructor (state: any) {
+    this.state = state
     this.root = new SubscriptionNode()
     this.tasks = new Set()
     this.dirty = new Set()
@@ -48,14 +40,6 @@ export class State implements Store {
     }
   }
 
-  has (path: KeyPath) {
-    return hasOwn(this.data, path[0])
-  }
-
-  resolve (path: KeyPath) {
-    return fold(path, this.data, (obj, key) => obj[key])
-  }
-
   update () {
     this.dirty.forEach(sub => {
       forEach(sub.tasks, task => {
@@ -72,7 +56,7 @@ export class State implements Store {
   }
 
   merge (src: any) {
-    this.data = this._merge(this.data, src, this.root)
+    this.state = this._merge(this.state, src, this.root)
   }
 
   _notify (sub: SubscriptionNode) {
@@ -195,55 +179,6 @@ export class State implements Store {
     }
 
     return src
-  }
-}
-
-
-export class Props implements Store {
-
-  props: Store
-  state: Store
-
-  constructor (state: Store, data: any) {
-    this.props = new State(data)
-    this.state = state
-  }
-
-  subscribe (path: KeyPath, task: Function) {
-    return this.props.has(path)
-      ? this.props.subscribe(path, task)
-      : this.state.subscribe(path, task)
-  }
-
-  unsubscribe (path: KeyPath, task: Function) {
-    return this.props.has(path)
-      ? this.props.unsubscribe(path, task)
-      : this.state.unsubscribe(path, task)
-  }
-
-  resolve (path: KeyPath) {
-    return this.props.has(path)
-      ? this.props.resolve(path)
-      : this.state.resolve(path)
-  }
-
-  update () {
-    this.props.update()
-    this.state.update()
-  }
-
-  merge (src: any) {
-    console.assert(
-      every(keys(src), key => !this.props.has([key])),
-      `you are trying to update input properties
-       [${filter(keys(src), key => this.props.has([key])).join()}]
-       from within the receiving component. only its parent can do that.`
-    )
-    this.state.merge(src)
-  }
-
-  has (path: KeyPath) {
-    return this.props.has(path) || this.state.has(path)
   }
 }
 

@@ -20,8 +20,7 @@ import type Template from './template'
 import { InstructionType } from './instruction'
 
 
-import type { Store } from './store'
-import { State, Props } from './store'
+import { Store } from './store'
 import Registry from './registry'
 import { evaluate } from './expression'
 import { resolve } from './dom/treewalker'
@@ -29,7 +28,7 @@ import Effects from './dom/effects'
 
 import { indexOf, forEach, map, find } from './util/array'
 import { replaceNode, clone } from './dom/core'
-import { hasOwn, getOwn, mapOwn, forOwn } from './util/object'
+import { hasOwn, getOwn, mapOwn, forOwn, keys } from './util/object'
 
 
 // continue: mute tasks which components/partials have been unmounted by other tasks in the same runloop cycle
@@ -45,8 +44,7 @@ function bootstrapLoop ({ nodePath, keyName, valueName, partials }: LoopInstruct
     const mounted: Component[] = []
 
     function task () {
-      const args = map(paths, path => host.store.resolve(path))
-      const items = compute.apply(null, args)
+      const items = compute.call(host.store.state)
       
       // create missing partials
       while (mounted.length < items.length) {
@@ -66,21 +64,17 @@ function bootstrapLoop ({ nodePath, keyName, valueName, partials }: LoopInstruct
       
       // items and mounted are of equal length, zip them up
       forEach(items, (item, i) => {
-        const props = { [valueName]: item }
-        // flowignore: partial have property stores
-        mounted[i].store.props.merge(props)
-        // flowignore: partial have property stores
-        mounted[i].store.props.update()
+        mounted[i].merge({ [valueName]: item })
       })
     }
 
     // initial render
     task()
 
-    forEach(paths, path => { host.store.subscribe(path, task) })
+    forEach(paths, path => host.store.subscribe(path, task))
     return function teardown () {
       forEach(mounted, partial => { partial.teardown() })
-      forEach(paths, path => { host.store.unsubscribe(path, task) })
+      forEach(paths, path => host.store.unsubscribe(path, task))
     }
   }
 }
@@ -106,37 +100,27 @@ function finalizeComponent ({ nodePath, name, props, slots }: ComponentInstructi
   console.assert(hasOwn(Registry, name), `component "${name}" has not been defined`)
   const componentFactory = Registry[name]
   const slotFactories = mapOwn(slots, slot => bootstrapComponent(slot))
-  const properties = mapOwn(props, (expression, prop) => ({
-    compute: evaluate(expression),
-    paths: expression.paths
-  }))
+  const computes = mapOwn(props, evaluate)
+  const paths = [].concat(...map(keys(props), prop => props[prop].paths))
 
   return function setup (host: Component) {
     
     function getProps () {
-      return mapOwn(properties, ({ compute, paths }) =>
-        compute.apply(null, map(paths, path =>
-          host.store.resolve(path)
-        ))
-      )
-    }
-
-    function task () {
-      // flowignore: components have property stores
-      component.store.props.merge(getProps())
-      // flowignore: components have property stores
-      component.store.props.update()
+      return mapOwn(computes, c => c.call(host.store.state))
     }
 
     // initial render - we pass props to the constructor so they can be read by child-setup routines
     const component = componentFactory(host, getProps(), mapOwn(slotFactories, setup => setup(host)))
+    
+    function task () {
+      component.merge(getProps())
+    }
 
     component.mount(resolve(host.el, nodePath))
-    forOwn(properties, ({ paths }) => forEach(paths, path => host.store.subscribe(path, task)))
-    
+    forEach(paths, path => host.store.subscribe(path, task))
     return function teardown () {
       component.teardown()
-      forOwn(properties, ({ paths }) => forEach(paths, path => host.store.unsubscribe(path, task)))
+      forEach(paths, path => host.store.unsubscribe(path, task))
     }
   }
 }
@@ -151,7 +135,7 @@ function bootstrapSlot ({ nodePath, name, template }: SlotInstruction) {
     let slot
 
     // slots render using their defining component's view model. if transcluded,
-    // that component is not the same as their host
+    // that component is different from their hosting component
     if (slots && hasOwn(slots, name)) {
       slot = slots[name].mount(target)
     }
@@ -167,17 +151,15 @@ function bootstrapSlot ({ nodePath, name, template }: SlotInstruction) {
   }
 }
 
-
 function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
-  const computeSwitched = evaluate(switched)
+  const compute = evaluate(switched)
 
   const cases = map(partials, ({ template, expression }) => ({
     setup: bootstrapComponent(template),
     compute: evaluate(expression),
-    paths: expression.paths
   }))
 
-
+  const paths = switched.paths.concat(...map(partials, p => p.expression.paths))
 
   return function setup (host: Component) {
     const target = resolve(host.el, nodePath)
@@ -185,16 +167,11 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
     let mounted: Component | null = null
 
     function task () {
-      const args = map(switched.paths, path => host.store.resolve(path))
-      const value = computeSwitched.apply(null, args)
-
-      const next = find(cases, ({ compute, paths }) => {
-        const args = map(paths, path => host.store.resolve(path))
-        return value === compute.apply(null, args)
-      })
+      const value = compute.call(host.store.state)
+      const next = find(cases, c => c.compute.call(host.store.state) === value)
 
       if (prev === next) return
-      else prev = next
+      prev = next
 
       if (mounted) {
         mounted.teardown()
@@ -216,23 +193,22 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
     task()
 
     // TODO: do not subscribe to conditions below/after the currently fulfilled one
-    forEach(switched.paths, path => host.store.subscribe(path, task))
-    forEach(cases, ({ paths }) => forEach(paths, path => host.store.subscribe(path, task)))
+    forEach(paths, path => host.store.subscribe(path, task))
     return function teardown () {
       if (mounted) mounted.teardown()
-      forEach(switched.paths, path => host.store.unsubscribe(path, task))
-      forEach(cases, ({ paths }) => forEach(paths, path => host.store.unsubscribe(path, task)))
+      forEach(paths, path => host.store.unsubscribe(path, task))
     }
   }
 }
 
 
 function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
-  const conditioned = map(partials, ({ template, expression }) => ({
+  const conditions = map(partials, ({ template, expression }) => ({
     setup: bootstrapComponent(template),
     compute: evaluate(expression),
-    paths: expression.paths
   }))
+
+  const paths = [].concat(...map(partials, p => p.expression.paths));
 
   return function setup (host: Component) {
     const target = resolve(host.el, nodePath)
@@ -240,13 +216,10 @@ function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
     let mounted: Component | null = null
 
     function task () {
-      const next = find(conditioned, ({ compute, paths }) => {
-        const args = map(paths, path => host.store.resolve(path))
-        return compute.apply(null, args)
-      })
+      const next = find(conditions, c => c.compute.call(host.store.state))
 
       if (prev === next) return
-      else prev = next
+      prev = next
 
       if (mounted) {
         mounted.teardown()
@@ -268,10 +241,10 @@ function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
     task()
 
     // TODO: do not subscribe to conditions below/after the currently fulfilled one
-    forEach(conditioned, ({ paths }) => forEach(paths, path => host.store.subscribe(path, task)))
+    forEach(paths, path => host.store.subscribe(path, task));
     return function teardown () {
       if (mounted) mounted.teardown()
-      forEach(conditioned, ({ paths }) => forEach(paths, path => host.store.unsubscribe(path, task)))
+      forEach(paths, path => host.store.unsubscribe(path, task));
     }
   }
 }
@@ -286,9 +259,7 @@ function bootstrapSetter ({ type, nodePath, name, expression }: PropertyInstruct
     const target = resolve(host.el, nodePath)
     
     function task () {
-      const args = map(paths, path => host.store.resolve(path))
-      const input = compute.apply(null, args)
-      effect(target, input, name)
+      effect(target, compute.call(host.store.state), name)
     }
 
     // initial render
@@ -311,9 +282,7 @@ function bootstrapPresetSetter ({ type, nodePath, preset, expression }: ClassNam
     let target = resolve(host.el, nodePath)
     
     function task () {
-      const args = map(paths, path => host.store.resolve(path))
-      const input = compute.apply(null, args)
-      effect(target, input, preset)
+      effect(target, compute.call(host.store.state), preset)
     }
 
     // initial render
@@ -336,9 +305,7 @@ function bootstrapText ({ type, nodePath, expression }: TextInstruction) {
     let target = resolve(host.el, nodePath)
     
     function task () {
-      const args = map(paths, path => host.store.resolve(path))
-      const input = compute.apply(null, args)
-      effect(target, input)
+      effect(target, compute.call(host.store.state))
     }
 
     // initial render
@@ -352,18 +319,16 @@ function bootstrapText ({ type, nodePath, expression }: TextInstruction) {
 }
 
 
-function bootstrapListener (instruction: ListenerInstruction) {
-  const { nodePath, event, expression } = instruction
-  const handler = evaluate(expression)
+function bootstrapListener ({ nodePath, event, expression }: ListenerInstruction) {
   const { paths } = expression
+  const handler = evaluate(expression)
 
   return function setup (host: Component) {
     const target = resolve(host.el, nodePath)
 
     function proxy () {
-      handler.apply(null, paths.map(path =>
-        String(path) === 'this' ? host : host.store.resolve(path)
-      ))
+      // TODO: unclear how to get hold of the event object or the reference to the component instance
+      handler.call(host.store.state);
     }
 
     target.addEventListener(event, proxy, false)
@@ -409,7 +374,8 @@ export interface Component {
   teardowns: Function[],
 
   mount: Node => Component,
-  teardown: () => Component
+  teardown: () => Component,
+  merge: (state: any) => Component,
 }
 
 export function bootstrapComponent (template: Template, state?: Function): componentFactory {
@@ -423,19 +389,7 @@ export function bootstrapComponent (template: Template, state?: Function): compo
       refs: {},
       slots,
       teardowns: [],
-      
-      // TODO: implement default properties
-      store: state
-        ? props
-            // stateful components with properties
-            ? new Props(new State(state()), props)
-            // stateful components without properties (ex. toplevel)
-            : new State(state())
-        : props
-            // delegate to inherited state after own property lookup (ex. --for partials)
-            ? new Props(host.store, props)
-            // inherit state from host
-            : host.store,
+      store: new Store(state ? state() : {}),
 
       mount (node: Node) {
         replaceNode(node, this.el)
@@ -444,6 +398,12 @@ export function bootstrapComponent (template: Template, state?: Function): compo
 
       teardown () {
         forEach(this.teardowns, teardown => teardown())
+        return this
+      },
+
+      merge (src) {
+        this.store.merge(src)
+        this.store.update()
         return this
       }
     }

@@ -91,7 +91,7 @@ export default class Template {
         tw.remove()
       }
 
-      textNode: Text = tw.next()
+      textNode = tw.next()
     }
 
     this.instructions.push({
