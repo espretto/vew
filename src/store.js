@@ -11,7 +11,7 @@ import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue, keys, create, exten
 
 export class Store {
 
-  state: any
+  data: any
 
   root: SubscriptionNode
 
@@ -19,8 +19,8 @@ export class Store {
 
   dirty: Set<SubscriptionNode>
 
-  constructor (state: any) {
-    this.state = state
+  constructor (data: any) {
+    this.data = data
     this.root = new SubscriptionNode()
     this.tasks = new Set()
     this.dirty = new Set()
@@ -56,7 +56,7 @@ export class Store {
   }
 
   merge (src: any) {
-    this.state = this._merge(this.state, src, this.root)
+    this.data = this._merge(this.data, src, this.root)
   }
 
   _notify (sub: SubscriptionNode) {

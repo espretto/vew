@@ -44,7 +44,7 @@ Component.extend = function ({ tag, data, template }: ComponentOptions) {
     data = () => ({})
   }
 
-  const createComponent = bootstrapComponent(tmpl, data)
+  const createComponent = bootstrapComponent(tmpl, false, data)
 
   if (tag) {
     Registry[tag.toUpperCase()] = createComponent

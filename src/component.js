@@ -35,7 +35,7 @@ import { hasOwn, getOwn, mapOwn, forOwn, keys, extend, create } from './util/obj
 
 function bootstrapLoop ({ nodePath, keyName, valueName, partials }: LoopInstruction) {
   const { template, expression } = partials[0]
-  const partialFactory = bootstrapComponent(template)
+  const partialFactory = bootstrapComponent(template, true)
   const { paths } = expression
   const compute = evaluate(expression)
 
@@ -44,7 +44,7 @@ function bootstrapLoop ({ nodePath, keyName, valueName, partials }: LoopInstruct
     const mounted: Component[] = []
 
     function task () {
-      const items = compute.call(host.store.state)
+      const items = compute.call(host.store.data)
       
       // create missing partials
       while (mounted.length < items.length) {
@@ -104,7 +104,7 @@ function finalizeComponent ({ nodePath, name, props, slots }: ComponentInstructi
   return function setup (host: Component) {
     
     function getProps () {
-      return mapOwn(computes, c => c.call(host.store.state))
+      return mapOwn(computes, c => c.call(host.store.data))
     }
 
     // initial render - we pass props to the constructor so they can be read by child-setup routines
@@ -164,8 +164,8 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
     let mounted: Component | null = null
 
     function task () {
-      const value = compute.call(host.store.state)
-      const next = find(cases, c => c.compute.call(host.store.state) === value)
+      const value = compute.call(host.store.data)
+      const next = find(cases, c => c.compute.call(host.store.data) === value)
 
       if (prev === next) return
       prev = next
@@ -212,7 +212,7 @@ function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
     let mounted: Component | null = null
 
     function task () {
-      const next = find(conditions, c => c.compute.call(host.store.state))
+      const next = find(conditions, c => c.compute.call(host.store.data))
 
       if (prev === next) return
       prev = next
@@ -254,7 +254,7 @@ function bootstrapSetter ({ type, nodePath, name, expression }: PropertyInstruct
     const target = resolve(host.el, nodePath)
     
     function task () {
-      effect(target, compute.call(host.store.state), name)
+      effect(target, compute.call(host.store.data), name)
     }
 
     // initial render
@@ -276,7 +276,7 @@ function bootstrapPresetSetter ({ type, nodePath, preset, expression }: ClassNam
     let target = resolve(host.el, nodePath)
     
     function task () {
-      effect(target, compute.call(host.store.state), preset)
+      effect(target, compute.call(host.store.data), preset)
     }
 
     // initial render
@@ -298,7 +298,7 @@ function bootstrapText ({ type, nodePath, expression }: TextInstruction) {
     let target = resolve(host.el, nodePath)
     
     function task () {
-      effect(target, compute.call(host.store.state))
+      effect(target, compute.call(host.store.data))
     }
 
     // initial render
@@ -320,7 +320,7 @@ function bootstrapListener ({ nodePath, event, expression }: ListenerInstruction
 
     function proxy () {
       // TODO: unclear how to get hold of the event object or the reference to the component instance
-      handler.call(host.store.state);
+      handler.call(host.store.data);
     }
 
     target.addEventListener(event, proxy, false)
@@ -370,27 +370,23 @@ export interface Component {
   merge: (state: any) => Component,
 }
 
+/**
+ * @param template - dom fragment and instruction to act on it
+ * @param state - initial state factory. if not provided, the state will be
+ *   inherited from the parent component.
+ */
 export function bootstrapComponent (template: Template, state?: Function): componentFactory {
   const setups = map(template.instructions, i => bootstappers[i.type](i))
 
   const setup: componentFactory = (host, props, slots) => {
-    // TODO: this needs work: 
-    // 1. private state w/ props (component)
-    // 2. private state w/o props (component)
-    // 3. inherited state w/ props (--for partial)
-    // 4. inherited state w/o props (--case, --if, --elif, --else, --slot partial)
-    // 5. no state w/ props (== $1)
-    // 6. no state w/o props (== $2)
     const store = state
+      // components
       ? props
-        // normal component
-        ? new Store(extend(props, state()))
-        // toplevel component
+        ? new Store(extend(state(), props))
         : new Store(state())
+      // partials (flow control subtrees and slots)
       : props
-        // partials w/ properties (--for)
-        ? new Store(extend(props, host.store.state))
-        // partials w/o properties (--if)
+        ? new Store(extend(props, host.store.data))
         : host.store
 
     const component = {
@@ -418,8 +414,6 @@ export function bootstrapComponent (template: Template, state?: Function): compo
         return this
       }
     }
-
-    
 
     // setup subscriptions to state and render initially
     component.teardowns = map(setups, setup => setup(component))
