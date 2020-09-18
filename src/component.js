@@ -28,7 +28,7 @@ import Effects from './dom/effects'
 
 import { indexOf, forEach, map, find } from './util/array'
 import { replaceNode, clone } from './dom/core'
-import { hasOwn, getOwn, mapOwn, forOwn, keys } from './util/object'
+import { hasOwn, getOwn, mapOwn, forOwn, keys, extend, create } from './util/object'
 
 
 // continue: mute tasks which components/partials have been unmounted by other tasks in the same runloop cycle
@@ -79,7 +79,6 @@ function bootstrapLoop ({ nodePath, keyName, valueName, partials }: LoopInstruct
   }
 }
 
-
 function bootsrapReference ({ nodePath, name }: ReferenceInstruction) {
 
   return function setup (host: Component) {
@@ -94,7 +93,6 @@ function bootsrapReference ({ nodePath, name }: ReferenceInstruction) {
     }
   }
 }
-
 
 function finalizeComponent ({ nodePath, name, props, slots }: ComponentInstruction) {
   console.assert(hasOwn(Registry, name), `component "${name}" has not been defined`)
@@ -124,7 +122,6 @@ function finalizeComponent ({ nodePath, name, props, slots }: ComponentInstructi
     }
   }
 }
-
 
 function bootstrapSlot ({ nodePath, name, template }: SlotInstruction) {
   const defaultSlot = template ? bootstrapComponent(template) : null
@@ -201,7 +198,6 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
   }
 }
 
-
 function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
   const conditions = map(partials, ({ template, expression }) => ({
     setup: bootstrapComponent(template),
@@ -249,7 +245,6 @@ function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
   }
 }
 
-
 function bootstrapSetter ({ type, nodePath, name, expression }: PropertyInstruction | DatasetInstruction | AttributeInstruction) {
   const effect = Effects[type]
   const { paths } = expression
@@ -271,7 +266,6 @@ function bootstrapSetter ({ type, nodePath, name, expression }: PropertyInstruct
     }
   }
 }
-
 
 function bootstrapPresetSetter ({ type, nodePath, preset, expression }: ClassNameInstruction | StyleInstruction) {
   const effect = Effects[type]
@@ -295,7 +289,6 @@ function bootstrapPresetSetter ({ type, nodePath, preset, expression }: ClassNam
   }
 }
 
-
 function bootstrapText ({ type, nodePath, expression }: TextInstruction) {
   const effect = Effects[type]
   const { paths } = expression
@@ -317,7 +310,6 @@ function bootstrapText ({ type, nodePath, expression }: TextInstruction) {
     }
   }
 }
-
 
 function bootstrapListener ({ nodePath, event, expression }: ListenerInstruction) {
   const { paths } = expression
@@ -381,15 +373,28 @@ export interface Component {
 export function bootstrapComponent (template: Template, state?: Function): componentFactory {
   const setups = map(template.instructions, i => bootstappers[i.type](i))
 
-  const setup: componentFactory = (host, props, slots) => {      
+  const setup: componentFactory = (host, props, slots) => {
+    // TODO: does state or do props shadow the other?
+    const store = state
+      ? props
+        // normal component
+        ? new Store(extend(create(props), state()))
+        // toplevel component
+        : new Store(state())
+      : props
+        // partials w/ properties (--for)
+        ? new Store(extend(create(props), host.store.state))
+        // partials w/o properties (--if)
+        : host.store
+
     const component = {
       el: clone(template.el),
       tag: '',
       host,
       refs: {},
       slots,
+      store,
       teardowns: [],
-      store: new Store(state ? state() : {}),
 
       mount (node: Node) {
         replaceNode(node, this.el)

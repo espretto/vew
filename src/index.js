@@ -1,3 +1,4 @@
+/* @flow */
 
 import Registry from './registry'
 import Template from './template'

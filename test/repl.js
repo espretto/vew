@@ -143,6 +143,7 @@ global.Util = {
 /* -----------------------------------------------------------------------------
  * hot module replacement testing
  */
+import { Component } from '../src/index'
 import { evaluate, createExpression } from '../src/expression'
 import Template from '../src/template'
 import Registry from '../src/registry'
@@ -222,9 +223,10 @@ if (module.hot) {
       console.log('updating..')
       var out
 
-      Registry.components.DUMMY = {}
+      Registry.DUMMY = {}
 
       try {
+        if (!DOM.input.value) throw new Error('missing input')
         var frag = parse(DOM.input.value)
         var componentProto = new Template(frag.removeChild(frag.firstChild))
         out = [Util.beautify(Registry), Util.beautify(componentProto)]
@@ -269,31 +271,18 @@ if (module.hot) {
   /* ---------------------------------------------------------------------------
    * component
    */
-  function createTemplate (html) {
-    const frag = parse(html)
-    return new Template(frag.removeChild(frag.firstChild))
-  }
 
-  const slotFactory = bootstrapComponent(
-    createTemplate('<span>${how}</span>')
-  )
-
-  const appFactory = bootstrapComponent(
-    createTemplate(`
-      <p>
-        the quick brown fox jumps
-        <span --slot="main">high</span>
-        over the lazy dog
-      </p>
-    `),
-    function data () {
-      return { how: 'low' }
-    }
-  )
-
-  const app = appFactory(null, false, { main: slotFactory })
+  global.Registry = Registry
   
-  global.app = app.mount(document.getElementById('root'))
-
+  Component({
+    tag: 'greet',
+    template: '<span>${name}</span>'
+  })
+  
+  global.app = Component({
+    el: '#root',
+    data: () => ({ name: 'World' }),
+    template: '<div>Hello <greet --name="name" /></div>'
+  })
 
 }
