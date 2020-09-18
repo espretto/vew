@@ -276,13 +276,13 @@ if (module.hot) {
   
   Component({
     tag: 'greet',
-    template: '<span>${name}</span>'
+    template: '<span>${who}</span>'
   })
   
   global.app = Component({
     el: '#root',
     data: () => ({ name: 'World' }),
-    template: '<div>Hello <greet --name="name" /></div>'
+    template: '<div>Hello <greet --who="name" /></div>'
   })
 
 }

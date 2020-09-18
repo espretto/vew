@@ -374,16 +374,22 @@ export function bootstrapComponent (template: Template, state?: Function): compo
   const setups = map(template.instructions, i => bootstappers[i.type](i))
 
   const setup: componentFactory = (host, props, slots) => {
-    // TODO: does state or do props shadow the other?
+    // TODO: this needs work: 
+    // 1. private state w/ props (component)
+    // 2. private state w/o props (component)
+    // 3. inherited state w/ props (--for partial)
+    // 4. inherited state w/o props (--case, --if, --elif, --else, --slot partial)
+    // 5. no state w/ props (== $1)
+    // 6. no state w/o props (== $2)
     const store = state
       ? props
         // normal component
-        ? new Store(extend(create(props), state()))
+        ? new Store(extend(props, state()))
         // toplevel component
         : new Store(state())
       : props
         // partials w/ properties (--for)
-        ? new Store(extend(create(props), host.store.state))
+        ? new Store(extend(props, host.store.state))
         // partials w/o properties (--if)
         : host.store
 
@@ -412,6 +418,8 @@ export function bootstrapComponent (template: Template, state?: Function): compo
         return this
       }
     }
+
+    
 
     // setup subscriptions to state and render initially
     component.teardowns = map(setups, setup => setup(component))

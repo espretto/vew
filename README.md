@@ -35,24 +35,16 @@ Now, which feels right: the ternary expression in the template or the class name
 
 Roadmap
 -------------------------
+- [ ] dom events
+- [ ] lifecycle hooks
+
+Optimizations
+-------------------------
+- [ ] list items in templates are not tracked.
+- [ ] annotate subtrees with attribute `--static` to avoid unecessary view model subscriptions
+- [ ] annotate subtress with attribute `--volatile` to bypass data-diffing and blindly invalidate everything
 - [ ] 28/07/2016: offline reflow/repaint sections by setting `display:none` or `visiblity:hidden` before applying any changes
-- [x] template content extraction: http://stackoverflow.com/a/33138997
-- [x] jquery extract to domify: https://github.com/component/domify/blob/master/index.js
-- [x] implement `dispose` and/or `teardown`
-- [ ] example: implement example session timeout visualization as an svg clock
-- [ ] distinguish static from dynamic dom [sub]sections
-- [ ] referential transparency
-- [ ] stateful and stateless widgets ? do we need the differentiation ?
-- [ ] event delegation
-- [ ] introduce `--on-event-args="[...expression]"` to accompany `--on-event="handler"` instructions
-      to avoid multiple handers in loop expressions
-- [ ] provide --switch-equals parameter to overload the equality-operator
-- [x] do not mangle template expressions but prepend `this.` to each keypath. then `.call(component.store.data)` them to evaluate them. just like before, keypaths can be retained for dependency tracking. then use a prototype chain to shadow `state` with `props` effectively reimplementing a scope chain. added benefit: property resolvers are faster and dont have to go through map(resolve) on the store. only drawback, compiled expressions no longer resemble themselves so memoizing them has no interest, a rather small price for property acces by offset without indirection.4
-- [ ] inter-component communication
-- [ ] provide lifecycle hooks with callback or promise api
-- [ ] dom updates: fine grained control on dom updates:
-  - [ ] `once` to bypass tracking mecanisms/householding
-  - [ ] `always` to bypass dom-diffing, i.e. indicate that values always change
+- [ ] try and get babel to use our own `create` and `extend` object utils to implement es6 classes
 
 Resources and insights [to be] gained from them
 -------------------------
@@ -63,18 +55,6 @@ Resources and insights [to be] gained from them
 - testing: [mocha and webpack](http://randycoulman.com/blog/2016/04/05/more-on-testing-with-mocha-and-webpack/)
 - testing: [jasmine and webpack](https://github.com/zyml/es6-karma-jasmine-webpack-boilerplate)
 - build: [survive webpack](https://leanpub.com/survivejs-webpack)
-
-WIP
--------------------------
-
-### alter class babel transform
-do `npm install babel-plugin-tranform-class`, modify `node_modules/babel-plugin-transform-class/lib/index.js` to use custom `extend` and `create` AST-nodes of `t.identifier` instead of global `Object.assign` and `Object.create`.
-
-### property access performance
-accessing properties by resolving key chains cannot be optimized to efficient reads using byte-offset. make slight changes to the `src/expression.js`:
-- only record accessed keychains for the subscriptions
-- do not mangle keychains, rather prepend `this.` and later call performant getters in the context of the scope instance !
-- this will remove the possibility to memoize expression evaluation but produce faster getters. this happens at build-time anyways.
 
 Testing
 -------------------------
