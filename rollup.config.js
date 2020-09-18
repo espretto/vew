@@ -72,7 +72,11 @@ function createConfig ({ input, output }) {
 export default [
   createConfig({
     input: 'src/component.js',
-    output: 'dist/vew.runtime.js'
+    output: 'dist/runtime.js'
+  }),
+  createConfig({
+    input: 'src/template.js',
+    output: 'dist/buildtime.js'
   }),
   createConfig({
     input: 'src/index.js',

@@ -132,7 +132,7 @@ const productionConfig = merge([
       filename: '[name].min.js',
     },
     optimization: {
-      minimize: false,
+      minimize: true,
       minimizer: [
         new TerserPlugin({
           cache: '.tmp/terser-webpack-plugin/',
