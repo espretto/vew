@@ -382,7 +382,7 @@ export function bootstrapComponent (template: Template, state?: Function): compo
     const store = state
       // components
       ? props
-        ? new Store(extend(state(), props))
+        ? new Store(extend(props, state()))
         : new Store(state())
       // partials (flow control subtrees and slots)
       : props
