@@ -4,6 +4,7 @@ const path = require('path')
 const merge = require('webpack-merge')
 const webpack = require('webpack')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
+const TerserPlugin = require('terser-webpack-plugin')
 
 /* -----------------------------------------------------------------------------
  * helpers
@@ -20,8 +21,7 @@ function resolve (dir) {
  * configs
  */
 const parts = require('./webpack.parts')
-const pkg = readFileJSON('package.json')
-const babelrc = readFileJSON('\.babelrc')
+const babelrc = readFileJSON('babel.config.json')
 
 Object.assign(babelrc, { cacheDirectory: '.tmp/babel' })
 
@@ -37,19 +37,19 @@ const PATHS = {
 const commonConfig = merge([
   {
     entry: {
-      vew: './src/index.js'
+      vew: './src/index.ts'
     },
     output: {
       path: PATHS.public,
       filename: '[name].js',
     },
     resolve: {
-      extensions: ['.js'],
+      extensions: ['.js', '.ts'],
     },
     module: {
       rules: [
         {
-          test: /\.js$/,
+          test: /\.(js|ts)$/,
           include: [ PATHS.source, PATHS.test ],
           exclude: /node_modules/,
           use: {
@@ -66,8 +66,7 @@ const commonConfig = merge([
 /* -----------------------------------------------------------------------------
  * development webpack configuration
  */
-const TerserPlugin = require('terser-webpack-plugin')
-const developmentConfig = merge([
+ const developmentConfig = merge([
   {
     mode: 'development',
     entry: {
@@ -125,8 +124,8 @@ const productionConfig = merge([
   {
     mode: 'production',
     entry: {
-      runtime: path.join(PATHS.source, 'component.js'),
-      buildtime: path.join(PATHS.source, 'template.js')
+      runtime: path.join(PATHS.source, 'component.ts'),
+      buildtime: path.join(PATHS.source, 'template.ts')
     },
     output: {
       filename: '[name].min.js',

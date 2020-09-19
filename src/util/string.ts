@@ -1,5 +1,3 @@
-/* @flow */
-
 import { isNative } from './type'
 import { uncurry } from './function'
 
@@ -18,7 +16,7 @@ function customStartsWith (str: string, prefix: string): boolean {
 }
 
 export const startsWith = isNative(nativeStartsWith)
-  ? (uncurry(nativeStartsWith, 1): typeof customStartsWith)
+  ? (uncurry(nativeStartsWith, 1) as typeof customStartsWith)
   : customStartsWith
 
 /**
@@ -36,7 +34,7 @@ function customTrim (str: string): string {
 }
 
 export const trim = isNative(nativeTrim)
-  ? (uncurry(nativeTrim, 0): typeof customTrim)
+  ? (uncurry(nativeTrim, 0) as typeof customTrim)
   : customTrim
 
 /**

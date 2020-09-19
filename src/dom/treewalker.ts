@@ -1,31 +1,32 @@
-/* @flow */
-
 import { removeNode } from './core'
 
-export type NodePath = $ReadOnlyArray<number>;
+export type NodePath = Readonly<number[]>;
 
 export class TreeWalker {
 
   node: Node
 
+  uncles: Node[]
+
   constructor (node: Node) {
     this.node = node
+    this.uncles = []
   }
 
   next () {
-    let node = this.node
-    let next = node.firstChild
-    if (next) return this.node = next
-    do next = node.nextSibling
-    while (!next && (node = node.parentNode))
-    if (next) this.node = next
-    return next
+    const child = this.node.firstChild
+    const sibling = this.node.nextSibling
+    if (child && sibling) this.uncles.push(sibling)
+    // @ts-ignore: calling .next() on the null node should throw
+    return this.node = child || sibling || this.uncles.pop()
   }
 
   prev () {
-    const prev = this.node.previousSibling || this.node.parentNode
-    if (prev) this.node = prev
-    return prev
+    const parent = this.node.parentNode
+    const sibling = this.node.previousSibling
+    if (!sibling && parent && parent.nextSibling) this.uncles.pop()
+    // @ts-ignore: calling .prev() on the null node should throw
+    return this.node = sibling || parent
   }
 
   remove () {
@@ -37,6 +38,7 @@ export class TreeWalker {
   path (): NodePath {
     const path: number[] = []
     
+    // @ts-ignore: node is never null in loop body
     for (var node = this.node; node; node = node.parentNode) {
 
       for (var prev, breadth = 0; prev = node.previousSibling; breadth += 1) {
@@ -55,11 +57,11 @@ export class TreeWalker {
 
 export function resolve (node: Node, path: NodePath): Node {
   for (var depth = path.length; depth--;) {
-    // flowignore: resolve is called before dom injection/manipulation
+    // @ts-ignore: child exists
     node = node.firstChild
 
     for (var breadth = path[depth]; breadth--;) {
-      // flowignore: resolve is called before dom injection/manipulation
+      // @ts-ignore: sibling exists
       node = node.nextSibling
     }
   }

@@ -1,18 +1,17 @@
-/* @flow */
-
 import { getOwn } from '../util/object'
 import { document } from '../util/global'
-import { TEXT_NODE, ELEMENT_NODE, COMMENT_NODE, FRAGMENT_NODE,
-         createFragment, createTextNode, extractContents, removeNode, trim } from './core'
+import { NodeType, createFragment, createTextNode, extractContents, removeNode, trim } from './core'
 
+         
 /** bug list */
-export const support = {}
+export const support: { [feature: string]: boolean } = {}
 
 /** used to parse/stringify html */
 const wrapElem: Element = document.createElement('div')
 
 /** used to associate tags with the parentNode(s) required for parsing */
-const wrapMap: { [string]: [number, [string, string]] } = {}
+type WrapConf = [number, [string, string]]
+const wrapMap: { [tagName: string]: WrapConf } = {}
 
 /** used to find the first html-tag (wont skip comments though) */
 const reTagName = /<([a-zA-Z][^>\/\t\n\f ]*)/
@@ -37,30 +36,30 @@ support.innerHTML = !!wrapElem.firstChild
 
 // IE: tbody elements are inserted automatically
 wrapElem.innerHTML = '<table></table>'
-// flowignore: lastChild exists
+// @ts-ignore: lastChild exists
 support.noAutoTableBody = !wrapElem.lastChild.lastChild // @flow : ignore-next-line
 
 // IE 6-11: defaultValue is not cloned
 wrapElem.innerHTML = '<textarea>X</textarea>'
-// flowignore: lastChild exists
+// @ts-ignore: lastChild exists
 support.cloneDefaultValue = !!wrapElem.cloneNode(true).lastChild.defaultValue
 
 // IE 6-8: unknown elements are not cloneable (TODO verify html5shiv)
 wrapElem.innerHTML = '<nav></nav>'
-support.cloneUnknown = wrapElem.cloneNode(true).innerHTML === wrapElem.innerHTML
+support.cloneUnknown = (wrapElem.cloneNode(true) as Element).innerHTML === wrapElem.innerHTML
 
 // Safari 5.1, iOS 5.1, Android 4.x, Android 2.3:
 // old WebKit doesn't clone checked state correctly in fragments
 createFragment(wrapElem)
 wrapElem.innerHTML = '<input type="radio" checked="checked" name="name"/>'
-// flowignore: lastChild exists
+// @ts-ignore: lastChild exists
 support.cloneChecked = !!wrapElem.cloneNode(true).cloneNode(true).lastChild.checked
 removeNode(wrapElem)
 
 /* -----------------------------------------------------------------------------
  * wrapper specs
  */
-const wrapMapDefault = support.innerHTML
+const wrapMapDefault: WrapConf = support.innerHTML
   ? [1, ['X<div>', '</div>']]
   : [0, ['', '']]
 
@@ -96,7 +95,7 @@ wrapMap.TEXT     = [1, ['<svg xmlns="http://www.w3.org/2000/svg" version="1.1">'
 
 function dive (node: Node, depth: number) {
   console.assert(node != null, 'html parser dives too deep')
-  // flowignore: lastChild exists
+  // @ts-ignore: lastChild exists
   return depth ? dive(node.lastChild, depth-1) : node
 }
 
@@ -117,10 +116,10 @@ export function parse (html: string): DocumentFragment {
  */
 export function stringify (node: Element) {
   switch (node.nodeType) {
-    case TEXT_NODE: return node.nodeValue
-    case ELEMENT_NODE: return node.outerHTML
-    case COMMENT_NODE: /* fall through */
-    case FRAGMENT_NODE:
+    case NodeType.TEXT: return node.nodeValue
+    case NodeType.ELEMENT: return node.outerHTML
+    case NodeType.COMMENT: /* fall through */
+    case NodeType.FRAGMENT:
       wrapElem.innerHTML = ''
       wrapElem.appendChild(node)
       return wrapElem.innerHTML

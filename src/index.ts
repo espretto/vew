@@ -1,5 +1,3 @@
-/* @flow */
-
 import Registry from './registry'
 import Template from './template'
 import { parse } from './dom/html'
@@ -44,7 +42,7 @@ Component.extend = function ({ tag, data, template }: ComponentOptions) {
     data = () => ({})
   }
 
-  const createComponent = bootstrapComponent(tmpl, false, data)
+  const createComponent = bootstrapComponent(tmpl, data)
 
   if (tag) {
     Registry[tag.toUpperCase()] = createComponent

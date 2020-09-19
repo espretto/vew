@@ -1,5 +1,3 @@
-/* @flow */
-
 import type {
   Instruction,
   TextInstruction,
@@ -26,16 +24,16 @@ import { evaluate } from './expression'
 import { resolve } from './dom/treewalker'
 import Effects from './dom/effects'
 
-import { indexOf, forEach, map, find } from './util/array'
+import { flatten, forEach, map, find } from './util/array'
 import { replaceNode, clone } from './dom/core'
-import { hasOwn, getOwn, mapOwn, forOwn, keys, extend, create } from './util/object'
+import { hasOwn, mapOwn, forOwn, keys, extend } from './util/object'
 
 
 // continue: mute tasks which components/partials have been unmounted by other tasks in the same runloop cycle
 
 function bootstrapLoop ({ nodePath, keyName, valueName, partials }: LoopInstruction) {
   const { template, expression } = partials[0]
-  const partialFactory = bootstrapComponent(template, true)
+  const partialFactory = bootstrapComponent(template)
   const { paths } = expression
   const compute = evaluate(expression)
 
@@ -44,21 +42,22 @@ function bootstrapLoop ({ nodePath, keyName, valueName, partials }: LoopInstruct
     const mounted: Component[] = []
 
     function task () {
-      const items = compute.call(host.store.data)
+      const items: unknown[] = compute.call(host.store.data)
       
       // create missing partials
       while (mounted.length < items.length) {
         const props = { [valueName]: items[mounted.length] }
         const partial = partialFactory(host, props)
-        // flowignore: ensure parentNode
-        target.parentNode.insertBefore(partial.el, target)
+        // @ts-expect-error: target has a parent
+        target.parentNode.appendChild(target)
         mounted.push(partial)
       }
-
+      
       // remove superfluous partials
       while (mounted.length > items.length) {
+        // @ts-expect-error: mounted is not empty
         const partial = mounted.pop().teardown()
-        // flowignore: ensure parentNode
+        // @ts-expect-error: target has a parent
         target.parentNode.removeChild(partial.el)
       }
       
@@ -99,7 +98,7 @@ function finalizeComponent ({ nodePath, name, props, slots }: ComponentInstructi
   const componentFactory = Registry[name]
   const slotFactories = mapOwn(slots, slot => bootstrapComponent(slot))
   const computes = mapOwn(props, evaluate)
-  const paths = [].concat(...map(keys(props), prop => props[prop].paths))
+  const paths = flatten(map(keys(props), prop => props[prop].paths))
 
   return function setup (host: Component) {
     
@@ -138,7 +137,7 @@ function bootstrapSlot ({ nodePath, name, template }: SlotInstruction) {
     }
     else {
       console.assert(defaultSlot != null, `component "${tag}" has no default slot i.e. requires an input slot "${name}"`)
-      // flowignore: we just asserted that defaultSlot exists
+      // @ts-ignore: we just asserted that defaultSlot exists
       slot = defaultSlot(host).mount(target)
     }
 
@@ -160,7 +159,7 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
 
   return function setup (host: Component) {
     const target = resolve(host.el, nodePath)
-    let prev = null
+    let prev: typeof cases[number] | null = null
     let mounted: Component | null = null
 
     function task () {
@@ -204,11 +203,11 @@ function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
     compute: evaluate(expression),
   }))
 
-  const paths = [].concat(...map(partials, p => p.expression.paths));
+  const paths = flatten(map(partials, p => p.expression.paths));
 
   return function setup (host: Component) {
     const target = resolve(host.el, nodePath)
-    let prev = null
+    let prev: typeof conditions[number] | null = null
     let mounted: Component | null = null
 
     function task () {
@@ -251,7 +250,7 @@ function bootstrapSetter ({ type, nodePath, name, expression }: PropertyInstruct
   const compute = evaluate(expression)
 
   return function setup (host: Component) {
-    const target = resolve(host.el, nodePath)
+    const target = resolve(host.el, nodePath) as Element
     
     function task () {
       effect(target, compute.call(host.store.data), name)
@@ -273,7 +272,7 @@ function bootstrapPresetSetter ({ type, nodePath, preset, expression }: ClassNam
   const compute = evaluate(expression)
 
   return function setup (host: Component) {
-    let target = resolve(host.el, nodePath)
+    let target = resolve(host.el, nodePath) as HTMLElement
     
     function task () {
       effect(target, compute.call(host.store.data), preset)
@@ -295,7 +294,7 @@ function bootstrapText ({ type, nodePath, expression }: TextInstruction) {
   const compute = evaluate(expression)
 
   return function setup (host: Component) {
-    let target = resolve(host.el, nodePath)
+    let target = resolve(host.el, nodePath) as Text
     
     function task () {
       effect(target, compute.call(host.store.data))
@@ -312,7 +311,6 @@ function bootstrapText ({ type, nodePath, expression }: TextInstruction) {
 }
 
 function bootstrapListener ({ nodePath, event, expression }: ListenerInstruction) {
-  const { paths } = expression
   const handler = evaluate(expression)
 
   return function setup (host: Component) {
@@ -332,7 +330,7 @@ function bootstrapListener ({ nodePath, event, expression }: ListenerInstruction
 
 type taskFactory = (host: Component) => () => void;
 
-const bootstappers: { [type: string]: any => taskFactory } = {
+const bootstappers: { [type: string]: (any) => taskFactory } = {
   [InstructionType.FOR]: bootstrapLoop,
   [InstructionType.REFERENCE]: bootsrapReference,
   [InstructionType.COMPONENT]: finalizeComponent,
@@ -357,17 +355,16 @@ export type componentFactory = (
 type ReferenceMap = { [name: string]: Node | Node[] | null };
 
 export interface Component {
-  el: Node,
-  tag: string,
-  host: Component,
-  refs: ReferenceMap,
-  store: Store,
-  slots: ?{ [name: string]: Component },
-  teardowns: Function[],
-
-  mount: Node => Component,
-  teardown: () => Component,
-  merge: (state: any) => Component,
+  el: Node;
+  tag: string;
+  host: Component;
+  refs: ReferenceMap;
+  store: Store;
+  slots?: { [name: string]: Component };
+  teardowns: Function[];
+  mount (this: Component, node: Node): Component;
+  teardown (this: Component): Component;
+  merge (this: Component, state: any): Component;
 }
 
 /**
@@ -389,7 +386,7 @@ export function bootstrapComponent (template: Template, state?: Function): compo
         ? new Store(extend(props, host.store.data))
         : host.store
 
-    const component = {
+    const component: Component = {
       el: clone(template.el),
       tag: '',
       host,
@@ -404,6 +401,7 @@ export function bootstrapComponent (template: Template, state?: Function): compo
       },
 
       teardown () {
+        if (this.slots) forOwn(this.slots, slot => { slot.teardown() })
         forEach(this.teardowns, teardown => teardown())
         return this
       },

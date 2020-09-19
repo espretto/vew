@@ -1,5 +1,3 @@
-/* @flow */
-
 import { extend, create } from './object'
 
 export default extend(create(null), {

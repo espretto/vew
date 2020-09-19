@@ -1,12 +1,9 @@
-/* @flow */
-
 import type { KeyPath } from './util/path'
 
-import { toKeyPath } from './util/path'
-import { forEach, every, remove, fold, filter } from './util/array'
-import { isString, isObject, isUndefined, protof } from './util/type'
-import { objectProto, stringProto, arrayProto, dateProto } from './util/type'
-import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue, keys, create, extend } from './util/object'
+import { forEach, remove, fold } from './util/array'
+import { isObject, protof } from './util/type'
+import { objectProto, arrayProto, dateProto } from './util/type'
+import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue } from './util/object'
 
 
 export class Store {
@@ -32,11 +29,12 @@ export class Store {
 
   /* TODO : why would you ever unsubscribe and not destroy the whole scope instance anyway ? */
   unsubscribe (path: KeyPath, task: Function) {
-    var sub = this.root.resolve(path)
+    var sub: SubscriptionNode | undefined = this.root.resolve(path)
     remove(sub.tasks, task)
 
-    for (; sub && sub.isEmpty(); sub = sub.parentNode) {
+    while (sub && sub.isEmpty()) {
       sub.remove()
+      sub = sub.parentNode
     }
   }
 
@@ -96,11 +94,11 @@ export class Store {
 
       switch (trgProto) {
         case arrayProto:
-          return this._mergeArray(trg, src, sub)
+          return this._mergeArray(trg as unknown[], src as unknown[], sub)
         case objectProto:
-          return this._mergeObject(trg, src, sub)
+          return this._mergeObject(trg as object, src as {}, sub)
         case dateProto:
-          return this._mergeDate(trg, src, sub)
+          return this._mergeDate(trg as Date, src as Date, sub)
         default:
           console.assert(false, 'cannot merge type of', src)
       }
@@ -112,7 +110,7 @@ export class Store {
     }
   }
 
-  _mergeObject (trg: any, src: any, sub: SubscriptionNode) {
+  _mergeObject (trg: object, src: {}, sub: SubscriptionNode) {
     const childNodes = sub.childNodes
     // TODO: the public api may not allow root subscriptions
     const hasRootSubscriptions = this.root.tasks.length > 0
@@ -137,7 +135,7 @@ export class Store {
     return trg
   }
 
-  _mergeArray (trg: Array<any>, src: Array<any>, sub: SubscriptionNode) {
+  _mergeArray (trg: Array<unknown>, src: Array<unknown>, sub: SubscriptionNode) {
     const childNodes = sub.childNodes
 
     if (trg.length !== src.length) {
@@ -186,10 +184,10 @@ export class Store {
 class SubscriptionNode {
 
   tasks: Function[]
-  parentNode: ?SubscriptionNode
-  childNodes: { [pathSegment: string|number]: SubscriptionNode }
+  parentNode?: SubscriptionNode
+  childNodes: { [pathSegment in string|number]: SubscriptionNode }
 
-  constructor (parentNode: ?SubscriptionNode) {
+  constructor (parentNode?: SubscriptionNode) {
     this.tasks = []
     this.childNodes = {}
     this.parentNode = parentNode
@@ -204,11 +202,11 @@ class SubscriptionNode {
     if (this.parentNode) deleteValue(this.parentNode.childNodes, this)
   }
 
-  resolve (path: KeyPath) {
+  resolve (this: SubscriptionNode, path: KeyPath) {
     return fold(path, this, (node, key) => node.childNodes[key])
   }
 
-  resolveOrCreate (path: KeyPath) {
+  resolveOrCreate (this: SubscriptionNode, path: KeyPath) {
     return fold(path, this, (node, key) => {
       const childNodes = node.childNodes
 

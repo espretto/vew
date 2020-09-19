@@ -1,5 +1,3 @@
-/* @flow */
-
 export type KeyPath = string[];
 
 /** used to remove leading backslashes */
@@ -12,10 +10,10 @@ export function toKeyPath (path: string): KeyPath {
   if (!path) return []
   if (path.indexOf('[') < 0) return path.split('.')
 
-  const keys = []
+  const keyPath: KeyPath = []
 
   path.replace(reCaptureKeys, function (match, quote, quoted, index, key) {
-    keys.push(
+    keyPath.push(
       quote ? quoted.replace(reUnescapeQuotes, '$1') :
       index ? index : key
     )
@@ -23,5 +21,5 @@ export function toKeyPath (path: string): KeyPath {
     return '' // JIT: monomorphism
   })
 
-  return keys
+  return keyPath
 }

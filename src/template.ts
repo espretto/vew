@@ -1,10 +1,7 @@
-/* @flow */
-
 import type { Expression } from './expression'
-import type { NodePath } from './dom/treewalker'
 import type { Instruction, Partial } from './instruction'
 
-import { InstructionType, isFlowControl } from './instruction'
+import { InstructionType, isFlowControl, ConditionalInstruction, LoopInstruction, SwitchInstruction, TextInstruction, SlotInstruction, ComponentInstruction, ClassNameInstruction, StyleInstruction, ReferenceInstruction, ListenerInstruction, DatasetInstruction, PropertyInstruction, AttributeInstruction } from './instruction';
 
 import Registry from './registry'
 import { TreeWalker } from './dom/treewalker'
@@ -13,8 +10,7 @@ import { startsWith, camelCase } from './util/string'
 import { last, filter, forEach } from './util/array'
 import { createExpression, searchExpression } from './expression'
 import {
-  TEXT_NODE,
-  ELEMENT_NODE,
+  NodeType,
   isElement,
   isEmptyText,
   isMountNode,
@@ -25,14 +21,14 @@ import {
   createMountNode,
   preservesWhitespace,
   replaceNode as replaceNode_
-  } from './dom/core'
+} from './dom/core'
 
 
 const reMatchLoop = /^\s*(?:([a-z_$][\w$]*)|\[\s*([a-z_$][\w$]*)\s*,\s*([a-z_$][\w$]*)\s*\])\s*of([\s\S]*)$/i
 
 const INSTRUCTION_PREFIX = '--' // TODO: expose option
 
-const EXPRESSION_DELIMITERS = ['${', '}'] // TODO: expose option
+const EXPRESSION_DELIMITERS: [string, string] = ['${', '}'] // TODO: expose option
 
 
 /**
@@ -42,7 +38,7 @@ export default class Template {
 
   el: Node
   
-  instructions: Instruction[]
+  instructions: Array<Instruction>
 
   constructor (el: Element) {
     this.el = el
@@ -57,21 +53,19 @@ export default class Template {
   templateState () {
     const tw = new TreeWalker(this.el)
 
-    for (let node = tw.node; node; node = tw.next()) {
+    for (let node: Node | undefined = tw.node; node; node = tw.next()) {
       switch (node.nodeType) {
-        case TEXT_NODE: this.textNodeState(tw); break
-        case ELEMENT_NODE: this.elementState(tw); break
+        case NodeType.TEXT: this.textNodeState(tw); break
+        case NodeType.ELEMENT: this.elementState(tw); break
       }
     }
   }
   
   textNodeState (tw: TreeWalker) {
     // flowignore: cast to TextNode
-    let textNode: Text = tw.node
-    const text = textNode.nodeValue
-
-    // flowignore: parentNode is not null
-    const allowTrim = !preservesWhitespace(textNode.parentNode)
+    let textNode = tw.node as Text
+    const text = textNode.nodeValue as string
+    const allowTrim = !preservesWhitespace(textNode.parentNode as Element)
 
     // remove [trailing] empty text-nodes
     if (allowTrim && isEmptyText(textNode) && isTextBoundary(textNode.nextSibling)) {
@@ -91,14 +85,14 @@ export default class Template {
         tw.remove()
       }
 
-      textNode = tw.next()
+      textNode = tw.next() as Text
     }
 
     this.instructions.push({
       type: InstructionType.TEXT,
       nodePath: tw.path(),
       expression: expression
-    })
+    } as TextInstruction)
 
     // split text-node where the expression ends
     if (expression.end < text.length) {
@@ -109,7 +103,7 @@ export default class Template {
 
   elementState (tw: TreeWalker) {
     // flowignore: cast Node to Element
-    const el: Element = tw.node
+    const el = tw.node as Element
     const nodeName = getNodeName(el)
     const attrs = getAttributes(el, INSTRUCTION_PREFIX)
 
@@ -147,7 +141,7 @@ export default class Template {
 
   slotState (tw: TreeWalker, slotName: string, hasDefaultTemplate: boolean) {
     // flowignore: cast Node to Element
-    const el: Element = tw.node
+    const el = tw.node as Element
     tw.node = this.replaceNode(el, createMountNode('SLOT'))
 
     if (hasDefaultTemplate) {
@@ -158,7 +152,7 @@ export default class Template {
         name: slotName,
         nodePath: tw.path(),
         template: new Template(el)
-      })
+      } as SlotInstruction)
     }
     else if (!isBlankElement(el)) {
       throw new Error('in order to provide a default template, do not use ' +
@@ -170,13 +164,13 @@ export default class Template {
         name: slotName,
         nodePath: tw.path(),
         template: null
-      })
+      } as SlotInstruction)
     }
   }
 
   flowControlState (tw: TreeWalker, instructionType: string, value: string) {
     // flowignore: cast Node to Element
-    const el: Element = tw.node
+    const el = tw.node as Element
     
     el.removeAttribute(INSTRUCTION_PREFIX + instructionType)
 
@@ -191,7 +185,7 @@ export default class Template {
             template: new Template(el),
             expression: createExpression(value)
           }]
-        })
+        } as ConditionalInstruction)
         break
       
       case InstructionType.ELIF: /* fall through */
@@ -203,7 +197,7 @@ export default class Template {
         }
 
         // flowignore: cast Instruction to ConditionalInstruction
-        last(this.instructions).partials.push({
+        ;(last(this.instructions) as ConditionalInstruction | LoopInstruction).partials.push({
           template: new Template(el),
           expression: createExpression(instructionType === InstructionType.ELIF ? value : 'true')
         })
@@ -224,7 +218,7 @@ export default class Template {
             template: new Template(el),
             expression: createExpression(loop[4])
           }]
-        })
+        } as LoopInstruction)
         break
 
       case InstructionType.CASE:
@@ -277,7 +271,7 @@ export default class Template {
           nodePath: tw.path(),
           switched: createExpression(value),
           partials
-        })
+        } as SwitchInstruction)
 
         break
     }
@@ -285,7 +279,7 @@ export default class Template {
 
   componentState (tw: TreeWalker, name: string, attrs: { [attrName: string]: string }) {
     // flowignore: cast Node to Element
-    const root: Element = tw.node
+    const root = tw.node as Element
     const slots: { [name: string]: Template } = {}
     const props: { [prop: string]: Expression } = {}
 
@@ -319,12 +313,12 @@ export default class Template {
       name,
       slots,
       props
-    })
+    } as ComponentInstruction)
   }
 
   attributeState (tw: TreeWalker, attrName: string, attrValue: string) {
     // flowignore: cast Node to Element
-    const elem: HTMLElement = tw.node
+    const elem = tw.node as HTMLElement
     const nodePath = tw.path()
     const expression = createExpression(attrValue)
 
@@ -340,7 +334,7 @@ export default class Template {
         nodePath,
         preset: elem.className,
         expression
-      })
+      } as ClassNameInstruction)
     }
     else if (attrName === 'STYLE') {
       this.instructions.push({
@@ -348,14 +342,14 @@ export default class Template {
         nodePath,
         preset: elem.style.cssText,
         expression
-      })
+      } as StyleInstruction)
     }
     else if (attrName === 'REF') {
       this.instructions.push({
         type: InstructionType.REFERENCE,
         name: attrValue,
         nodePath
-      })
+      } as ReferenceInstruction)
     }
     else if (startsWith(attrName, 'ON-')) {
       this.instructions.push({
@@ -363,7 +357,7 @@ export default class Template {
         event: attrName.substring('ON-'.length).toLowerCase(),
         nodePath,
         expression
-      })
+      } as ListenerInstruction)
     }
     else if (startsWith(attrName, 'DATA-')) {
       this.instructions.push({
@@ -371,7 +365,7 @@ export default class Template {
         name: attrName.substring('DATA-'.length),
         nodePath,
         expression
-      })
+      } as DatasetInstruction)
     }
     else if (camelCase(attrName) in elem) {
       this.instructions.push({
@@ -379,7 +373,7 @@ export default class Template {
         name: camelCase(attrName),
         nodePath,
         expression
-      })
+      } as PropertyInstruction)
     }
     else {
       this.instructions.push({
@@ -387,7 +381,7 @@ export default class Template {
         name: attrName,
         nodePath,
         expression
-      })
+      } as AttributeInstruction)
     }
   }
 }

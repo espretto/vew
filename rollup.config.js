@@ -13,14 +13,19 @@ function createConfig ({ input, output }) {
 
   console.assert(output.endsWith('.js'))
   const minified = output.slice(0, -3) + '.min.js'
+  const extensions = ['.js', '.ts']
 
   return {
     input,
     external,
     plugins: [
-      resolve(),
+      resolve({
+        jsnext: true,
+        extensions,
+      }),
       babel({
-        exclude: 'node_modules/**'
+        exclude: 'node_modules/**',
+        extensions,
       })
     ],
     output: [
@@ -71,15 +76,15 @@ function createConfig ({ input, output }) {
 
 export default [
   createConfig({
-    input: 'src/component.js',
+    input: 'src/component.ts',
     output: 'dist/runtime.js'
   }),
   createConfig({
-    input: 'src/template.js',
+    input: 'src/template.ts',
     output: 'dist/buildtime.js'
   }),
   createConfig({
-    input: 'src/index.js',
+    input: 'src/index.ts',
     output: 'dist/vew.js'
   })
 ]

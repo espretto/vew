@@ -1,16 +1,16 @@
-/* @flow */
-
 import { isNative } from '../util/type'
 import { document } from '../util/global'
 import { startsWith } from '../util/string'
 import { every } from '../util/array'
 
-export const ELEMENT_NODE = 1
-export const TEXT_NODE = 3
-export const COMMENT_NODE = 8
-export const FRAGMENT_NODE = 11
+export enum NodeType {
+  ELEMENT = 1,
+  TEXT = 3,
+  COMMENT = 8,
+  FRAGMENT = 11,
+}
 
-const WHITESPACERS = {}
+const WHITESPACERS: { [key: string]: object } = {}
 WHITESPACERS.A =
 WHITESPACERS.ABBR =
 WHITESPACERS.B =
@@ -61,21 +61,22 @@ export function trim (html: string) {
  * detect empty text-nodes
  */
 export function isEmptyText (textNode: Node | Text) {
+  // @ts-ignore: RegExp#test will cast to string
   return !passNotEmpty.test(textNode.nodeValue)
 }
 
-export function isTextBoundary (node: ?Node) {
-  return !node || node.nodeType !== TEXT_NODE
+export function isTextBoundary (node?: Node | null) {
+  return !node || node.nodeType !== NodeType.TEXT
 }
 
-export function isElement (node: Node) {
-  return node.nodeType === ELEMENT_NODE
+export function isElement (node: Node): node is Element {
+  return node.nodeType === NodeType.ELEMENT
 }
 
 export function isBlankElement (node: Element) {
   return every(node.childNodes, node =>
-    node.nodeType === TEXT_NODE && isEmptyText(node) ||
-    node.nodeType === COMMENT_NODE
+    node.nodeType === NodeType.TEXT && isEmptyText(node) ||
+    node.nodeType === NodeType.COMMENT
   )
 }
 
@@ -86,9 +87,10 @@ export function preservesWhitespace (el: Element) {
 /* -----------------------------------------------------------------------------
  * query
  */
-export const getNodeName: Element => string = document.createElement('custom').nodeName !== 'CUSTOM'
-  ? node => node.nodeName.toUpperCase()
-  : node => node.nodeName
+export const getNodeName: (el: Element) => string =
+  document.createElement('custom').nodeName !== 'CUSTOM'
+    ? node => node.nodeName.toUpperCase()
+    : node => node.nodeName
 
 /**
  * retrieve special attributes
@@ -129,7 +131,7 @@ export function createMountNode (type: string): Comment {
 }
 
 export function isMountNode (node: Node & { data?: string }, type: string) {
-  return node.nodeType === COMMENT_NODE && node.data === type
+  return node.nodeType === NodeType.COMMENT && node.data === type
 }
 
 /* -----------------------------------------------------------------------------
@@ -137,14 +139,14 @@ export function isMountNode (node: Node & { data?: string }, type: string) {
  */
 export function replaceNode (prev: Node, next: Node) {
   console.assert(prev.parentNode, 'cannot replace root node')
-  // flowignore: wait for assertion refinements
+  // @ts-ignore: wait for assertion refinements
   prev.parentNode.replaceChild(next, prev)
   return next
 }
 
 export function removeNode (node: Node) {
   console.assert(node.parentNode, 'cannot remove root node')
-  // flowignore: wait for assertion refinements
+  // @ts-ignore: wait for assertion refinements
   return node.parentNode.removeChild(node)
 }
 

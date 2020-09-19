@@ -1,6 +1,5 @@
-/* @flow */
-
 import { isNative, isUndefined } from './type'
+import { deleteValue } from './object';
 
 /* -----------------------------------------------------------------------------
  * array extras
@@ -16,10 +15,10 @@ import { isNative, isUndefined } from './type'
 
 const nativeFrom = Array.from
 
-function customFrom <T> (countable: $ArrayLike<T>): Array<T> {
-  var len = countable.length
-    , i = -1
-    , array = new Array<T>(len)
+function customFrom <T> (countable: ArrayLike<T>): Array<T> {
+  const len = countable.length
+  const array = new Array<T>(len)
+  let i = -1
 
   while (++i < len) {
     array[i] = countable[i]
@@ -30,18 +29,18 @@ function customFrom <T> (countable: $ArrayLike<T>): Array<T> {
 
 export const toArray = isNative(nativeFrom) ? nativeFrom : customFrom
 
-export function last <T> (array: T[]): T {
+export function last <T> (array: ArrayLike<T>): T {
   return array[array.length-1]
 }
 
 export function remove <T> (array: T[], item: T): number {
-  var i = indexOf(array, item)
+  const i = indexOf(array, item)
   if (i > -1) removeAt(array, i)
   return i
 }
 
 export function removeAt (array: any[], i: number): void {
-  var len = array.length - 1
+  const len = array.length - 1
 
   while (i < len) {
     array[i] = array[++i]
@@ -51,7 +50,7 @@ export function removeAt (array: any[], i: number): void {
 }
 
 export function insertAt <T> (array: T[], i: number, item: T): void {
-  var len = array.length++
+  let len = array.length++
 
   while (i < len) {
     array[len] = array[--len]
@@ -60,9 +59,9 @@ export function insertAt <T> (array: T[], i: number, item: T): void {
   array[i] = item
 }
 
-export function indexOf <T> (array: T[], item: T, offset: number = 0): number {
-  var len = array.length
-    , i = offset
+export function indexOf <T> (array: ArrayLike<T>, item: T, offset: number = 0): number {
+  const len = array.length
+  let i = offset
 
   for (; i < len; ++i) {
     if (array[i] === item) {
@@ -73,7 +72,7 @@ export function indexOf <T> (array: T[], item: T, offset: number = 0): number {
   return -1
 }
 
-export function lastIndexOf <T> (array: T[], item: T, i: number = array.length-1): number {
+export function lastIndexOf <T> (array: ArrayLike<T>, item: T, i: number = array.length-1): number {
   for (;i > -1; i--) {
     if (array[i] === item) {
       break
@@ -89,14 +88,16 @@ export function lastIndexOf <T> (array: T[], item: T, i: number = array.length-1
  */
 type Comparable = string | number;
 
-export function sortedIndexBy <T> (array: T[], item: T, key: T => Comparable): number {
-  var lo = 0
-    , hi = array.length
-    , search = key(item)
+export function sortedIndexBy <T> (array: ArrayLike<T>, item: T, key: (item: T) => Comparable): number {
+  let lo = 0
+  let hi = array.length
+  const search = key(item)
+  let value
+
 
   while (lo < hi) {
-    var mid = (lo + hi) >> 1 // Math.floor( (hi+lo) / 2 )
-      , value = key(array[mid])
+    let mid = (lo + hi) >> 1 // Math.floor( (hi+lo) / 2 )
+    value = key(array[mid])
 
     // flowignore: search and value are both either string or number
     if (search < value) {
@@ -110,13 +111,13 @@ export function sortedIndexBy <T> (array: T[], item: T, key: T => Comparable): n
   return search === value ? hi : ~hi
 }
 
-export function includes <T> (array: T[], item: T): boolean {
+export function includes <T> (array: ArrayLike<T>, item: T): boolean {
   return indexOf(array, item) !== -1
 }
 
-export function forEach <T> (array: T[], func: (T, number) => ?boolean): void {
-  var len = array.length
-    , i = -1
+export function forEach <T> (array: ArrayLike<T>, func: (item: T, index: number) => boolean | void): void {
+  const len = array.length
+  let i = -1
 
   while (++i < len) {
     if (func(array[i], i) === false) {
@@ -125,9 +126,9 @@ export function forEach <T> (array: T[], func: (T, number) => ?boolean): void {
   }
 }
 
-export function some <T> (array: T[], func: (T, number) => boolean): boolean {
-  var len = array.length
-    , i = -1
+export function some <T> (array: ArrayLike<T>, func: (item: T, index: number) => boolean): boolean {
+  const len = array.length
+  let i = -1
 
   while (++i < len) {
     if (func(array[i], i)) {
@@ -138,9 +139,9 @@ export function some <T> (array: T[], func: (T, number) => boolean): boolean {
   return false
 }
 
-export function every <T> (array: T[] | NodeList<T>, func: (T, number) => boolean): boolean {
-  var len = array.length
-    , i = -1
+export function every <T> (array: ArrayLike<T>, func: (item: T, index: number) => boolean): boolean {
+  const len = array.length
+  let i = -1
 
   while (++i < len) {
     if (!func(array[i], i)) {
@@ -151,10 +152,10 @@ export function every <T> (array: T[] | NodeList<T>, func: (T, number) => boolea
   return true
 }
 
-export function map <T, U> (array: T[], func: (T, number) => U): U[] {
-  var len = array.length
-    , i = -1
-    , mapped = Array(len)
+export function map <T, U> (array: ArrayLike<T>, func: (item: T, index: number) => U): U[] {
+  const len = array.length
+  const mapped = Array(len)
+  let i = -1
 
   while (++i < len) {
     mapped[i] = func(array[i], i)
@@ -163,12 +164,12 @@ export function map <T, U> (array: T[], func: (T, number) => U): U[] {
   return mapped
 }
 
-export function filter <T> (array: T[] | NodeList<T>, func: (T, number) => boolean): T[] {
-  var len = array.length
-    , i = -1
-    , item
-    , filtered = []
-    , f = -1
+export function filter <T> (array: ArrayLike<T>, func: (item: T, index: number) => boolean): T[] {
+  const len = array.length
+  let i = -1
+  let item
+  const filtered: T[] = []
+  let f = -1
 
   while (++i < len) {
     item = array[i]
@@ -181,7 +182,7 @@ export function filter <T> (array: T[] | NodeList<T>, func: (T, number) => boole
   return filtered
 }
 
-export function reduce <T> (array: T[], func: (T, T, number) => T): T {
+export function reduce <T> (array: T[], func: (item: T, aggr: T, index: number) => T): T {
   var len = array.length
     , i = 0
     , aggr = array[i]
@@ -197,7 +198,7 @@ export function reduce <T> (array: T[], func: (T, T, number) => T): T {
   return aggr
 }
 
-export function fold <T, U> (array: T[], aggr: U, func: (U, T, number) => U): U {
+export function fold <T, U> (array: T[], aggr: U, func: (aggr: U, item: T, index: number) => U): U {
   var len = array.length
     , i = -1
 
@@ -208,7 +209,7 @@ export function fold <T, U> (array: T[], aggr: U, func: (U, T, number) => U): U 
   return aggr
 }
 
-export function reduceRight <T> (array: T[], func: (T, T, number) => T): T {
+export function reduceRight <T> (array: T[], func: (item: T, aggr: T, index: number) => T): T {
   var i = array.length
     , aggr = array[--i]
 
@@ -223,7 +224,7 @@ export function reduceRight <T> (array: T[], func: (T, T, number) => T): T {
   return aggr
 }
 
-export function foldRight <T, U> (array: T[], aggr: U, func: (T, U, number) => U): U {
+export function foldRight <T, U> (array: T[], aggr: U, func: (item: T, aggr: U, index: number) => U): U {
   var i = array.length
 
   while (i--) {
@@ -233,7 +234,7 @@ export function foldRight <T, U> (array: T[], aggr: U, func: (T, U, number) => U
   return aggr
 }
 
-export function find <T> (array: T[], func: (T, number) => boolean, offset: number = 0): T|null {
+export function find <T> (array: T[], func: (item: T, index: number) => boolean, offset: number = 0): T|null {
   var len = array.length
     , i = offset
 
@@ -246,7 +247,7 @@ export function find <T> (array: T[], func: (T, number) => boolean, offset: numb
   return null
 }
 
-export function findIndex <T> (array: T[], func: (T, number) => boolean, offset: number = 0): number {
+export function findIndex <T> (array: T[], func: (item: T, index: number) => boolean, offset: number = 0): number {
   var len = array.length
     , i = offset
 
@@ -262,7 +263,7 @@ export function findIndex <T> (array: T[], func: (T, number) => boolean, offset:
 /**
  * zip-style forEach
  */
-export function forBoth <T, U> (array: T[], brray: U[], func: (T, U, number) => ?boolean) {
+export function forBoth <T, U> (array: T[], brray: U[], func: (aitem: T, bitem: U, index: number) => boolean | void) {
   var len = array.length
     , i = -1
 
@@ -295,7 +296,7 @@ export function append <T> (trg: T[], src: T[]): T[] {
 }
 
 export function range (begin: number, step?: number, end?: number) {
-  var result = []
+  var result: number[] = []
     , i = -1
 
   if (isUndefined(step)) {
@@ -313,4 +314,9 @@ export function range (begin: number, step?: number, end?: number) {
   }
 
   return result
+}
+
+export function flatten <T> (array: T[][]): T[] {
+  const result: T[] = []
+  return result.concat(...array);
 }

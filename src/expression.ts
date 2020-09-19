@@ -1,13 +1,11 @@
-/* @flow */
-
 import type { KeyPath } from './util/path'
 
-export type Expression = {|
-  paths: KeyPath[],
-  source: string,
-  begin: number,
-  end: number
-|};
+export interface Expression {
+  paths: KeyPath[];
+  source: string;
+  begin: number;
+  end: number;
+}
 
 import { hasOwn } from './util/object'
 import { trim, chr } from './util/string'
@@ -266,7 +264,8 @@ class Scanner {
       this.index += ident.length
       if (path) path.push(ident)
     }
-    else if (!isFinite(chr)) { // never whitespace
+    // @ts-ignore: isFinite casts to number
+    else if (!isFinite(chr)) {
       throw new Error('missing name after dot operator')
     }
   }
@@ -287,7 +286,8 @@ class Scanner {
 
       return this.bracketCloseState(path)
     }
-    else if (isFinite(chr)) { // never whitespace
+    // @ts-ignore: isFinite casts to number
+    else if (isFinite(chr)) {
       begin = this.index
       this.seek(noNum, true)
 
@@ -370,7 +370,7 @@ export function createExpression (input: string): Expression {
   return scanner.match
 }
 
-export function searchExpression (input: string, delimiters: [string, string]): ?Expression {
+export function searchExpression (input: string, delimiters: [string, string]): Expression | null {
   const [prefix, suffix] = delimiters
   const begin = input.indexOf(prefix)
 

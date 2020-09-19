@@ -1,5 +1,3 @@
-/* @flow */
-
 import type { componentFactory } from './component'
 
 type Registry = { [tag: string]: componentFactory };

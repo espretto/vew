@@ -1,5 +1,3 @@
-/* @flow */
-
 const global = (1, eval)('this')
 
 export const document = global.document
