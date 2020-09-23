@@ -36,12 +36,12 @@ support.innerHTML = !!wrapElem.firstChild
 
 // IE: tbody elements are inserted automatically
 wrapElem.innerHTML = '<table></table>'
-// @ts-ignore: lastChild exists
+// @ts-expect-error: lastChild exists
 support.noAutoTableBody = !wrapElem.lastChild.lastChild // @flow : ignore-next-line
 
 // IE 6-11: defaultValue is not cloned
 wrapElem.innerHTML = '<textarea>X</textarea>'
-// @ts-ignore: lastChild exists
+// @ts-expect-error: lastChild exists
 support.cloneDefaultValue = !!wrapElem.cloneNode(true).lastChild.defaultValue
 
 // IE 6-8: unknown elements are not cloneable (TODO verify html5shiv)
@@ -52,7 +52,7 @@ support.cloneUnknown = (wrapElem.cloneNode(true) as Element).innerHTML === wrapE
 // old WebKit doesn't clone checked state correctly in fragments
 createFragment(wrapElem)
 wrapElem.innerHTML = '<input type="radio" checked="checked" name="name"/>'
-// @ts-ignore: lastChild exists
+// @ts-expect-error: lastChild exists
 support.cloneChecked = !!wrapElem.cloneNode(true).cloneNode(true).lastChild.checked
 removeNode(wrapElem)
 
@@ -95,7 +95,7 @@ wrapMap.TEXT     = [1, ['<svg xmlns="http://www.w3.org/2000/svg" version="1.1">'
 
 function dive (node: Node, depth: number) {
   console.assert(node != null, 'html parser dives too deep')
-  // @ts-ignore: lastChild exists
+  // @ts-expect-error: lastChild exists
   return depth ? dive(node.lastChild, depth-1) : node
 }
 

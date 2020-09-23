@@ -42,7 +42,7 @@ function bootstrapLoop ({ nodePath, keyName, valueName, partials }: LoopInstruct
     const mounted: Component[] = []
 
     function task () {
-      const items: unknown[] = compute.call(host.store.data)
+      const items: any[] = compute.call(host.store.data)
       
       // create missing partials
       while (mounted.length < items.length) {
@@ -137,7 +137,7 @@ function bootstrapSlot ({ nodePath, name, template }: SlotInstruction) {
     }
     else {
       console.assert(defaultSlot != null, `component "${tag}" has no default slot i.e. requires an input slot "${name}"`)
-      // @ts-ignore: we just asserted that defaultSlot exists
+      // @ts-expect-error: we just asserted that defaultSlot exists
       slot = defaultSlot(host).mount(target)
     }
 

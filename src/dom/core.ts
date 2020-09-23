@@ -61,7 +61,7 @@ export function trim (html: string) {
  * detect empty text-nodes
  */
 export function isEmptyText (textNode: Node | Text) {
-  // @ts-ignore: RegExp#test will cast to string
+  // @ts-expect-error: RegExp#test will cast to string
   return !passNotEmpty.test(textNode.nodeValue)
 }
 
@@ -139,14 +139,14 @@ export function isMountNode (node: Node & { data?: string }, type: string) {
  */
 export function replaceNode (prev: Node, next: Node) {
   console.assert(prev.parentNode, 'cannot replace root node')
-  // @ts-ignore: wait for assertion refinements
+  // @ts-expect-error: the parent exists
   prev.parentNode.replaceChild(next, prev)
   return next
 }
 
 export function removeNode (node: Node) {
   console.assert(node.parentNode, 'cannot remove root node')
-  // @ts-ignore: wait for assertion refinements
+  // @ts-expect-error: the parent exists
   return node.parentNode.removeChild(node)
 }
 

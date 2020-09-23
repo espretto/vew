@@ -264,7 +264,7 @@ class Scanner {
       this.index += ident.length
       if (path) path.push(ident)
     }
-    // @ts-ignore: isFinite casts to number
+    // @ts-expect-error: isFinite casts to number
     else if (!isFinite(chr)) {
       throw new Error('missing name after dot operator')
     }
@@ -286,7 +286,7 @@ class Scanner {
 
       return this.bracketCloseState(path)
     }
-    // @ts-ignore: isFinite casts to number
+    // @ts-expect-error: isFinite casts to number
     else if (isFinite(chr)) {
       begin = this.index
       this.seek(noNum, true)

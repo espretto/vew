@@ -30,14 +30,14 @@ export default {
 
   [InstructionType.ATTRIBUTE]: (el: Element, value: primitive, attribute: string) => {
     if (el.getAttribute(attribute) !==  String(value)) {
-      // @ts-ignore: value is cast to string
+      // @ts-expect-error: value is cast to string
       el.setAttribute(attribute, value)
     }
   },
   
   [InstructionType.DATASET]: (el: Element, value: primitive, key: string) => {
     if (el.getAttribute('data-' + key) !== String(value)) {
-      // @ts-ignore: value is cast to string
+      // @ts-expect-error: value is cast to string
       el.setAttribute('data-' + key, value)
     }
   },

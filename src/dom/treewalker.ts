@@ -17,7 +17,7 @@ export class TreeWalker {
     const child = this.node.firstChild
     const sibling = this.node.nextSibling
     if (child && sibling) this.uncles.push(sibling)
-    // @ts-ignore: calling .next() on the null node should throw
+    // @ts-expect-error: calling .next() on the null node should throw
     return this.node = child || sibling || this.uncles.pop()
   }
 
@@ -25,7 +25,7 @@ export class TreeWalker {
     const parent = this.node.parentNode
     const sibling = this.node.previousSibling
     if (!sibling && parent && parent.nextSibling) this.uncles.pop()
-    // @ts-ignore: calling .prev() on the null node should throw
+    // @ts-expect-error: calling .prev() on the null node should throw
     return this.node = sibling || parent
   }
 
@@ -57,11 +57,11 @@ export class TreeWalker {
 
 export function resolve (node: Node, path: NodePath): Node {
   for (var depth = path.length; depth--;) {
-    // @ts-ignore: child exists
+    // @ts-expect-error: child exists by design
     node = node.firstChild
 
     for (var breadth = path[depth]; breadth--;) {
-      // @ts-ignore: sibling exists
+      // @ts-expect-error: sibling exists by design
       node = node.nextSibling
     }
   }
