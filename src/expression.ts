@@ -7,9 +7,7 @@ export interface Expression {
   end: number;
 }
 
-import { hasOwn } from './util/object'
-import { trim, chr } from './util/string'
-import { indexOf, every, range } from './util/array'
+import { indexOf, every } from './util/array'
 
 /** used to match the first character of a javascript identifier or keyword */
 const passIdent = /[a-zA-Z_$]/
