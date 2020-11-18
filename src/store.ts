@@ -1,8 +1,7 @@
 import type { KeyPath } from './util/path'
 
 import { forEach, remove, fold } from './util/array'
-import { isObject, protof } from './util/type'
-import { objectProto, arrayProto, dateProto } from './util/type'
+import { isObject, getPrototypeOf } from './util/type'
 import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue } from './util/object'
 
 
@@ -68,7 +67,7 @@ export class Store {
   }
 
   _invalidate (sub: SubscriptionNode) {
-    forOwn(sub.childNodes, (sub, key) => {
+    forOwn(sub.childNodes, sub => {
       this.dirty.add(sub)
       this._invalidate(sub)
     })
@@ -87,17 +86,17 @@ export class Store {
     }
 
     if (isObject(trg) && isObject(src)) {
-      const trgProto = protof(trg)
-      const srcProto = protof(src)
+      const trgProto = getPrototypeOf(trg)
+      const srcProto = getPrototypeOf(src)
 
       console.assert(trgProto === srcProto, 'type mismatch while merging')
 
       switch (trgProto) {
-        case arrayProto:
+        case Array.prototype:
           return this._mergeArray(trg as unknown[], src as unknown[], sub)
-        case objectProto:
+        case Object.prototype:
           return this._mergeObject(trg as object, src as {}, sub)
-        case dateProto:
+        case Date.prototype:
           return this._mergeDate(trg as Date, src as Date, sub)
         default:
           console.assert(false, 'cannot merge type of', src)

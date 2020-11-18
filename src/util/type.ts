@@ -1,17 +1,7 @@
-export const objectProto = Object.prototype
-export const stringProto = String.prototype
-export const arrayProto = Array.prototype
-export const dateProto = Date.prototype
-
-type Prototype = 
-    typeof objectProto
-  | typeof stringProto
-  | typeof arrayProto
-  | typeof dateProto;
 
 const objectTypes: { [type: string]: boolean } = { 'object': true, 'function': true }
 
-const getTag = objectProto.toString
+const getTag = Object.prototype.toString
 
 const arrayTag = '[object Array]'
 
@@ -57,7 +47,6 @@ export const isFunction = nativeIsFunction(/re/) ? customIsFunction : nativeIsFu
  * idNative
  */
 export function isNative (func: Function): boolean {
-  // cast to allow in-operator
   return isFunction(func) && !('prototype' in func)
 }
 
@@ -80,19 +69,11 @@ export function isDate (any: any): any is Date {
 }
 
 /**
- * protof
+ * getPrototypeOf
  */
 const nativePrototypeOf = Object.getPrototypeOf
 const customPrototypeOf = '__proto__' in objectTypes
   ? (instance: any) => instance.__proto__
   : (instance: any) => instance.constructor.prototype
 
-export const protof: (any: any) => Prototype = isNative(nativePrototypeOf) ? nativePrototypeOf : customPrototypeOf
-
-
-/**
- * isPlainObject
- */
-export function isPlainObject (any: any): boolean {
-  return isObject(any) && protof(any) === objectProto
-}
+export const getPrototypeOf: typeof nativePrototypeOf = isNative(nativePrototypeOf) ? nativePrototypeOf : customPrototypeOf
