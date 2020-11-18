@@ -49,7 +49,7 @@ function bootstrapLoop ({ nodePath, keyName, valueName, partials }: LoopInstruct
         const props = { [valueName]: items[mounted.length] }
         const partial = partialFactory(host, props)
         // @ts-expect-error: target has a parent
-        target.parentNode.appendChild(target)
+        target.parentNode.appendChild(partial.el)
         mounted.push(partial)
       }
       
