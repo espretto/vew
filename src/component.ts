@@ -1,5 +1,4 @@
 import type {
-  Instruction,
   TextInstruction,
   ListenerInstruction,
   ClassNameInstruction,
@@ -33,6 +32,7 @@ import { hasOwn, mapOwn, forOwn, keys, extend } from './util/object'
 
 function bootstrapLoop ({ nodePath, keyName, valueName, partials }: LoopInstruction) {
   const { template, expression } = partials[0]
+  // TODO: elif/else branching after loop expressions 
   const partialFactory = bootstrapComponent(template)
   const { paths } = expression
   const compute = evaluate(expression)
@@ -48,6 +48,7 @@ function bootstrapLoop ({ nodePath, keyName, valueName, partials }: LoopInstruct
       while (mounted.length < items.length) {
         const props = { [valueName]: items[mounted.length] }
         const partial = partialFactory(host, props)
+        // TODO: subscribe to host on every path except `valueName` and `keyName`
         // @ts-expect-error: target has a parent
         target.parentNode.appendChild(partial.el)
         mounted.push(partial)
