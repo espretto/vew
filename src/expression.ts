@@ -67,6 +67,7 @@ class Scanner {
     this.bracketStack = []
     this.maybeKey = false
     this.match = {
+      // TODO: make this a set and serialize as array
       paths: [],
       source: '',
       begin: 0,
