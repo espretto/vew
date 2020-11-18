@@ -363,8 +363,8 @@ export interface Component {
   slots?: { [name: string]: Component };
   teardowns: Function[];
   mount (this: Component, node: Node): Component;
-  teardown (this: Component): Component;
   merge (this: Component, state: any): Component;
+  teardown (this: Component): Component;
 }
 
 /**

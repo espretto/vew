@@ -10,7 +10,7 @@ export enum NodeType {
   FRAGMENT = 11,
 }
 
-const WHITESPACERS: { [key: string]: object } = {}
+const WHITESPACERS: { [key: string]: true } = {}
 WHITESPACERS.A =
 WHITESPACERS.ABBR =
 WHITESPACERS.B =
@@ -39,7 +39,7 @@ WHITESPACERS.SUP =
 WHITESPACERS.TIME =
 WHITESPACERS.U =
 WHITESPACERS.VAR =
-WHITESPACERS.WBR = WHITESPACERS
+WHITESPACERS.WBR = true
 
 /** used to detect empty html text nodes */
 const passNotEmpty = /[^ \t\n\f]/
@@ -81,7 +81,7 @@ export function isBlankElement (node: Element) {
 }
 
 export function preservesWhitespace (el: Element) {
-  return WHITESPACERS[getNodeName(el)] === WHITESPACERS
+  return WHITESPACERS[getNodeName(el)] === true
 }
 
 /* -----------------------------------------------------------------------------
