@@ -148,7 +148,6 @@ import { evaluate, createExpression } from '../src/expression'
 import Template from '../src/template'
 import Registry from '../src/registry'
 import { parse, stringify } from '../src/dom/html'
-import { bootstrapComponent } from '../src/component'
 
 if (module.hot) {
   module.hot.accept()
@@ -281,8 +280,14 @@ if (module.hot) {
   
   global.app = Component({
     el: '#root',
-    data: () => ({ name: 'World' }),
-    template: '<div>Hello <greet --who="name" /></div>'
+    data: () => ({ name: 'World', todos: ["wash dishes"] }),
+    template: `
+      <div>
+        <ul>
+          <li --for="todo of todos">\${todo} \${todos.length}</li>
+        </ul>
+      </div>
+    `
   })
 
 }

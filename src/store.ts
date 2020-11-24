@@ -1,7 +1,8 @@
 import type { KeyPath } from './util/path'
 
+import { extend, create, keys } from './util/object'
 import { forEach, remove, fold } from './util/array'
-import { isObject, getPrototypeOf } from './util/type'
+import { isObject, getTag } from './util/type'
 import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue } from './util/object'
 
 
@@ -86,17 +87,17 @@ export class Store {
     }
 
     if (isObject(trg) && isObject(src)) {
-      const trgProto = getPrototypeOf(trg)
-      const srcProto = getPrototypeOf(src)
+      const trgTag = getTag.call(trg)
+      const srcTag = getTag.call(src)
 
-      console.assert(trgProto === srcProto, 'type mismatch while merging')
+      console.assert(trgTag === srcTag, 'type mismatch while merging')
 
-      switch (trgProto) {
-        case Array.prototype:
+      switch (trgTag) {
+        case "[object Array]":
           return this._mergeArray(trg as unknown[], src as unknown[], sub)
-        case Object.prototype:
+        case "[object Object]":
           return this._mergeObject(trg as object, src as {}, sub)
-        case Date.prototype:
+        case "[object Date]":
           return this._mergeDate(trg as Date, src as Date, sub)
         default:
           console.assert(false, 'cannot merge type of', src)
@@ -176,6 +177,30 @@ export class Store {
     }
 
     return src
+  }
+}
+
+export class ProxyStore extends Store {
+
+  proxied: Store
+
+  constructor (data: any, proxied: Store) {
+    super(data)
+    this.data = extend(create(proxied.data), data)
+    this.proxied = proxied
+  }
+
+  subscribe (path: KeyPath, task: Function) {
+    return super.subscribe.call(hasOwn(this.data, path[0]) ? this : this.proxied, path, task)
+  }
+
+  unsubscribe (path: KeyPath, task: Function) {
+    return super.unsubscribe.call(hasOwn(this.data, path[0]) ? this : this.proxied, path, task)
+  }
+
+  merge (src: any) {
+    console.assert(keys(src).every(key => hasOwn(this.data, key)), "cannot merge data into proxied store")
+    super.merge(src)
   }
 }
 

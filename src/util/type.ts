@@ -1,7 +1,7 @@
 
 const objectTypes: { [type: string]: boolean } = { 'object': true, 'function': true }
 
-const getTag = Object.prototype.toString
+export const getTag = Object.prototype.toString
 
 const arrayTag = '[object Array]'
 
