@@ -5,7 +5,53 @@ import { forEach, remove, fold } from './util/array'
 import { isObject, getTag } from './util/type'
 import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue } from './util/object'
 
+/**
+ * used to store subscriptions to changes of arbitrary data structures.
+ * change events bubble up the data structure along the key-path.
+ */
+class SubscriptionNode {
 
+  tasks: Function[]
+  parentNode?: SubscriptionNode
+  childNodes: { [pathSegment in string|number]: SubscriptionNode }
+
+  constructor (parentNode?: SubscriptionNode) {
+    this.tasks = []
+    this.childNodes = {}
+    this.parentNode = parentNode
+  }
+
+  isEmpty () {
+    return !this.tasks.length && isEmptyObject(this.childNodes)
+  }
+
+  // TODO: do not delete but store subscription nodes for future use
+  remove () {
+    if (this.parentNode) deleteValue(this.parentNode.childNodes, this)
+  }
+
+  resolve (this: SubscriptionNode, path: KeyPath) {
+    return fold(path, this, (node, key) => node.childNodes[key])
+  }
+
+  resolveOrCreate (this: SubscriptionNode, path: KeyPath) {
+    return fold(path, this, (node, key) => {
+      const childNodes = node.childNodes
+
+      if (hasOwn(childNodes, key)) {
+        return childNodes[key]
+      }
+      else {
+        // TODO: do not create but reuse pooled subscription nodes
+        return childNodes[key] = new SubscriptionNode(node)
+      }
+    })
+  }
+}
+
+/**
+ * data container intercepting changes to notify subscribers
+ */
 export class Store {
 
   data: any
@@ -54,35 +100,35 @@ export class Store {
   }
 
   merge (src: any) {
-    this.data = this._merge(this.data, src, this.root)
+    this.data = this.mergeUnkown(this.data, src, this.root)
   }
 
-  _notify (sub: SubscriptionNode) {
+  notify (sub: SubscriptionNode) {
     if (!this.dirty.has(sub)) {
       this.dirty.add(sub)
 
       if (sub.parentNode) {
-        this._notify(sub.parentNode)
+        this.notify(sub.parentNode)
       }
     }
   }
 
-  _invalidate (sub: SubscriptionNode) {
+  invalidate (sub: SubscriptionNode) {
     forOwn(sub.childNodes, sub => {
       this.dirty.add(sub)
-      this._invalidate(sub)
+      this.invalidate(sub)
     })
   }
 
-  _merge (trg: any, src: any, sub: SubscriptionNode) {
+  mergeUnkown (trg: any, src: any, sub: SubscriptionNode) {
     // bail out on referential equality
     if (trg === trg ? trg === src : src !== src) {
       return trg
     }
 
     if (isObject(trg) && src == null || trg == null && isObject(src)) {
-      this._notify(sub)
-      this._invalidate(sub)
+      this.notify(sub)
+      this.invalidate(sub)
       return src
     }
 
@@ -94,23 +140,23 @@ export class Store {
 
       switch (trgTag) {
         case "[object Array]":
-          return this._mergeArray(trg as unknown[], src as unknown[], sub)
+          return this.mergeArray(trg as unknown[], src as unknown[], sub)
         case "[object Object]":
-          return this._mergeObject(trg as object, src as {}, sub)
+          return this.mergeObject(trg as object, src as {}, sub)
         case "[object Date]":
-          return this._mergeDate(trg as Date, src as Date, sub)
+          return this.mergeDate(trg as Date, src as Date, sub)
         default:
           console.assert(false, 'cannot merge type of', src)
       }
     }
     
     if (trg === trg ? trg !== src : src === src) {
-      this._notify(sub)
+      this.notify(sub)
       return src
     }
   }
 
-  _mergeObject (trg: object, src: {}, sub: SubscriptionNode) {
+  mergeObject (trg: object, src: {}, sub: SubscriptionNode) {
     const childNodes = sub.childNodes
     // TODO: the public api may not allow root subscriptions
     const hasRootSubscriptions = this.root.tasks.length > 0
@@ -122,11 +168,11 @@ export class Store {
         trg[key] = value
       }
       else if (hasOwn(trg, key)) {
-        trg[key] = this._merge(trg[key], value, closest)
+        trg[key] = this.mergeUnkown(trg[key], value, closest)
       }
       else {
         trg[key] = value
-        this._notify(closest)
+        this.notify(closest)
         // TODO: cannot _invalidate unless we know for sure the subscription node
         // is the one corresponding to this the current data tree level
       }
@@ -135,11 +181,11 @@ export class Store {
     return trg
   }
 
-  _mergeArray (trg: unknown[], src: unknown[], sub: SubscriptionNode) {
+  mergeArray (trg: unknown[], src: unknown[], sub: SubscriptionNode) {
     const childNodes = sub.childNodes
 
     if (trg.length !== src.length) {
-      this._notify(getOwn(childNodes, 'length', sub))
+      this.notify(getOwn(childNodes, 'length', sub))
     }
 
     const trgLength = trg.length
@@ -157,11 +203,11 @@ export class Store {
         trg[index] = value
       }
       else if (index < trgLength) {
-        trg[index] = this._merge(trg[index], value, closest)
+        trg[index] = this.mergeUnkown(trg[index], value, closest)
       }
       else {
         trg[index] = value
-        this._notify(closest)
+        this.notify(closest)
         // TODO: cannot _invalidate unless we know for sure the subscription node
         // is the one corresponding to this the current data tree level
       }
@@ -170,9 +216,9 @@ export class Store {
     return trg
   }
 
-  _mergeDate(trg: Date, src: Date, sub: SubscriptionNode) {
+  mergeDate(trg: Date, src: Date, sub: SubscriptionNode) {
     if (+trg !== +src) {
-      this._notify(sub)
+      this.notify(sub)
       // the tree ends here, no need to _invalidate
     }
 
@@ -181,7 +227,7 @@ export class Store {
 }
 
 /**
- * used to stack multiple stores.
+ * used to stack one store onto another.
  */
 export class StoreLayer extends Store {
 
@@ -189,7 +235,7 @@ export class StoreLayer extends Store {
 
   constructor (data: any, ground: Store) {
     super(data)
-    // layer data by means of the prototype chain
+    // use the prototype chain to shadow the below layer
     this.data = extend(create(ground.data), data)
     this.ground = ground
   }
@@ -207,48 +253,8 @@ export class StoreLayer extends Store {
   }
 
   merge (src: any) {
-    console.assert(keys(src).every(key => hasOwn(this.data, key)), "cannot merge data into ground store")
+    console.assert(keys(src).every(key => hasOwn(this.data, key)), "cannot merge data into lower store layer")
     super.merge(src)
   }
 }
 
-
-class SubscriptionNode {
-
-  tasks: Function[]
-  parentNode?: SubscriptionNode
-  childNodes: { [pathSegment in string|number]: SubscriptionNode }
-
-  constructor (parentNode?: SubscriptionNode) {
-    this.tasks = []
-    this.childNodes = {}
-    this.parentNode = parentNode
-  }
-
-  isEmpty () {
-    return !this.tasks.length && isEmptyObject(this.childNodes)
-  }
-
-  // TODO: do not delete but store subscription nodes for future use
-  remove () {
-    if (this.parentNode) deleteValue(this.parentNode.childNodes, this)
-  }
-
-  resolve (this: SubscriptionNode, path: KeyPath) {
-    return fold(path, this, (node, key) => node.childNodes[key])
-  }
-
-  resolveOrCreate (this: SubscriptionNode, path: KeyPath) {
-    return fold(path, this, (node, key) => {
-      const childNodes = node.childNodes
-
-      if (hasOwn(childNodes, key)) {
-        return childNodes[key]
-      }
-      else {
-        // TODO: do not create but reuse pooled subscription nodes
-        return childNodes[key] = new SubscriptionNode(node)
-      }
-    })
-  }
-}
