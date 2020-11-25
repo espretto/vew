@@ -36,10 +36,13 @@ Now, which feels right: the ternary expression in the template or the class name
 Roadmap
 -------------------------
 - [ ] dom events
+- [ ] element refs
 - [ ] lifecycle hooks
+- [ ] computed properties
 
 Optimizations
 -------------------------
+- [ ] subscribe to the parent's store when depending on drilled props
 - [ ] list items in templates are not tracked by key
 - [ ] annotate subtrees with attribute `--static` to avoid unecessary view model subscriptions
 - [ ] annotate subtress with attribute `--volatile` to bypass data-diffing and blindly invalidate everything
