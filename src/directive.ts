@@ -6,7 +6,7 @@ export enum DirectiveType {
   IF = "IF",
   ELIF = "ELIF",
   ELSE = "ELSE",
-  REPEAT = "REPEAT",
+  FOR = "FOR",
   SWITCH = "SWITCH",
   CASE = "CASE",
   DEFAULT = "DEFAULT",
@@ -26,7 +26,7 @@ const FlowControlTypes = {};
 FlowControlTypes[DirectiveType.IF] =
 FlowControlTypes[DirectiveType.ELIF] =
 FlowControlTypes[DirectiveType.ELSE] =
-FlowControlTypes[DirectiveType.REPEAT] =
+FlowControlTypes[DirectiveType.FOR] =
 FlowControlTypes[DirectiveType.SWITCH] =
 FlowControlTypes[DirectiveType.CASE] =
 FlowControlTypes[DirectiveType.DEFAULT] = true;
@@ -63,8 +63,8 @@ export interface ConditionalDirective extends BaseDirective {
   partials: Partial[];
 }
 
-export interface RepeatDirective extends BaseDirective {
-  type: DirectiveType.REPEAT;
+export interface LoopDirective extends BaseDirective {
+  type: DirectiveType.FOR;
   keyName: string;
   valueName: string;
   partials: Partial[];
@@ -128,7 +128,7 @@ export type Directive =
     TextDirective
   | SlotDirective
   | ConditionalDirective
-  | RepeatDirective
+  | LoopDirective
   | SwitchDirective
   | ComponentDirective
   | ClassNameDirective

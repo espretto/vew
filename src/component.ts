@@ -1,36 +1,25 @@
 import type {
-  TextDirective,
-  ListenerDirective,
-  ClassNameDirective,
-  StyleDirective,
-  PropertyDirective,
-  DatasetDirective,
-  AttributeDirective,
-  ConditionalDirective,
-  SwitchDirective,
-  SlotDirective,
-  RepeatDirective,
-  ComponentDirective,
-  ReferenceDirective
-  } from './directive'
-import type Template from './template'
+  AttributeDirective, ClassNameDirective,
+  ComponentDirective, ConditionalDirective, DatasetDirective, ListenerDirective,
+  LoopDirective, PropertyDirective,
+  ReferenceDirective, SlotDirective, StyleDirective,
+  SwitchDirective, TextDirective
+} from './directive'
 import { DirectiveType } from './directive'
-
-
-import { Store, StoreLayer } from './store'
-import Registry from './registry'
-import { evaluate } from './expression'
-import { resolve } from './dom/treewalker'
+import { clone, replaceNode } from './dom/core'
 import Effects from './dom/effects'
-
-import { flatten, forEach, map, find } from './util/array'
-import { replaceNode, clone } from './dom/core'
-import { hasOwn, mapOwn, forOwn, keys, extend } from './util/object'
+import { resolve } from './dom/treewalker'
+import { evaluate } from './expression'
+import Registry from './registry'
+import { Store, StoreLayer } from './store'
+import type Template from './template'
+import { find, flatten, forEach, map } from './util/array'
+import { extend, forOwn, hasOwn, keys, mapOwn } from './util/object'
 
 
 // continue: mute tasks which components/partials have been unmounted by other tasks in the same runloop cycle
 
-function bootstrapLoop ({ nodePath, keyName, valueName, partials }: RepeatDirective) {
+function bootstrapFor ({ nodePath, keyName, valueName, partials }: LoopDirective) {
   const { template, expression } = partials[0]
   // TODO: elif/else branching after loop expressions 
   const partialFactory = bootstrapComponent(template)
@@ -332,7 +321,7 @@ function bootstrapListener ({ nodePath, event, expression }: ListenerDirective) 
 type taskFactory = (host: Component) => () => void;
 
 const bootstappers: { [type: string]: (any) => taskFactory } = {
-  [DirectiveType.REPEAT]: bootstrapLoop,
+  [DirectiveType.FOR]: bootstrapFor,
   [DirectiveType.REFERENCE]: bootsrapReference,
   [DirectiveType.COMPONENT]: finalizeComponent,
   [DirectiveType.SLOT]: bootstrapSlot,
@@ -374,7 +363,7 @@ export interface Component {
  *   inherited from the parent component.
  */
 export function bootstrapComponent (template: Template, state?: Function): componentFactory {
-  const setups = map(template.instructions, i => bootstappers[i.type](i))
+  const setups = map(template.directives, i => bootstappers[i.type](i))
 
   const setup: componentFactory = (host, props, slots) => {
     const store = state

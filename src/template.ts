@@ -1,13 +1,12 @@
 import type { Expression } from './expression'
 import type { Directive, Partial } from './directive'
 
-import { DirectiveType, isFlowControl } from './directive';
-
 import Registry from './registry'
 import { TreeWalker } from './dom/treewalker'
-import { hasOwn, keys, forOwn, mapOwn } from './util/object'
+import { hasOwn, keys, forOwn } from './util/object'
 import { startsWith, camelCase } from './util/string'
 import { last, filter, forEach } from './util/array'
+import { DirectiveType, isFlowControl } from './directive'
 import { createExpression, searchExpression } from './expression'
 import {
   NodeType,
@@ -24,25 +23,25 @@ import {
 } from './dom/core'
 
 
-const reMatchLoop = /^\s*(?:([a-z_$][\w$]*)|\[\s*([a-z_$][\w$]*)\s*,\s*([a-z_$][\w$]*)\s*\])\s*of([\s\S]*)$/i
+const reMatchFor = /^\s*(?:([a-z_$][\w$]*)|\[\s*([a-z_$][\w$]*)\s*,\s*([a-z_$][\w$]*)\s*\])\s*of([\s\S]*)$/i
 
-const INSTRUCTION_PREFIX = '--' // TODO: expose option
+const DIRECTIVE_PREFIX = '--' // TODO: expose option
 
 const EXPRESSION_DELIMITERS: [string, string] = ['${', '}'] // TODO: expose option
 
 
 /**
- * class Template
+ * used to pre-compile templates into a json compatible data structure
  */
 export default class Template {
 
   el: Node
   
-  instructions: Array<Directive>
+  directives: Directive[]
 
   constructor (el: Element) {
     this.el = el
-    this.instructions = []
+    this.directives = []
     this.templateState()
   }
 
@@ -62,7 +61,6 @@ export default class Template {
   }
   
   textNodeState (tw: TreeWalker) {
-    // flowignore: cast to TextNode
     let textNode = tw.node as Text
     const text = textNode.nodeValue as string
     const allowTrim = !preservesWhitespace(textNode.parentNode as Element)
@@ -88,10 +86,10 @@ export default class Template {
       textNode = tw.next() as Text
     }
 
-    this.instructions.push({
+    this.directives.push({
       type: DirectiveType.TEXT,
       nodePath: tw.path(),
-      expression: expression,
+      expression,
     })
 
     // split text-node where the expression ends
@@ -102,10 +100,9 @@ export default class Template {
   }
 
   elementState (tw: TreeWalker) {
-    // flowignore: cast Node to Element
     const el = tw.node as Element
     const nodeName = getNodeName(el)
-    const attrs = getAttributes(el, INSTRUCTION_PREFIX)
+    const attrs = getAttributes(el, DIRECTIVE_PREFIX)
 
     // 1st precedence : slot placeholders with optional default templates
     if (nodeName === 'SLOT') {
@@ -116,10 +113,10 @@ export default class Template {
     }
 
     // 2nd precedence : flow control instructions
-    const flowControls: string[] = filter(keys(attrs), isFlowControl)
+    const flowControls = filter(keys(attrs), isFlowControl)
     switch (flowControls.length) {
       case 0: break
-      case 1: return this.flowControlState(tw, flowControls[0], attrs[flowControls[0]])
+      case 1: return this.flowControlState(tw, flowControls[0] as DirectiveType, attrs[flowControls[0]])
       default: throw new Error('cannot apply multiple flow controls to a single element')
     }
 
@@ -140,14 +137,13 @@ export default class Template {
   }
 
   slotState (tw: TreeWalker, slotName: string, hasDefaultTemplate: boolean) {
-    // flowignore: cast Node to Element
     const el = tw.node as Element
-    tw.node = this.replaceNode(el, createMountNode('SLOT'))
+    tw.node = this.replaceNode(el, createMountNode(DirectiveType.SLOT))
 
     if (hasDefaultTemplate) {
-      el.removeAttribute(INSTRUCTION_PREFIX + 'SLOT')
+      el.removeAttribute(DIRECTIVE_PREFIX + DirectiveType.SLOT)
 
-      this.instructions.push({
+      this.directives.push({
         type: DirectiveType.SLOT,
         name: slotName,
         nodePath: tw.path(),
@@ -159,7 +155,7 @@ export default class Template {
         'the <slot> tag but the --slot attribute on the template\'s root node')
     }
     else {
-      this.instructions.push({
+      this.directives.push({
         type: DirectiveType.SLOT,
         name: slotName,
         nodePath: tw.path(),
@@ -168,17 +164,16 @@ export default class Template {
     }
   }
 
-  flowControlState (tw: TreeWalker, directiveType: string, value: string) {
-    // flowignore: cast Node to Element
+  flowControlState (tw: TreeWalker, directiveType: DirectiveType, value: string) {
     const el = tw.node as Element
     
-    el.removeAttribute(INSTRUCTION_PREFIX + directiveType)
+    el.removeAttribute(DIRECTIVE_PREFIX + directiveType)
 
     switch (directiveType) {
       case DirectiveType.IF:
         tw.node = this.replaceNode(el, createMountNode(directiveType))
 
-        this.instructions.push({
+        this.directives.push({
           type: DirectiveType.IF,
           nodePath: tw.path(),
           partials: [{
@@ -192,31 +187,30 @@ export default class Template {
       case DirectiveType.ELSE:
         tw.remove()
 
-        if (tw.node == null || !isMountNode(tw.node, DirectiveType.IF) && !isMountNode(tw.node, DirectiveType.REPEAT)) {
-          throw new Error('instruction --elif/--else must be preceded by --if, --elif or --for')
+        if (tw.node == null || !isMountNode(tw.node, DirectiveType.IF) && !isMountNode(tw.node, DirectiveType.FOR)) {
+          throw new Error('directive --elif/--else must be preceded by --if, --elif or --for')
         }
 
-        // flowignore: cast Directive to ConditionalDirective
-        ;(last(this.instructions) as ConditionalDirective | RepeatDirective).partials.push({
+        ;(last(this.directives) as { partials: Partial[] }).partials.push({
           template: new Template(el),
           expression: createExpression(directiveType === DirectiveType.ELIF ? value : 'true')
         })
         break
 
-      case DirectiveType.REPEAT:
+      case DirectiveType.FOR:
         tw.node = this.replaceNode(el, createMountNode(directiveType))
 
-        const loop = value.match(reMatchLoop)
-        if (!loop) throw new Error('malformed loop expression')
+        const match = value.match(reMatchFor)
+        if (!match) throw new Error('malformed --for directive')
 
-        this.instructions.push({
-          type: DirectiveType.REPEAT,
+        this.directives.push({
+          type: DirectiveType.FOR,
           nodePath: tw.path(),
-          keyName: loop[2],
-          valueName: loop[1] || loop[3],
+          keyName: match[2],
+          valueName: match[1] || match[3],
           partials: [{
             template: new Template(el),
-            expression: createExpression(loop[4])
+            expression: createExpression(match[4])
           }]
         })
         break
@@ -233,9 +227,8 @@ export default class Template {
         // retrieve element nodes from live NodeList for ulterior removal
         const elements = filter(el.childNodes, isElement)
 
-        // flowignore: cast Node to Element
         forEach(elements, (child: Element) => {
-          const attrs = getAttributes(child, INSTRUCTION_PREFIX)
+          const attrs = getAttributes(child, DIRECTIVE_PREFIX)
 
           const flowControls = filter(keys(attrs), isFlowControl)
           switch (flowControls.length) {
@@ -244,14 +237,13 @@ export default class Template {
             default: throw new Error('cannot apply multiple flow controls to a single element')
           }
 
-          const directiveName = flowControls[0]
-          const directiveType = DirectiveType[directiveName]
-          child.removeAttribute(INSTRUCTION_PREFIX + directiveName)
+          const directiveType = flowControls[0] as DirectiveType
+          child.removeAttribute(DIRECTIVE_PREFIX + directiveType)
 
           // TODO: allow only runtime constants in case expressions
           partials.push({
             template: new Template(el.removeChild(child)),
-            expression: createExpression(directiveType === DirectiveType.CASE ? attrs[directiveName] : 'true')
+            expression: createExpression(directiveType === DirectiveType.CASE ? attrs[directiveType] : 'true')
           })
         })
 
@@ -266,7 +258,7 @@ export default class Template {
         // point to the mount-node
         tw.next()
         
-        this.instructions.push({
+        this.directives.push({
           type: DirectiveType.SWITCH,
           nodePath: tw.path(),
           switched: createExpression(value),
@@ -278,7 +270,6 @@ export default class Template {
   }
 
   componentState (tw: TreeWalker, name: string, attrs: { [attrName: string]: string }) {
-    // flowignore: cast Node to Element
     const root = tw.node as Element
     const slots: { [name: string]: Template } = {}
     const props: { [prop: string]: Expression } = {}
@@ -287,15 +278,11 @@ export default class Template {
       props[camelCase(attrName)] = createExpression(attrValue)
     })
 
-    // retrieve element nodes from live NodeList for ulterior removal
-    const elements = filter(root.childNodes, isElement)
-    
-    // flowignore: cast Node to Element
-    forEach(elements, (el: Element) => {
-      const attrs = getAttributes(el, INSTRUCTION_PREFIX)
+    forEach(filter(root.childNodes, isElement), (el: Element) => {
+      const attrs = getAttributes(el, DIRECTIVE_PREFIX)
       
       if (hasOwn(attrs, 'SLOT')) {
-        el.removeAttribute(INSTRUCTION_PREFIX + 'SLOT')
+        el.removeAttribute(DIRECTIVE_PREFIX + 'SLOT')
         slots[attrs['SLOT']] = new Template(root.removeChild(el))
       }
     })
@@ -307,7 +294,7 @@ export default class Template {
     // remove empty text-nodes and comments
     root.innerHTML = ''
 
-    this.instructions.push({
+    this.directives.push({
       type: DirectiveType.COMPONENT,
       nodePath: tw.path(),
       name,
@@ -317,8 +304,7 @@ export default class Template {
   }
 
   attributeState (tw: TreeWalker, attrName: string, attrValue: string) {
-    // flowignore: cast Node to Element
-    const elem = tw.node as HTMLElement
+    const el = tw.node as HTMLElement
     const nodePath = tw.path()
     const expression = createExpression(attrValue)
 
@@ -326,33 +312,33 @@ export default class Template {
       throw new Error('prefixed attributes require an expression to evaluate')
     }
 
-    elem.removeAttribute(INSTRUCTION_PREFIX + attrName)
+    el.removeAttribute(DIRECTIVE_PREFIX + attrName)
 
     if (attrName === 'CLASS') {
-      this.instructions.push({
+      this.directives.push({
         type: DirectiveType.CLASSNAME,
         nodePath,
-        preset: elem.className,
+        preset: el.className,
         expression
       })
     }
     else if (attrName === 'STYLE') {
-      this.instructions.push({
+      this.directives.push({
         type: DirectiveType.STYLE,
         nodePath,
-        preset: elem.style.cssText,
+        preset: el.style.cssText,
         expression
       })
     }
     else if (attrName === 'REF') {
-      this.instructions.push({
+      this.directives.push({
         type: DirectiveType.REFERENCE,
         name: attrValue,
         nodePath
       })
     }
     else if (startsWith(attrName, 'ON-')) {
-      this.instructions.push({
+      this.directives.push({
         type: DirectiveType.LISTENER,
         event: attrName.substring('ON-'.length).toLowerCase(),
         nodePath,
@@ -360,15 +346,15 @@ export default class Template {
       })
     }
     else if (startsWith(attrName, 'DATA-')) {
-      this.instructions.push({
+      this.directives.push({
         type: DirectiveType.DATASET,
         name: attrName.substring('DATA-'.length),
         nodePath,
         expression
       })
     }
-    else if (camelCase(attrName) in elem) {
-      this.instructions.push({
+    else if (camelCase(attrName) in el) {
+      this.directives.push({
         type: DirectiveType.PROPERTY,
         name: camelCase(attrName),
         nodePath,
@@ -376,7 +362,7 @@ export default class Template {
       })
     }
     else {
-      this.instructions.push({
+      this.directives.push({
         type: DirectiveType.ATTRIBUTE,
         name: attrName,
         nodePath,
