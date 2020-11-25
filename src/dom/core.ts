@@ -2,6 +2,7 @@ import { isNative } from '../util/type'
 import { document } from '../util/global'
 import { startsWith } from '../util/string'
 import { every } from '../util/array'
+import type { DirectiveType } from '../directive';
 
 export enum NodeType {
   ELEMENT = 1,
@@ -126,11 +127,11 @@ export function createFragment (node?: Node): DocumentFragment {
   return frag
 }
 
-export function createMountNode (type: string): Comment {
+export function createMountNode (type: DirectiveType): Comment {
   return document.createComment(type)
 }
 
-export function isMountNode (node: Node & { data?: string }, type: string) {
+export function isMountNode (node: Node & { data?: string }, type: DirectiveType) {
   return node.nodeType === NodeType.COMMENT && node.data === type
 }
 

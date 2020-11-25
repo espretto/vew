@@ -1,20 +1,20 @@
 import type {
-  TextInstruction,
-  ListenerInstruction,
-  ClassNameInstruction,
-  StyleInstruction,
-  PropertyInstruction,
-  DatasetInstruction,
-  AttributeInstruction,
-  ConditionalInstruction,
-  SwitchInstruction,
-  SlotInstruction,
-  LoopInstruction,
-  ComponentInstruction,
-  ReferenceInstruction
-  } from './instruction'
+  TextDirective,
+  ListenerDirective,
+  ClassNameDirective,
+  StyleDirective,
+  PropertyDirective,
+  DatasetDirective,
+  AttributeDirective,
+  ConditionalDirective,
+  SwitchDirective,
+  SlotDirective,
+  RepeatDirective,
+  ComponentDirective,
+  ReferenceDirective
+  } from './directive'
 import type Template from './template'
-import { InstructionType } from './instruction'
+import { DirectiveType } from './directive'
 
 
 import { Store, StoreLayer } from './store'
@@ -30,7 +30,7 @@ import { hasOwn, mapOwn, forOwn, keys, extend } from './util/object'
 
 // continue: mute tasks which components/partials have been unmounted by other tasks in the same runloop cycle
 
-function bootstrapLoop ({ nodePath, keyName, valueName, partials }: LoopInstruction) {
+function bootstrapLoop ({ nodePath, keyName, valueName, partials }: RepeatDirective) {
   const { template, expression } = partials[0]
   // TODO: elif/else branching after loop expressions 
   const partialFactory = bootstrapComponent(template)
@@ -79,7 +79,7 @@ function bootstrapLoop ({ nodePath, keyName, valueName, partials }: LoopInstruct
   }
 }
 
-function bootsrapReference ({ nodePath, name }: ReferenceInstruction) {
+function bootsrapReference ({ nodePath, name }: ReferenceDirective) {
 
   return function setup (host: Component) {
     // crawl upto the defining component
@@ -94,7 +94,7 @@ function bootsrapReference ({ nodePath, name }: ReferenceInstruction) {
   }
 }
 
-function finalizeComponent ({ nodePath, name, props, slots }: ComponentInstruction) {
+function finalizeComponent ({ nodePath, name, props, slots }: ComponentDirective) {
   console.assert(hasOwn(Registry, name), `component "${name}" has not been defined`)
   const componentFactory = Registry[name]
   const slotFactories = mapOwn(slots, slot => bootstrapComponent(slot))
@@ -123,7 +123,7 @@ function finalizeComponent ({ nodePath, name, props, slots }: ComponentInstructi
   }
 }
 
-function bootstrapSlot ({ nodePath, name, template }: SlotInstruction) {
+function bootstrapSlot ({ nodePath, name, template }: SlotDirective) {
   const defaultSlot = template ? bootstrapComponent(template) : null
 
   return function setup (host: Component) {
@@ -148,7 +148,7 @@ function bootstrapSlot ({ nodePath, name, template }: SlotInstruction) {
   }
 }
 
-function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
+function bootstrapSwitch ({ nodePath, switched, partials }: SwitchDirective) {
   const compute = evaluate(switched)
 
   const cases = map(partials, ({ template, expression }) => ({
@@ -198,7 +198,7 @@ function bootstrapSwitch ({ nodePath, switched, partials }: SwitchInstruction) {
   }
 }
 
-function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
+function bootstrapConditional ({ nodePath, partials }: ConditionalDirective) {
   const conditions = map(partials, ({ template, expression }) => ({
     setup: bootstrapComponent(template),
     compute: evaluate(expression),
@@ -245,7 +245,7 @@ function bootstrapConditional ({ nodePath, partials }: ConditionalInstruction) {
   }
 }
 
-function bootstrapSetter ({ type, nodePath, name, expression }: PropertyInstruction | DatasetInstruction | AttributeInstruction) {
+function bootstrapSetter ({ type, nodePath, name, expression }: PropertyDirective | DatasetDirective | AttributeDirective) {
   const effect = Effects[type]
   const { paths } = expression
   const compute = evaluate(expression)
@@ -267,7 +267,7 @@ function bootstrapSetter ({ type, nodePath, name, expression }: PropertyInstruct
   }
 }
 
-function bootstrapPresetSetter ({ type, nodePath, preset, expression }: ClassNameInstruction | StyleInstruction) {
+function bootstrapPresetSetter ({ type, nodePath, preset, expression }: ClassNameDirective | StyleDirective) {
   const effect = Effects[type]
   const { paths } = expression
   const compute = evaluate(expression)
@@ -289,7 +289,7 @@ function bootstrapPresetSetter ({ type, nodePath, preset, expression }: ClassNam
   }
 }
 
-function bootstrapText ({ type, nodePath, expression }: TextInstruction) {
+function bootstrapText ({ type, nodePath, expression }: TextDirective) {
   const effect = Effects[type]
   const { paths } = expression
   const compute = evaluate(expression)
@@ -311,7 +311,7 @@ function bootstrapText ({ type, nodePath, expression }: TextInstruction) {
   }
 }
 
-function bootstrapListener ({ nodePath, event, expression }: ListenerInstruction) {
+function bootstrapListener ({ nodePath, event, expression }: ListenerDirective) {
   const handler = evaluate(expression)
 
   return function setup (host: Component) {
@@ -332,19 +332,19 @@ function bootstrapListener ({ nodePath, event, expression }: ListenerInstruction
 type taskFactory = (host: Component) => () => void;
 
 const bootstappers: { [type: string]: (any) => taskFactory } = {
-  [InstructionType.FOR]: bootstrapLoop,
-  [InstructionType.REFERENCE]: bootsrapReference,
-  [InstructionType.COMPONENT]: finalizeComponent,
-  [InstructionType.SLOT]: bootstrapSlot,
-  [InstructionType.SWITCH]: bootstrapSwitch,
-  [InstructionType.IF]: bootstrapConditional,
-  [InstructionType.ATTRIBUTE]: bootstrapSetter,
-  [InstructionType.DATASET]: bootstrapSetter,
-  [InstructionType.PROPERTY]: bootstrapSetter,
-  [InstructionType.CLASSNAME]: bootstrapPresetSetter,
-  [InstructionType.STYLE]: bootstrapPresetSetter,
-  [InstructionType.TEXT]: bootstrapText,
-  [InstructionType.LISTENER]: bootstrapListener,
+  [DirectiveType.REPEAT]: bootstrapLoop,
+  [DirectiveType.REFERENCE]: bootsrapReference,
+  [DirectiveType.COMPONENT]: finalizeComponent,
+  [DirectiveType.SLOT]: bootstrapSlot,
+  [DirectiveType.SWITCH]: bootstrapSwitch,
+  [DirectiveType.IF]: bootstrapConditional,
+  [DirectiveType.ATTRIBUTE]: bootstrapSetter,
+  [DirectiveType.DATASET]: bootstrapSetter,
+  [DirectiveType.PROPERTY]: bootstrapSetter,
+  [DirectiveType.CLASSNAME]: bootstrapPresetSetter,
+  [DirectiveType.STYLE]: bootstrapPresetSetter,
+  [DirectiveType.TEXT]: bootstrapText,
+  [DirectiveType.LISTENER]: bootstrapListener,
 }
 
 export type componentFactory = (
