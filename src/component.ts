@@ -17,7 +17,7 @@ import type Template from './template'
 import { InstructionType } from './instruction'
 
 
-import { Store, ProxyStore } from './store'
+import { Store, StoreLayer } from './store'
 import Registry from './registry'
 import { evaluate } from './expression'
 import { resolve } from './dom/treewalker'
@@ -385,7 +385,7 @@ export function bootstrapComponent (template: Template, state?: Function): compo
       // partials
       : props
         // repeatables
-        ? new ProxyStore(props, host.store)
+        ? new StoreLayer(props, host.store)
         // slots, if/elif/else, switch-cases
         : host.store
 

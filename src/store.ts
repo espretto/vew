@@ -135,7 +135,7 @@ export class Store {
     return trg
   }
 
-  _mergeArray (trg: Array<unknown>, src: Array<unknown>, sub: SubscriptionNode) {
+  _mergeArray (trg: unknown[], src: unknown[], sub: SubscriptionNode) {
     const childNodes = sub.childNodes
 
     if (trg.length !== src.length) {
@@ -180,26 +180,34 @@ export class Store {
   }
 }
 
-export class ProxyStore extends Store {
+/**
+ * used to stack multiple stores.
+ */
+export class StoreLayer extends Store {
 
-  proxied: Store
+  ground: Store
 
-  constructor (data: any, proxied: Store) {
+  constructor (data: any, ground: Store) {
     super(data)
-    this.data = extend(create(proxied.data), data)
-    this.proxied = proxied
+    // layer data by means of the prototype chain
+    this.data = extend(create(ground.data), data)
+    this.ground = ground
+  }
+
+  getLayer (path: KeyPath) {
+    return hasOwn(this.data, path[0]) ? this : this.ground
   }
 
   subscribe (path: KeyPath, task: Function) {
-    return super.subscribe.call(hasOwn(this.data, path[0]) ? this : this.proxied, path, task)
+    return super.subscribe.call(this.getLayer(path), path, task)
   }
 
   unsubscribe (path: KeyPath, task: Function) {
-    return super.unsubscribe.call(hasOwn(this.data, path[0]) ? this : this.proxied, path, task)
+    return super.unsubscribe.call(this.getLayer(path), path, task)
   }
 
   merge (src: any) {
-    console.assert(keys(src).every(key => hasOwn(this.data, key)), "cannot merge data into proxied store")
+    console.assert(keys(src).every(key => hasOwn(this.data, key)), "cannot merge data into ground store")
     super.merge(src)
   }
 }

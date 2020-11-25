@@ -40,7 +40,7 @@ Roadmap
 
 Optimizations
 -------------------------
-- [ ] list items in templates are not tracked.
+- [ ] list items in templates are not tracked by key
 - [ ] annotate subtrees with attribute `--static` to avoid unecessary view model subscriptions
 - [ ] annotate subtress with attribute `--volatile` to bypass data-diffing and blindly invalidate everything
 - [ ] 28/07/2016: offline reflow/repaint sections by setting `display:none` or `visiblity:hidden` before applying any changes
