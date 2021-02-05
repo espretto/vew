@@ -6,23 +6,26 @@ import { isObject, getTag } from './util/type'
 import { isEmptyObject, getOwn, hasOwn, forOwn, deleteValue } from './util/object'
 
 /**
+ * executable micro task encapsulating state mutation
+ */
+export interface Command {
+  execute(): void
+}
+
+/**
  * used to store subscriptions to changes of arbitrary data structures.
  * change events bubble up the data structure along the key-path.
  */
 class SubscriptionNode {
 
-  tasks: Function[]
-  parentNode?: SubscriptionNode
-  childNodes: { [pathSegment in string|number]: SubscriptionNode }
+  commands: Command[] = []
 
-  constructor (parentNode?: SubscriptionNode) {
-    this.tasks = []
-    this.childNodes = {}
-    this.parentNode = parentNode
-  }
+  childNodes: Record<string | number, SubscriptionNode> = {}
+
+  constructor (public parentNode?: SubscriptionNode) { }
 
   isEmpty () {
-    return !this.tasks.length && isEmptyObject(this.childNodes)
+    return !this.commands.length && isEmptyObject(this.childNodes)
   }
 
   // TODO: do not delete but store subscription nodes for future use
@@ -54,29 +57,22 @@ class SubscriptionNode {
  */
 export class Store {
 
-  data: any
+  root = new SubscriptionNode()
 
-  root: SubscriptionNode
+  commands = new Set<Command>()
 
-  tasks: Set<Function>
+  dirty = new Set<SubscriptionNode>()
 
-  dirty: Set<SubscriptionNode>
+  constructor (public data: any) { }
 
-  constructor (data: any) {
-    this.data = data
-    this.root = new SubscriptionNode()
-    this.tasks = new Set()
-    this.dirty = new Set()
-  }
-
-  subscribe (path: KeyPath, task: Function) {
-    this.root.resolveOrCreate(path).tasks.push(task)
+  subscribe (path: KeyPath, command: Command) {
+    this.root.resolveOrCreate(path).commands.push(command)
   }
 
   /* TODO : why would you ever unsubscribe and not destroy the whole scope instance anyway ? */
-  unsubscribe (path: KeyPath, task: Function) {
+  unsubscribe (path: KeyPath, command: Command) {
     var sub: SubscriptionNode | undefined = this.root.resolve(path)
-    remove(sub.tasks, task)
+    remove(sub.commands, command)
 
     while (sub && sub.isEmpty()) {
       sub.remove()
@@ -86,16 +82,16 @@ export class Store {
 
   update () {
     this.dirty.forEach(sub => {
-      forEach(sub.tasks, task => {
-        this.tasks.add(task)
+      forEach(sub.commands, task => {
+        this.commands.add(task)
       })
     })
 
     // begin requestAnimationFrame
-    this.tasks.forEach(task => { task.call(this) })
+    this.commands.forEach(task => { task.execute() })
     // end requestAnimationFrame
 
-    this.tasks.clear()
+    this.commands.clear()
     this.dirty.clear()
   }
 
@@ -159,7 +155,7 @@ export class Store {
   mergeObject (trg: object, src: {}, sub: SubscriptionNode) {
     const childNodes = sub.childNodes
     // TODO: the public api may not allow root subscriptions
-    const hasRootSubscriptions = this.root.tasks.length > 0
+    const hasRootSubscriptions = this.root.commands.length > 0
 
     forOwn(src, (value, key) => {
       const closest = getOwn(childNodes, key, sub)
@@ -194,7 +190,7 @@ export class Store {
     trg.length = src.length
     
     // TODO: the public api may not allow root subscriptions
-    const hasRootSubscriptions = this.root.tasks.length > 0
+    const hasRootSubscriptions = this.root.commands.length > 0
 
     forEach(src, (value, index) => {
       const closest = getOwn(childNodes, index, sub)
@@ -227,29 +223,25 @@ export class Store {
 }
 
 /**
- * used to stack one store onto another.
+ * used to stack one store onto another. think ChainMap from python
  */
 export class StoreLayer extends Store {
 
-  ground: Store
-
-  constructor (data: any, ground: Store) {
+  constructor (data: any, public ground: Store) {
     super(data)
-    // use the prototype chain to shadow the below layer
     this.data = extend(create(ground.data), data)
-    this.ground = ground
   }
 
   getLayer (path: KeyPath) {
     return hasOwn(this.data, path[0]) ? this : this.ground
   }
 
-  subscribe (path: KeyPath, task: Function) {
-    return super.subscribe.call(this.getLayer(path), path, task)
+  subscribe (path: KeyPath, command: Command) {
+    return super.subscribe.call(this.getLayer(path), path, command)
   }
 
-  unsubscribe (path: KeyPath, task: Function) {
-    return super.unsubscribe.call(this.getLayer(path), path, task)
+  unsubscribe (path: KeyPath, command: Command) {
+    return super.unsubscribe.call(this.getLayer(path), path, command)
   }
 
   merge (src: any) {

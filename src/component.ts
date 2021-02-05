@@ -1,415 +1,439 @@
 import type {
-  AttributeDirective, ClassNameDirective,
-  ComponentDirective, ConditionalDirective, DatasetDirective, ListenerDirective,
-  LoopDirective, PropertyDirective,
-  ReferenceDirective, SlotDirective, StyleDirective,
-  SwitchDirective, TextDirective
+  ComponentConfig, IfConfig, ListenerConfig, ForConfig,
+  ReferenceConfig, SlotConfig, SetterConfig,
+  SwitchConfig, TextConfig,
 } from './directive'
-import { DirectiveType } from './directive'
+import { DirectiveType } from './directive';
 import { clone, replaceNode } from './dom/core'
 import Effects from './dom/effects'
-import { resolve } from './dom/treewalker'
+import { resolve, NodePath } from './dom/treewalker';
 import { evaluate } from './expression'
 import Registry from './registry'
-import { Store, StoreLayer } from './store'
-import type Template from './template'
-import { find, flatten, forEach, map } from './util/array'
+import { Store, StoreLayer, Command } from './store';
+import { find, flatten, forEach, map, forBoth } from './util/array'
+import { KeyPath } from './util/path'
 import { extend, forOwn, hasOwn, keys, mapOwn } from './util/object'
-
+import Template from './template';
 
 // continue: mute tasks which components/partials have been unmounted by other tasks in the same runloop cycle
 
-function bootstrapFor ({ nodePath, keyName, valueName, partials }: LoopDirective) {
-  const { template, expression } = partials[0]
+interface Installer {
+  (host: Component): Directive
+}
+
+interface Directive {
+  destructor(): void
+}
+
+class ForDirective implements Directive, Command {
+
   // TODO: elif/else branching after loop expressions 
-  const partialFactory = bootstrapComponent(template)
-  const { paths } = expression
-  const compute = evaluate(expression)
+  static configure ({ nodePath, keyName, valueName, partials }: ForConfig): Installer {
+    const { template, expression } = partials[0]
+    const partialCtor = Component.configure(template)
+    const compute = evaluate(expression)
+    return (host: Component) => new ForDirective(host, valueName, partialCtor, expression.paths, compute, nodePath)
+  }
+  
+  target: Node
 
-  return function setup (host: Component) {
-    const target = resolve(host.el, nodePath)
-    const mounted: Component[] = []
+  partials: Component[]
 
-    function task () {
-      const items: any[] = compute.call(host.store.data)
-      
-      // create missing partials
-      while (mounted.length < items.length) {
-        const props = { [valueName]: items[mounted.length] }
-        const partial = partialFactory(host, props)
-        // TODO: subscribe to host on every path except `valueName` and `keyName`
-        // @ts-expect-error: target has a parent
-        target.parentNode.appendChild(partial.el)
-        mounted.push(partial)
-      }
-      
-      // remove superfluous partials
-      while (mounted.length > items.length) {
-        // @ts-expect-error: mounted is not empty
-        const partial = mounted.pop().teardown()
-        // @ts-expect-error: target has a parent
-        target.parentNode.removeChild(partial.el)
-      }
-      
-      // items and mounted are of equal length, zip them up
-      forEach(items, (item, i) => {
-        mounted[i].merge({ [valueName]: item })
-      })
+  constructor (
+    public host: Component,
+    public valueName: string,
+    public partialCtor: Function,
+    public paths: KeyPath[],
+    public compute: Function,
+    nodePath: NodePath,
+  ) {
+    this.target = resolve(this.host.el, nodePath)
+    this.partials = []
+    this.execute()
+    forEach(this.paths, path => host.store.subscribe(path, this))
+  }
+
+  destructor () {
+    forEach(this.partials, partial => { partial.destructor() })
+    forEach(this.paths, path => this.host.store.unsubscribe(path, this))
+  }
+
+  execute () {
+    const items: any[] = this.compute.call(this.host.store.data)
+    
+    // create missing partials
+    while (this.partials.length < items.length) {
+      const props = { [this.valueName]: items[this.partials.length] }
+      const partial = new this.partialCtor(this.host, props)
+      // TODO: subscribe to host on every path except `valueName` and `keyName`
+      // @ts-expect-error: target has a parent
+      target.parentNode.appendChild(partial.el)
+      this.partials.push(partial)
     }
-
-    // initial render
-    task()
-
-    forEach(paths, path => host.store.subscribe(path, task))
-    return function teardown () {
-      forEach(mounted, partial => { partial.teardown() })
-      forEach(paths, path => host.store.unsubscribe(path, task))
+    
+    // remove superfluous partials
+    while (this.partials.length > items.length) {
+      // @ts-expect-error: this.partials is not empty
+      const partial = this.partials.pop().teardown()
+      // @ts-expect-error: target has a parent
+      target.parentNode.removeChild(partial.el)
     }
+    
+    // items and partials are of equal length, zip them up
+    forBoth(this.partials, items, (partial, item) => {
+      partial.merge({ [this.valueName]: item })
+    })
   }
 }
 
-function bootsrapReference ({ nodePath, name }: ReferenceDirective) {
 
-  return function setup (host: Component) {
-    // crawl upto the defining component
+// TODO: implement reference arrays or getter(index/key) function for loop instructions
+class ReferenceDirective implements Directive {
+  
+  static configure ({ nodePath, name }: ReferenceConfig) {
+    return (host: Component) => new ReferenceDirective(host, name, nodePath)
+  }
+
+  constructor (public host: Component, public name: string, nodePath: NodePath) {
     while (host.host) host = host.host
-    
-    // TODO: implement reference arrays or getter(index/key) function for loop instructions
     host.refs[name] = resolve(host.el, nodePath)
+  }
 
-    return function teardown () {
-      host.refs[name] = null // JIT: faster delete
-    }
+  destructor () {
+    this.host.refs[this.name] = null // JIT: faster delete
   }
 }
 
-function finalizeComponent ({ nodePath, name, props, slots }: ComponentDirective) {
-  console.assert(hasOwn(Registry, name), `component "${name}" has not been defined`)
-  const componentFactory = Registry[name]
-  const slotFactories = mapOwn(slots, slot => bootstrapComponent(slot))
-  const computes = mapOwn(props, evaluate)
-  const paths = flatten(map(keys(props), prop => props[prop].paths))
 
-  return function setup (host: Component) {
-    
-    function getProps () {
-      return mapOwn(computes, c => c.call(host.store.data))
-    }
+class ComponentDirective implements Directive, Command {
 
-    // initial render - we pass props to the constructor so they can be read by child-setup routines
-    const component = componentFactory(host, getProps(), mapOwn(slotFactories, setup => setup(host)))
-    
-    function task () {
-      component.merge(getProps())
-    }
+  static configure ({ nodePath, name, props, slots }: ComponentConfig) {
+    console.assert(hasOwn(Registry, name), `component "${name}" has not been defined`)
+    const componentCtor = Registry[name]
+    const slotCtors = mapOwn(slots, (slot, slotName) => Component.configure(slot, name + ":" + slotName))
+    const computes = mapOwn(props, evaluate)
+    const paths = flatten(map(keys(props), prop => props[prop].paths))
+  
+    return (host: Component) => new ComponentDirective(host, paths, computes, componentCtor, slotCtors, nodePath)
+  }
 
-    component.mount(resolve(host.el, nodePath))
-    forEach(paths, path => host.store.subscribe(path, task))
-    return function teardown () {
-      component.teardown()
-      forEach(paths, path => host.store.unsubscribe(path, task))
-    }
+  component: Component
+
+  constructor(
+    public host: Component,
+    public paths: KeyPath[],
+    public computes: { [key: string]: Function },
+    componentCtor: Function,
+    slotCtors: { [key: string]: Installer },
+    nodePath: NodePath
+  ) {
+    const slots = mapOwn(slotCtors, slotCtor => slotCtor(host))
+    this.component = new componentCtor(host, this.getProps(), slots).mount(resolve(host.el, nodePath))
+    forEach(this.paths, path => this.host.store.subscribe(path, this))
+  }
+
+  destructor () {
+    this.component.destructor()
+    forEach(this.paths, path => this.host.store.unsubscribe(path, this))
+  }
+
+  execute () {
+    this.component.merge(this.getProps())
+  }
+
+  getProps () {
+    return mapOwn(this.computes, compute => compute.call(this.host.store.data))
   }
 }
 
-function bootstrapSlot ({ nodePath, name, template }: SlotDirective) {
-  const defaultSlot = template ? bootstrapComponent(template) : null
 
-  return function setup (host: Component) {
+class SlotDirective implements Directive {
+
+  static configure ({ nodePath, name, template }: SlotConfig) {
+    const defaultSlot = template ? Component.configure(template) : null
+    return (host: Component) => new SlotDirective(host, name, defaultSlot, nodePath)
+  }
+
+  slot: Component
+
+  constructor(public host: Component, name: string, defaultSlot: Installer | null, nodePath: NodePath) {
     const { el, tag, slots } = host
     const target = resolve(el, nodePath)
-    let slot
 
     // slots render using their defining component's view model. if transcluded,
     // that component is different from their hosting component
     if (slots && hasOwn(slots, name)) {
-      slot = slots[name].mount(target)
+      this.slot = slots[name].mount(target)
     }
     else {
       console.assert(defaultSlot != null, `component "${tag}" has no default slot i.e. requires an input slot "${name}"`)
       // @ts-expect-error: we just asserted that defaultSlot exists
-      slot = defaultSlot(host).mount(target)
+      this.slot = defaultSlot(host).mount(target)
     }
+  }
 
-    return function teardown () {
-      slot.teardown()
-    }
+  destructor () {
+    this.slot.destructor()
   }
 }
 
-function bootstrapSwitch ({ nodePath, switched, partials }: SwitchDirective) {
-  const compute = evaluate(switched)
+type Branch = { install: (host: Component) => Component, compute: Function }
 
-  const cases = map(partials, ({ template, expression }) => ({
-    setup: bootstrapComponent(template),
-    compute: evaluate(expression),
-  }))
+class IfDirective implements Directive, Command {
 
-  const paths = switched.paths.concat(...map(partials, p => p.expression.paths))
-
-  return function setup (host: Component) {
-    const target = resolve(host.el, nodePath)
-    let prev: typeof cases[number] | null = null
-    let mounted: Component | null = null
-
-    function task () {
-      const value = compute.call(host.store.data)
-      const next = find(cases, c => c.compute.call(host.store.data) === value)
-
-      if (prev === next) return
-      prev = next
-
-      if (mounted) {
-        mounted.teardown()
-        
-        if (next) {
-          mounted = next.setup(host).mount(mounted.el)
-        }
-        else {
-          replaceNode(mounted.el, target)
-          mounted = null
-        }
-      }
-      else if (next) {
-        mounted = next.setup(host).mount(target)
-      }
-    }
-
-    // initial render
-    task()
-
-    // TODO: do not subscribe to conditions below/after the currently fulfilled one
-    forEach(paths, path => host.store.subscribe(path, task))
-    return function teardown () {
-      if (mounted) mounted.teardown()
-      forEach(paths, path => host.store.unsubscribe(path, task))
-    }
+  static configure ({ nodePath, partials }: IfConfig) {
+    const paths = flatten(map(partials, partial => partial.expression.paths));
+    const branches = map(partials, ({ template, expression }) => ({
+      install: Component.configure(template),
+      compute: evaluate(expression),
+    }))
+  
+    return (host: Component) => new IfDirective(host, paths, branches, nodePath)
   }
-}
 
-function bootstrapConditional ({ nodePath, partials }: ConditionalDirective) {
-  const conditions = map(partials, ({ template, expression }) => ({
-    setup: bootstrapComponent(template),
-    compute: evaluate(expression),
-  }))
+  target: Node
 
-  const paths = flatten(map(partials, p => p.expression.paths));
+  partial: Component | null = null
 
-  return function setup (host: Component) {
-    const target = resolve(host.el, nodePath)
-    let prev: typeof conditions[number] | null = null
-    let mounted: Component | null = null
+  previousBranch: Branch | null = null
 
-    function task () {
-      const next = find(conditions, c => c.compute.call(host.store.data))
+  constructor (
+    public host: Component,
+    public paths: KeyPath[],
+    public branches: Branch[],
+    nodePath: NodePath
+  ) {
+    this.target = resolve(host.el, nodePath)
+    this.execute()
+    forEach(this.paths, path => this.host.store.subscribe(path, this))
+  }
 
-      if (prev === next) return
-      prev = next
+  destructor () {
+    if (this.partial) this.partial.destructor()
+    forEach(this.paths, path => this.host.store.unsubscribe(path, this))
+  }
 
-      if (mounted) {
-        mounted.teardown()
-        
-        if (next) {
-          mounted = next.setup(host).mount(mounted.el)
-        }
-        else {
-          replaceNode(mounted.el, target)
-          mounted = null
-        }
+  execute() {
+    const nextBranch = this.getNextBranch()
+
+    if (this.previousBranch === nextBranch) return
+    this.previousBranch = nextBranch
+
+    if (this.partial) {
+      this.partial.destructor()
+      
+      if (nextBranch) {
+        this.partial = nextBranch.install(this.host).mount(this.partial.el)
       }
-      else if (next) {
-        mounted = next.setup(host).mount(target)
+      else {
+        // TODO: create the "null-case" to uniform the interface
+        replaceNode(this.partial.el, this.target)
+        this.partial = null
       }
     }
-
-    // initial render
-    task()
-
-    // TODO: do not subscribe to conditions below/after the currently fulfilled one
-    forEach(paths, path => host.store.subscribe(path, task));
-    return function teardown () {
-      if (mounted) mounted.teardown()
-      forEach(paths, path => host.store.unsubscribe(path, task));
+    else if (nextBranch) {
+      this.partial = nextBranch.install(this.host).mount(this.target)
     }
+  }
+
+  getNextBranch () {
+    return find(this.branches, case_ => case_.compute.call(this.host.store.data))
   }
 }
 
-function bootstrapSetter ({ type, nodePath, name, expression }: PropertyDirective | DatasetDirective | AttributeDirective) {
-  const effect = Effects[type]
-  const { paths } = expression
-  const compute = evaluate(expression)
 
-  return function setup (host: Component) {
-    const target = resolve(host.el, nodePath) as Element
-    
-    function task () {
-      effect(target, compute.call(host.store.data), name)
-    }
+class SwitchDirective extends IfDirective {
 
-    // initial render
-    task()
+  static configure ({ nodePath, partials, switched }: SwitchConfig) {
+    const compute = evaluate(switched)
+    const paths = switched.paths.concat(...map(partials, p => p.expression.paths))
+    const branches = map(partials, ({ template, expression }) => ({
+      install: Component.configure(template),
+      compute: evaluate(expression),
+    }))
+  
+    return (host: Component) => new SwitchDirective(host, paths, branches, nodePath, compute)
+  }
 
-    forEach(paths, path => host.store.subscribe(path, task))
-    return function teardown () {
-      forEach(paths, path => host.store.unsubscribe(path, task))
-    }
+  constructor (
+    host: Component,
+    paths: KeyPath[],
+    branches: Branch[],
+    nodePath: NodePath,
+    public compute: Function,
+  ) {
+    super(host, paths, branches, nodePath)
+  }
+
+  getNextBranch () {
+    const value = this.compute.call(this.host.store.data)
+    return find(this.branches, case_ => case_.compute.call(this.host.store.data) === value)
   }
 }
 
-function bootstrapPresetSetter ({ type, nodePath, preset, expression }: ClassNameDirective | StyleDirective) {
-  const effect = Effects[type]
-  const { paths } = expression
-  const compute = evaluate(expression)
 
-  return function setup (host: Component) {
-    let target = resolve(host.el, nodePath) as HTMLElement
-    
-    function task () {
-      effect(target, compute.call(host.store.data), preset)
-    }
+class SetterDirective implements Directive, Command {
 
-    // initial render
-    task()
+  static configure ({ type, nodePath, payload, expression }: SetterConfig) {
+    const effect = Effects[type]
+    const compute = evaluate(expression)
+  
+    return (host: Component) => new SetterDirective(host, expression.paths, compute, effect, payload, nodePath)
+  }
 
-    forEach(paths, path => host.store.subscribe(path, task))
-    return function teardown () {
-      forEach(paths, path => host.store.unsubscribe(path, task))
-    }
+  target: Node
+
+  constructor(
+    public host: Component,
+    public paths: KeyPath[],
+    public compute: Function,
+    public effect: Function,
+    public payload: string,
+    nodePath: NodePath,
+  ) {
+    this.target = resolve(host.el, nodePath)
+    this.execute()
+    forEach(this.paths, path => this.host.store.subscribe(path, this))
+  }
+
+  destructor () {
+    forEach(this.paths, path => this.host.store.unsubscribe(path, this))
+  }
+
+  execute() {
+    this.effect(this.target, this.compute.call(this.host.store.data), this.payload)
   }
 }
 
-function bootstrapText ({ type, nodePath, expression }: TextDirective) {
-  const effect = Effects[type]
-  const { paths } = expression
-  const compute = evaluate(expression)
 
-  return function setup (host: Component) {
-    let target = resolve(host.el, nodePath) as Text
-    
-    function task () {
-      effect(target, compute.call(host.store.data))
-    }
+class TextDirective implements Directive, Command {
 
-    // initial render
-    task()
+  static configure ({ type, nodePath, expression }: TextConfig) {
+    const compute = evaluate(expression)
+    return (host: Component) => new TextDirective(host, expression.paths, compute, nodePath)
+  }
 
-    forEach(paths, path => host.store.subscribe(path, task))
-    return function teardown () {
-      forEach(paths, path => host.store.unsubscribe(path, task))
-    }
+  target: Text
+
+  constructor(public host: Component, public paths: KeyPath[], public compute: Function, nodePath: NodePath) {
+    this.target = resolve(host.el, nodePath) as Text
+    this.execute()
+    forEach(this.paths, path => this.host.store.subscribe(path, this))
+  }
+
+  destructor () {
+    forEach(this.paths, path => this.host.store.unsubscribe(path, this))
+  }
+
+  execute () {
+    Effects[DirectiveType.TEXT](this.target, this.compute.call(this.host.store.data))
   }
 }
 
-function bootstrapListener ({ nodePath, event, expression }: ListenerDirective) {
-  const handler = evaluate(expression)
 
-  return function setup (host: Component) {
-    const target = resolve(host.el, nodePath)
+class ListenerDirective implements Directive {
 
-    function proxy () {
-      // TODO: unclear how to get hold of the event object or the reference to the component instance
-      handler.call(host.store.data);
-    }
+  static configure ({ nodePath, event, expression }: ListenerConfig) {
+    const handler = evaluate(expression)
+    return (host: Component) => new ListenerDirective(host, event, handler, nodePath)
+  }
 
-    target.addEventListener(event, proxy, false)
-    return function teardown () {
-      target.removeEventListener(event, proxy, false)
-    }
+  target: Node
+
+  proxy: EventListener
+
+  constructor(
+    public host: Component,
+    public event: string,
+    handler: Function,
+    nodePath: NodePath
+  ) {
+    this.target = resolve(this.host.el, nodePath);
+    this.proxy = () => handler.call(this.host)
+    this.target.addEventListener(this.event, this.proxy, false)
+  }
+
+  destructor () {
+    this.target.removeEventListener(this.event, this.proxy, false)
   }
 }
 
-type taskFactory = (host: Component) => () => void;
-
-const bootstappers: { [type: string]: (any) => taskFactory } = {
-  [DirectiveType.FOR]: bootstrapFor,
-  [DirectiveType.REFERENCE]: bootsrapReference,
-  [DirectiveType.COMPONENT]: finalizeComponent,
-  [DirectiveType.SLOT]: bootstrapSlot,
-  [DirectiveType.SWITCH]: bootstrapSwitch,
-  [DirectiveType.IF]: bootstrapConditional,
-  [DirectiveType.ATTRIBUTE]: bootstrapSetter,
-  [DirectiveType.DATASET]: bootstrapSetter,
-  [DirectiveType.PROPERTY]: bootstrapSetter,
-  [DirectiveType.CLASSNAME]: bootstrapPresetSetter,
-  [DirectiveType.STYLE]: bootstrapPresetSetter,
-  [DirectiveType.TEXT]: bootstrapText,
-  [DirectiveType.LISTENER]: bootstrapListener,
-}
-
-export type componentFactory = (
-  host: Component,
-  props?: { [prop: string]: any },
-  slots?: { [name: string]: Component }
-  ) => Component;
-
-type ReferenceMap = { [name: string]: Node | Node[] | null };
-
-export interface Component {
-  el: Node;
-  tag: string;
-  host: Component;
-  refs: ReferenceMap;
-  store: Store;
-  slots?: { [name: string]: Component };
-  teardowns: Function[];
-  mount (this: Component, node: Node): Component;
-  merge (this: Component, state: any): Component;
-  teardown (this: Component): Component;
-}
-
-/**
- * @param template - dom fragment and instruction to act on it
- * @param state - initial state factory. if not provided, the state will be
- *   inherited from the parent component.
+/* -----------------------------------------------------------------------------
+ * component stuff
  */
-export function bootstrapComponent (template: Template, state?: Function): componentFactory {
-  const setups = map(template.directives, i => bootstappers[i.type](i))
 
-  const setup: componentFactory = (host, props, slots) => {
-    const store = state
-      // components
-      ? props
+const configurers = {
+  [DirectiveType.IF]: IfDirective.configure,
+  [DirectiveType.FOR]: ForDirective.configure,
+  [DirectiveType.TEXT]: TextDirective.configure,
+  [DirectiveType.SLOT]: SlotDirective.configure,
+  [DirectiveType.STYLE]: SetterDirective.configure,
+  [DirectiveType.SWITCH]: SwitchDirective.configure,
+  [DirectiveType.DATASET]: SetterDirective.configure,
+  [DirectiveType.PROPERTY]: SetterDirective.configure,
+  [DirectiveType.ATTRIBUTE]: SetterDirective.configure,
+  [DirectiveType.CLASSNAME]: SetterDirective.configure,
+  [DirectiveType.LISTENER]: ListenerDirective.configure,
+  [DirectiveType.REFERENCE]: ReferenceDirective.configure,
+  [DirectiveType.COMPONENT]: ComponentDirective.configure,
+}
+
+class Component {
+
+  static configure (template: Template, tag: string = '#partial', state?: Function) {
+    const installers = map(template.directives, config => configurers[config.type](config))
+ 
+    // continue: grab return type of this function 
+    return (host: Component | null, props?: Record<string, any>, slots?: Record<string, Component>) =>
+      new Component(host, tag, template.el, installers, props, state, slots)
+  }
+
+  el: Node
+  
+  refs: Record<string, Node | Node[] | null>
+  
+  store: Store
+  
+  directives: Directive[]
+
+  constructor(
+    public host: Component | null,
+    public tag: string,
+    template: Node,
+    installers: Installer[],
+    props?:  Record<string, any>,
+    state?: Function,
+    public slots?: Record<string, Component>,
+  ) {
+    this.el = clone(template)
+    this.refs = {}
+    this.store = state
+      ? props // components
         ? new Store(extend(props, state()))
         : new Store(state())
-      // partials
-      : props
-        // repeatables
-        ? new StoreLayer(props, host.store)
-        // slots, if/elif/else, switch-cases
-        : host.store
+      : props // partials
+        ? new StoreLayer(props, host.store) // repeatables
+        : host.store // slots, if/elif/else, switch-cases
 
-    const component: Component = {
-      el: clone(template.el),
-      tag: '',
-      host,
-      refs: {},
-      slots,
-      store,
-      teardowns: [],
-
-      mount (node: Node) {
-        replaceNode(node, this.el)
-        return this
-      },
-
-      teardown () {
-        if (this.slots) forOwn(this.slots, slot => { slot.teardown() })
-        forEach(this.teardowns, teardown => teardown())
-        return this
-      },
-
-      merge (src) {
-        this.store.merge(src)
-        this.store.update()
-        return this
-      }
-    }
-
-    // setup subscriptions to state and render initially
-    component.teardowns = map(setups, setup => setup(component))
-        
-    return component
+    this.directives = map(installers, install => install(this))
   }
 
-  return setup
+  destructor () {
+    if (this.slots) forOwn(this.slots, slot => { slot.destructor() })
+    forEach(this.directives, task => task.destructor())
+    return this
+  }
+
+  mount (node: Node) {
+    replaceNode(node, this.el)
+    return this
+  }
+
+  merge (src: any) {
+    this.store.merge(src)
+    this.store.update()
+    return this
+  }
 }
+
+type ComponentClass = ReturnType<typeof Component.configure>

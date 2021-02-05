@@ -39,40 +39,30 @@ const assignOperators = '=,++,--,+=,-=,*=,/=,|=,&=,^=,%=,<<=,>>=,>>>='.split(','
 class Scanner {
 
   /** parser index */
-  index: number
+  index = 0
 
   /** input source code */
-  input: string
+  input = ''
 
   /** input delimiter */
-  suffix: string
+  suffix = ''
 
   /** pending index used for buffering, copying parts from input to output */
-  anchor: number
+  anchor = 0
 
-  /** used to keep track of bracketStack/braces/parentheses */
-  bracketStack: string[]
+  /** used to keep track of brackets, braces and parentheses */
+  bracketStack: string[] = []
 
   /** indicates whether the current identifier could be an object key */
-  maybeKey: boolean
+  maybeKey = false
 
   /** result: array of key-chains being collected */
-  match: Expression
-
-  constructor () {
-    this.index = 0
-    this.input = ''
-    this.suffix = ''
-    this.anchor = 0
-    this.bracketStack = []
-    this.maybeKey = false
-    this.match = {
-      // TODO: make this a set and serialize as array
-      paths: [],
-      source: '',
-      begin: 0,
-      end: 0
-    }
+  match: Expression = {
+    // TODO: make this a set and serialize as array
+    paths: [],
+    source: '',
+    begin: 0,
+    end: 0
   }
 
   /* ---------------------------------------------------------------------------

@@ -11,7 +11,7 @@ export enum NodeType {
   FRAGMENT = 11,
 }
 
-const WHITESPACERS: { [key: string]: true } = {}
+const WHITESPACERS: Record<string, true> = {}
 WHITESPACERS.A =
 WHITESPACERS.ABBR =
 WHITESPACERS.B =
@@ -127,12 +127,12 @@ export function createFragment (node?: Node): DocumentFragment {
   return frag
 }
 
-export function createMountNode (type: DirectiveType): Comment {
-  return document.createComment(type)
+export function createMountNode (directive: DirectiveType): Comment {
+  return document.createComment(directive)
 }
 
-export function isMountNode (node: Node & { data?: string }, type: DirectiveType) {
-  return node.nodeType === NodeType.COMMENT && node.data === type
+export function isMountNode (node: Node & { data?: string }, directive: DirectiveType) {
+  return node.nodeType === NodeType.COMMENT && node.data === directive
 }
 
 /* -----------------------------------------------------------------------------

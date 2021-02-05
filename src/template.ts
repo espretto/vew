@@ -1,26 +1,15 @@
-import type { Expression } from './expression'
-import type { Directive, Partial } from './directive'
-
-import Registry from './registry'
-import { TreeWalker } from './dom/treewalker'
-import { hasOwn, keys, forOwn } from './util/object'
-import { startsWith, camelCase } from './util/string'
-import { last, filter, forEach } from './util/array'
-import { DirectiveType, isFlowControl } from './directive'
-import { createExpression, searchExpression } from './expression'
+import { DirectiveType, DirectiveConfig, isFlowControl, PartialConfig, ComponentConfig } from './directive';
 import {
-  NodeType,
-  isElement,
-  isEmptyText,
-  isMountNode,
-  isBlankElement,
-  isTextBoundary,
-  getNodeName,
-  getAttributes,
-  createMountNode,
-  preservesWhitespace,
+  createMountNode, getAttributes, getNodeName, isBlankElement, isElement,
+  isEmptyText, isMountNode, isTextBoundary, NodeType, preservesWhitespace,
   replaceNode as replaceNode_
 } from './dom/core'
+import { TreeWalker } from './dom/treewalker'
+import { createExpression, searchExpression } from './expression'
+import Registry from './registry'
+import { filter, forEach, last } from './util/array'
+import { forOwn, hasOwn, keys } from './util/object'
+import { camelCase, startsWith } from './util/string'
 
 
 const reMatchFor = /^\s*(?:([a-z_$][\w$]*)|\[\s*([a-z_$][\w$]*)\s*,\s*([a-z_$][\w$]*)\s*\])\s*of([\s\S]*)$/i
@@ -37,7 +26,7 @@ export default class Template {
 
   el: Node
   
-  directives: Directive[]
+  directives: DirectiveConfig[]
 
   constructor (el: Element) {
     this.el = el
@@ -191,7 +180,7 @@ export default class Template {
           throw new Error('directive --elif/--else must be preceded by --if, --elif or --for')
         }
 
-        ;(last(this.directives) as { partials: Partial[] }).partials.push({
+        ;(last(this.directives) as { partials: PartialConfig[] }).partials.push({
           template: new Template(el),
           expression: createExpression(directiveType === DirectiveType.ELIF ? value : 'true')
         })
@@ -222,7 +211,7 @@ export default class Template {
         throw new Error('the --default directive can only be used within --switch')
 
       case DirectiveType.SWITCH:
-        const partials: Partial[] = []
+        const partials: PartialConfig[] = []
 
         // retrieve element nodes from live NodeList for ulterior removal
         const elements = filter(el.childNodes, isElement)
@@ -271,8 +260,8 @@ export default class Template {
 
   componentState (tw: TreeWalker, name: string, attrs: { [attrName: string]: string }) {
     const root = tw.node as Element
-    const slots: { [name: string]: Template } = {}
-    const props: { [prop: string]: Expression } = {}
+    const slots: ComponentConfig["slots"] = {}
+    const props: ComponentConfig["props"] = {}
 
     forOwn(attrs, (attrValue, attrName) => {
       props[camelCase(attrName)] = createExpression(attrValue)
@@ -318,7 +307,7 @@ export default class Template {
       this.directives.push({
         type: DirectiveType.CLASSNAME,
         nodePath,
-        preset: el.className,
+        payload: el.className,
         expression
       })
     }
@@ -326,7 +315,7 @@ export default class Template {
       this.directives.push({
         type: DirectiveType.STYLE,
         nodePath,
-        preset: el.style.cssText,
+        payload: el.style.cssText,
         expression
       })
     }
@@ -348,7 +337,7 @@ export default class Template {
     else if (startsWith(attrName, 'DATA-')) {
       this.directives.push({
         type: DirectiveType.DATASET,
-        name: attrName.substring('DATA-'.length),
+        payload: attrName.substring('DATA-'.length),
         nodePath,
         expression
       })
@@ -356,7 +345,7 @@ export default class Template {
     else if (camelCase(attrName) in el) {
       this.directives.push({
         type: DirectiveType.PROPERTY,
-        name: camelCase(attrName),
+        payload: camelCase(attrName),
         nodePath,
         expression
       })
@@ -364,7 +353,7 @@ export default class Template {
     else {
       this.directives.push({
         type: DirectiveType.ATTRIBUTE,
-        name: attrName,
+        payload: attrName,
         nodePath,
         expression
       })
