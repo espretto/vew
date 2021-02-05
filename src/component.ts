@@ -3,7 +3,7 @@ import type {
   ReferenceConfig, SlotConfig, SetterConfig,
   SwitchConfig, TextConfig,
 } from './directive'
-import { DirectiveType } from './directive';
+import { DirectiveType, DirectiveConfig, TopLevelDirective } from './directive';
 import { clone, replaceNode } from './dom/core'
 import Effects from './dom/effects'
 import { resolve, NodePath } from './dom/treewalker';
@@ -30,9 +30,9 @@ class ForDirective implements Directive, Command {
   // TODO: elif/else branching after loop expressions 
   static configure ({ nodePath, keyName, valueName, partials }: ForConfig): Installer {
     const { template, expression } = partials[0]
-    const partialCtor = Component.configure(template)
+    const partialFactory = Component.configure(template)
     const compute = evaluate(expression)
-    return (host: Component) => new ForDirective(host, valueName, partialCtor, expression.paths, compute, nodePath)
+    return (host: Component) => new ForDirective(host, valueName, partialFactory, expression.paths, compute, nodePath)
   }
   
   target: Node
@@ -40,14 +40,14 @@ class ForDirective implements Directive, Command {
   partials: Component[]
 
   constructor (
-    public host: Component,
+    public host: Component, // continue: babel doesnt transform constructor parameter properties correctly
     public valueName: string,
-    public partialCtor: Function,
+    public partialFactory: ComponentFactory,
     public paths: KeyPath[],
     public compute: Function,
     nodePath: NodePath,
   ) {
-    this.target = resolve(this.host.el, nodePath)
+    this.target = resolve(host.el, nodePath)
     this.partials = []
     this.execute()
     forEach(this.paths, path => host.store.subscribe(path, this))
@@ -64,7 +64,7 @@ class ForDirective implements Directive, Command {
     // create missing partials
     while (this.partials.length < items.length) {
       const props = { [this.valueName]: items[this.partials.length] }
-      const partial = new this.partialCtor(this.host, props)
+      const partial = this.partialFactory(this.host, props)
       // TODO: subscribe to host on every path except `valueName` and `keyName`
       // @ts-expect-error: target has a parent
       target.parentNode.appendChild(partial.el)
@@ -90,7 +90,7 @@ class ForDirective implements Directive, Command {
 // TODO: implement reference arrays or getter(index/key) function for loop instructions
 class ReferenceDirective implements Directive {
   
-  static configure ({ nodePath, name }: ReferenceConfig) {
+  static configure ({ nodePath, name }: ReferenceConfig): Installer {
     return (host: Component) => new ReferenceDirective(host, name, nodePath)
   }
 
@@ -107,14 +107,14 @@ class ReferenceDirective implements Directive {
 
 class ComponentDirective implements Directive, Command {
 
-  static configure ({ nodePath, name, props, slots }: ComponentConfig) {
+  static configure ({ nodePath, name, props, slots }: ComponentConfig): Installer {
     console.assert(hasOwn(Registry, name), `component "${name}" has not been defined`)
-    const componentCtor = Registry[name]
-    const slotCtors = mapOwn(slots, (slot, slotName) => Component.configure(slot, name + ":" + slotName))
+    const componentFactory = Registry[name]
+    const slotFactories = mapOwn(slots, (slot, slotName) => Component.configure(slot, name + ":" + slotName))
     const computes = mapOwn(props, evaluate)
     const paths = flatten(map(keys(props), prop => props[prop].paths))
   
-    return (host: Component) => new ComponentDirective(host, paths, computes, componentCtor, slotCtors, nodePath)
+    return (host: Component) => new ComponentDirective(host, paths, computes, componentFactory, slotFactories, nodePath)
   }
 
   component: Component
@@ -123,12 +123,12 @@ class ComponentDirective implements Directive, Command {
     public host: Component,
     public paths: KeyPath[],
     public computes: { [key: string]: Function },
-    componentCtor: Function,
-    slotCtors: { [key: string]: Installer },
+    componentFactory: ComponentFactory,
+    slotFactories: Record<string, ComponentFactory>,
     nodePath: NodePath
   ) {
-    const slots = mapOwn(slotCtors, slotCtor => slotCtor(host))
-    this.component = new componentCtor(host, this.getProps(), slots).mount(resolve(host.el, nodePath))
+    const slots = mapOwn(slotFactories, slotFactory => slotFactory(host))
+    this.component = componentFactory(host, this.getProps(), slots).mount(resolve(host.el, nodePath))
     forEach(this.paths, path => this.host.store.subscribe(path, this))
   }
 
@@ -149,14 +149,14 @@ class ComponentDirective implements Directive, Command {
 
 class SlotDirective implements Directive {
 
-  static configure ({ nodePath, name, template }: SlotConfig) {
-    const defaultSlot = template ? Component.configure(template) : null
-    return (host: Component) => new SlotDirective(host, name, defaultSlot, nodePath)
+  static configure ({ nodePath, name, template }: SlotConfig): Installer {
+    const defaultSlotFactory = template ? Component.configure(template) : null
+    return (host: Component) => new SlotDirective(host, name, defaultSlotFactory, nodePath)
   }
 
   slot: Component
 
-  constructor(public host: Component, name: string, defaultSlot: Installer | null, nodePath: NodePath) {
+  constructor(public host: Component, name: string, defaultSlotFactory: ComponentFactory | null, nodePath: NodePath) {
     const { el, tag, slots } = host
     const target = resolve(el, nodePath)
 
@@ -166,9 +166,9 @@ class SlotDirective implements Directive {
       this.slot = slots[name].mount(target)
     }
     else {
-      console.assert(defaultSlot != null, `component "${tag}" has no default slot i.e. requires an input slot "${name}"`)
-      // @ts-expect-error: we just asserted that defaultSlot exists
-      this.slot = defaultSlot(host).mount(target)
+      console.assert(defaultSlotFactory != null, `component "${tag}" has no default slot i.e. requires an input slot "${name}"`)
+      // @ts-expect-error: we just asserted that defaultSlotFactory exists
+      this.slot = defaultSlotFactory(host).mount(target)
     }
   }
 
@@ -181,7 +181,7 @@ type Branch = { install: (host: Component) => Component, compute: Function }
 
 class IfDirective implements Directive, Command {
 
-  static configure ({ nodePath, partials }: IfConfig) {
+  static configure ({ nodePath, partials }: IfConfig): Installer {
     const paths = flatten(map(partials, partial => partial.expression.paths));
     const branches = map(partials, ({ template, expression }) => ({
       install: Component.configure(template),
@@ -244,7 +244,7 @@ class IfDirective implements Directive, Command {
 
 class SwitchDirective extends IfDirective {
 
-  static configure ({ nodePath, partials, switched }: SwitchConfig) {
+  static configure ({ nodePath, partials, switched }: SwitchConfig): Installer {
     const compute = evaluate(switched)
     const paths = switched.paths.concat(...map(partials, p => p.expression.paths))
     const branches = map(partials, ({ template, expression }) => ({
@@ -274,7 +274,7 @@ class SwitchDirective extends IfDirective {
 
 class SetterDirective implements Directive, Command {
 
-  static configure ({ type, nodePath, payload, expression }: SetterConfig) {
+  static configure ({ type, nodePath, payload, expression }: SetterConfig): Installer {
     const effect = Effects[type]
     const compute = evaluate(expression)
   
@@ -308,7 +308,7 @@ class SetterDirective implements Directive, Command {
 
 class TextDirective implements Directive, Command {
 
-  static configure ({ type, nodePath, expression }: TextConfig) {
+  static configure ({ type, nodePath, expression }: TextConfig): Installer {
     const compute = evaluate(expression)
     return (host: Component) => new TextDirective(host, expression.paths, compute, nodePath)
   }
@@ -333,7 +333,7 @@ class TextDirective implements Directive, Command {
 
 class ListenerDirective implements Directive {
 
-  static configure ({ nodePath, event, expression }: ListenerConfig) {
+  static configure ({ nodePath, event, expression }: ListenerConfig): Installer {
     const handler = evaluate(expression)
     return (host: Component) => new ListenerDirective(host, event, handler, nodePath)
   }
@@ -362,7 +362,7 @@ class ListenerDirective implements Directive {
  * component stuff
  */
 
-const configurers = {
+const configurers: Record<TopLevelDirective, (config: DirectiveConfig) => Installer> = {
   [DirectiveType.IF]: IfDirective.configure,
   [DirectiveType.FOR]: ForDirective.configure,
   [DirectiveType.TEXT]: TextDirective.configure,
@@ -378,12 +378,11 @@ const configurers = {
   [DirectiveType.COMPONENT]: ComponentDirective.configure,
 }
 
-class Component {
+class Component implements Directive {
 
   static configure (template: Template, tag: string = '#partial', state?: Function) {
-    const installers = map(template.directives, config => configurers[config.type](config))
+    const installers = map(template.directives, dir => configurers[dir.type](dir))
  
-    // continue: grab return type of this function 
     return (host: Component | null, props?: Record<string, any>, slots?: Record<string, Component>) =>
       new Component(host, tag, template.el, installers, props, state, slots)
   }
@@ -407,6 +406,7 @@ class Component {
   ) {
     this.el = clone(template)
     this.refs = {}
+    // TODO: create the "NullStore" that throws on any interaction
     this.store = state
       ? props // components
         ? new Store(extend(props, state()))
@@ -415,6 +415,7 @@ class Component {
         ? new StoreLayer(props, host.store) // repeatables
         : host.store // slots, if/elif/else, switch-cases
 
+    debugger
     this.directives = map(installers, install => install(this))
   }
 
@@ -436,4 +437,6 @@ class Component {
   }
 }
 
-type ComponentClass = ReturnType<typeof Component.configure>
+export const configure = Component.configure
+
+export type ComponentFactory = ReturnType<typeof configure>

@@ -2,7 +2,6 @@ import type { NodePath } from './dom/treewalker'
 import type { Expression } from './expression'
 import type Template from './template'
 
-
 export enum DirectiveType {
   IF = 'IF',
   FOR = 'FOR',
@@ -97,8 +96,8 @@ export interface ForConfig extends BaseConfig {
 export interface ComponentConfig extends BaseConfig {
   type: DirectiveType.COMPONENT
   name: string
-  slots: { [name: string]: Template }
-  props: { [prop: string]: Expression }
+  slots: Record<string, Template>
+  props: Record<string, Expression>
 }
 
 export interface ReferenceConfig extends BaseConfig {

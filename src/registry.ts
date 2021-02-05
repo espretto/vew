@@ -1,7 +1,5 @@
-import type { componentFactory } from './component'
+import type { ComponentFactory } from './component'
 
-type Registry = { [tag: string]: componentFactory };
-
-const registry: Registry = {}
+const registry: Record<string, ComponentFactory> = {}
 
 export default registry

@@ -29,7 +29,7 @@ export default {
   },
 
   [DirectiveType.ATTRIBUTE]: (el: Element, value: primitive, attribute: string) => {
-    if (el.getAttribute(attribute) !==  String(value)) {
+    if (el.getAttribute(attribute) !== String(value)) {
       // @ts-expect-error: value is cast to string
       el.setAttribute(attribute, value)
     }
@@ -42,7 +42,7 @@ export default {
     }
   },
 
-  [DirectiveType.CLASSNAME]: (el: Element, value: string | { [className: string]: boolean }, className: string) => {
+  [DirectiveType.CLASSNAME]: (el: Element, value: string | Record<string, boolean>, className: string) => {
     if (isObject(value)) {
       forOwn(value, (active, klass) => {
         if (active) className += ' ' + klass
@@ -58,7 +58,7 @@ export default {
   },
 
   // TODO: cannot set properties "content" and "font-family" because their values contain quotes
-  [DirectiveType.STYLE]: (el: HTMLElement, value: string | { [property: string]: string }, cssText: string) => {
+  [DirectiveType.STYLE]: (el: HTMLElement, value: string | Record<string, string>, cssText: string) => {
     if (isObject(value)) {
       forOwn(value, (style, prop) => {
         cssText += ';' + kebabCase(prop) + ':' + style

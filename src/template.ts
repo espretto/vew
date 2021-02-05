@@ -16,7 +16,7 @@ const reMatchFor = /^\s*(?:([a-z_$][\w$]*)|\[\s*([a-z_$][\w$]*)\s*,\s*([a-z_$][\
 
 const DIRECTIVE_PREFIX = '--' // TODO: expose option
 
-const EXPRESSION_DELIMITERS: [string, string] = ['${', '}'] // TODO: expose option
+const EXPRESSION_DELIMITERS: [string, string] = ['{', '}'] // TODO: expose option
 
 
 /**

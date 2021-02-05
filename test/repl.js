@@ -284,7 +284,7 @@ if (module.hot) {
     template: `
       <div>
         <ul>
-          <li --for="todo of todos">\${todo} \${todos.length}</li>
+          <li --for="todo of todos">{todo} {todos.length}</li>
         </ul>
       </div>
     `
