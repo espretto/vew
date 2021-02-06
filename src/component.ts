@@ -50,7 +50,7 @@ class ForDirective implements Directive, Command {
     this.target = resolve(host.el, nodePath)
     this.partials = []
     this.execute()
-    forEach(this.paths, path => host.store.subscribe(path, this))
+    forEach(paths, path => host.store.subscribe(path, this))
   }
 
   destructor () {
@@ -67,16 +67,16 @@ class ForDirective implements Directive, Command {
       const partial = this.partialFactory(this.host, props)
       // TODO: subscribe to host on every path except `valueName` and `keyName`
       // @ts-expect-error: target has a parent
-      target.parentNode.appendChild(partial.el)
+      this.target.parentNode.appendChild(partial.el)
       this.partials.push(partial)
     }
     
     // remove superfluous partials
     while (this.partials.length > items.length) {
       // @ts-expect-error: this.partials is not empty
-      const partial = this.partials.pop().teardown()
+      const partial = this.partials.pop().destructor()
       // @ts-expect-error: target has a parent
-      target.parentNode.removeChild(partial.el)
+      this.target.parentNode.removeChild(partial.el)
     }
     
     // items and partials are of equal length, zip them up
@@ -177,14 +177,17 @@ class SlotDirective implements Directive {
   }
 }
 
-type Branch = { install: (host: Component) => Component, compute: Function }
+interface Branch {
+  compute: Function;
+  partialFactory: ComponentFactory;
+}
 
 class IfDirective implements Directive, Command {
 
   static configure ({ nodePath, partials }: IfConfig): Installer {
     const paths = flatten(map(partials, partial => partial.expression.paths));
-    const branches = map(partials, ({ template, expression }) => ({
-      install: Component.configure(template),
+    const branches: Branch[] = map(partials, ({ template, expression }) => ({
+      partialFactory: Component.configure(template),
       compute: evaluate(expression),
     }))
   
@@ -223,7 +226,7 @@ class IfDirective implements Directive, Command {
       this.partial.destructor()
       
       if (nextBranch) {
-        this.partial = nextBranch.install(this.host).mount(this.partial.el)
+        this.partial = nextBranch.partialFactory(this.host).mount(this.partial.el)
       }
       else {
         // TODO: create the "null-case" to uniform the interface
@@ -232,7 +235,7 @@ class IfDirective implements Directive, Command {
       }
     }
     else if (nextBranch) {
-      this.partial = nextBranch.install(this.host).mount(this.target)
+      this.partial = nextBranch.partialFactory(this.host).mount(this.target)
     }
   }
 
@@ -247,8 +250,8 @@ class SwitchDirective extends IfDirective {
   static configure ({ nodePath, partials, switched }: SwitchConfig): Installer {
     const compute = evaluate(switched)
     const paths = switched.paths.concat(...map(partials, p => p.expression.paths))
-    const branches = map(partials, ({ template, expression }) => ({
-      install: Component.configure(template),
+    const branches: Branch[] = map(partials, ({ template, expression }) => ({
+      partialFactory: Component.configure(template),
       compute: evaluate(expression),
     }))
   
@@ -340,7 +343,7 @@ class ListenerDirective implements Directive {
 
   target: Node
 
-  proxy: EventListener
+  listener: EventListener
 
   constructor(
     public host: Component,
@@ -349,12 +352,12 @@ class ListenerDirective implements Directive {
     nodePath: NodePath
   ) {
     this.target = resolve(this.host.el, nodePath);
-    this.proxy = () => handler.call(this.host)
-    this.target.addEventListener(this.event, this.proxy, false)
+    this.listener = event => handler.call(this.host, event)
+    this.target.addEventListener(this.event, this.listener, false)
   }
 
   destructor () {
-    this.target.removeEventListener(this.event, this.proxy, false)
+    this.target.removeEventListener(this.event, this.listener, false)
   }
 }
 
@@ -415,7 +418,6 @@ class Component implements Directive {
         ? new StoreLayer(props, host.store) // repeatables
         : host.store // slots, if/elif/else, switch-cases
 
-    debugger
     this.directives = map(installers, install => install(this))
   }
 
