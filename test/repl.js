@@ -279,8 +279,49 @@ if (module.hot) {
   })
   
   global.app = Component({
+    onCreate() {
+      // after component instance is created
+      return function onDestroy() {
+        // before component instance is dereferenced
+      }
+    },
+    onMount() {
+      // after component is attached
+      return function onUnmount() {
+        // before component is detached
+      }
+    },
+    onProps(prev) {
+      // after any input property changed
+      return function (next) {
+        // before any input property changed
+      }
+    },
+    onButtonClick(event) {
+      // standard event handler
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    onResize: {
+      type: "resize", // defaults to property name.substring("on".length)
+      target: window,
+      handleEvent(e) {
+        // custom
+      },
+      capture: false,
+      bubble: true,
+      passive: true,
+      throttle: 200,
+      debounce: 200,
+      trailing: false,
+      leading: true,
+    },
+
     el: '#root',
     data: () => ({ name: 'World', todos: ["wash dishes"] }),
+    doneTodos({ todos }) {
+      return todos.filter(todo => todo.done)
+    },
     template: `
       <div>
         <ul>
