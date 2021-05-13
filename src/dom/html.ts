@@ -4,14 +4,14 @@ import { NodeType, createFragment, createTextNode, extractContents, removeNode, 
 
          
 /** bug list */
-export const support: { [feature: string]: boolean } = {}
+export const support: Record<string, boolean> = {}
 
 /** used to parse/stringify html */
 const wrapElem: Element = document.createElement('div')
 
 /** used to associate tags with the parentNode(s) required for parsing */
 type WrapConf = [number, [string, string]]
-const wrapMap: { [tagName: string]: WrapConf } = {}
+const wrapMap: Record<string, WrapConf> = {}
 
 /** used to find the first html-tag (wont skip comments though) */
 const reTagName = /<([a-zA-Z][^>\/\t\n\f ]*)/
