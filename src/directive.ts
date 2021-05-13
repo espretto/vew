@@ -23,7 +23,7 @@ export enum DirectiveType {
 }
 
 export type TopLevelDirective =
-    DirectiveType.IF
+  | DirectiveType.IF
   | DirectiveType.FOR
   | DirectiveType.TEXT
   | DirectiveType.SLOT
@@ -74,7 +74,7 @@ export interface SlotConfig extends BaseConfig {
 
 export interface IfConfig extends BaseConfig {
   type:
-      DirectiveType.IF
+    | DirectiveType.IF
     | DirectiveType.ELIF
     | DirectiveType.ELSE
     | DirectiveType.SWITCH
@@ -113,7 +113,7 @@ export interface ListenerConfig extends BaseConfig {
 
 export interface SetterConfig extends BaseConfig {
   type:
-      DirectiveType.STYLE
+    | DirectiveType.STYLE
     | DirectiveType.DATASET
     | DirectiveType.PROPERTY
     | DirectiveType.CLASSNAME
@@ -123,7 +123,7 @@ export interface SetterConfig extends BaseConfig {
 }
 
 export type DirectiveConfig =
-    TextConfig
+  | TextConfig
   | SlotConfig
   | IfConfig
   | ForConfig
